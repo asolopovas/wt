@@ -10,9 +10,10 @@ permissions:
 
 env:
   WHISPER_VERSION: v1.8.4
+  WHISPER_ROOT: third_party/whisper.cpp
 
 jobs:
-  build-windows:
+  build:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -21,80 +22,74 @@ jobs:
         with:
           go-version: stable
 
-      - name: Install MSYS2 and MinGW
-        uses: msys2/setup-msys2@v2
+      - uses: msys2/setup-msys2@v2
         with:
           msystem: MINGW64
           path-type: inherit
           install: git mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake mingw-w64-x86_64-make
 
-      - name: Cache whisper.cpp build
-        uses: actions/cache@v4
+      - uses: actions/cache@v4
         with:
-          path: third_party/whisper.cpp
-          key: whisper-cpp-windows-${{ env.WHISPER_VERSION }}-nowarn
+          path: ${{ env.WHISPER_ROOT }}
+          key: whisper-${{ env.WHISPER_VERSION }}-static-nowarn
 
-      - name: Build whisper.cpp (CPU, static)
+      - name: whisper.cpp (CPU, static)
         shell: msys2 {0}
         run: |
-          if [ ! -d "third_party/whisper.cpp" ]; then
-            git clone --depth 1 --branch ${WHISPER_VERSION} https://github.com/ggml-org/whisper.cpp.git third_party/whisper.cpp
+          if [ ! -d "$WHISPER_ROOT" ]; then
+            git clone --depth 1 --branch "$WHISPER_VERSION" \
+              https://github.com/ggml-org/whisper.cpp.git "$WHISPER_ROOT"
           fi
-          if [ ! -f "third_party/whisper.cpp/build/src/libwhisper.a" ]; then
-            cd third_party/whisper.cpp
-            cmake -B build -G "MinGW Makefiles" \
-              -DCMAKE_BUILD_TYPE=Release \
-              -DBUILD_SHARED_LIBS=OFF \
-              -DWHISPER_BUILD_EXAMPLES=OFF \
-              -DWHISPER_BUILD_TESTS=OFF \
-              -DGGML_ALL_WARNINGS=OFF \
-              -DWHISPER_ALL_WARNINGS=OFF
-            cmake --build build -j$(nproc)
-            cd build/ggml/src
-            for f in ggml.a ggml-base.a ggml-cpu.a; do
-              [ -f "$f" ] && cp "$f" "lib$f" 2>/dev/null || true
-            done
+          if [ ! -f "$WHISPER_ROOT/build/src/libwhisper.a" ]; then
+            cmake -S "$WHISPER_ROOT" -B "$WHISPER_ROOT/build" -G "MinGW Makefiles" \
+              -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF \
+              -DWHISPER_BUILD_EXAMPLES=OFF -DWHISPER_BUILD_TESTS=OFF \
+              -DGGML_ALL_WARNINGS=OFF -DWHISPER_ALL_WARNINGS=OFF
+            cmake --build "$WHISPER_ROOT/build" -j$(nproc)
           fi
 
-      - name: Build wt
+      - name: Build binaries
         shell: msys2 {0}
         env:
           CGO_ENABLED: "1"
           CGO_CFLAGS: "-I${{ github.workspace }}/third_party/whisper.cpp/include -I${{ github.workspace }}/third_party/whisper.cpp/ggml/include"
           CGO_LDFLAGS: "-L${{ github.workspace }}/third_party/whisper.cpp/build/src -L${{ github.workspace }}/third_party/whisper.cpp/build/ggml/src -lwhisper -lggml -lggml-base -lggml-cpu -lm -lstdc++ -fopenmp -static"
         run: |
-          export PATH="/mingw64/bin:$PATH"
-          go build -ldflags="-s -w -X main.version=${{ github.ref_name }}" -o wt.exe ./cmd/wt
+          mkdir -p dist/bin
+          VERSION="${GITHUB_REF_NAME#v}"
+          go build -ldflags="-s -w -X main.Version=$VERSION"               -o dist/bin/wt.exe     ./cmd/wt
+          go build -ldflags="-s -w -X main.Version=$VERSION -H windowsgui" -o dist/bin/wt-gui.exe ./cmd/wt-gui
+          cp scripts/diarize.py dist/bin/
 
-      - name: Package
+      - name: Fetch uv.exe
         shell: pwsh
         run: |
-          $tag = "${{ github.ref_name }}"
-          $zipName = "wt-${tag}-windows-amd64.zip"
-          Compress-Archive -Path wt.exe -DestinationPath $zipName
+          New-Item -ItemType Directory -Force dist/deps | Out-Null
+          $url = "https://github.com/astral-sh/uv/releases/latest/download/uv-x86_64-pc-windows-msvc.zip"
+          Invoke-WebRequest -Uri $url -OutFile dist/deps/uv.zip
+          Expand-Archive -Force dist/deps/uv.zip dist/deps/tmp
+          Move-Item -Force dist/deps/tmp/uv.exe dist/deps/uv.exe
+          Remove-Item -Recurse -Force dist/deps/tmp, dist/deps/uv.zip
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
+      - name: Build installer (Inno Setup)
+        shell: pwsh
+        run: |
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" scripts\installer.iss
+
+      - uses: actions/upload-artifact@v4
         with:
-          name: windows-amd64
-          path: wt-*-windows-amd64.zip
+          name: wt-setup
+          path: dist/wt-setup.exe
 
   release:
-    needs: [build-windows]
+    needs: [build]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { name: wt-setup, path: dist }
 
-      - name: Download artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: dist
-          merge-multiple: true
-
-      - name: Create release
-        uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
-          files: |
-            dist/*
+          files: dist/wt-setup.exe

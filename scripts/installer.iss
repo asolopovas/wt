@@ -46,7 +46,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 [Files]
 Source: "..\dist\bin\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\dist\bin\wt-gui.exe"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\dist\bin\*.dll"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\dist\bin\*.dll"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
 Source: "..\dist\bin\diarize.py"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\dist\deps\uv.exe"; DestDir: "{app}\deps"; Flags: ignoreversion
 Source: "..\LICENSE"; DestDir: "{app}"; Flags: ignoreversion
