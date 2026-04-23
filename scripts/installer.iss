@@ -38,6 +38,7 @@ UninstallDisplayIcon={app}\{#MyAppExeName}
 WizardStyle=modern
 MinVersion=10.0
 SetupLogging=yes
+LicenseFile=..\LICENSE
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
@@ -74,13 +75,6 @@ const
   RequiredCudaVersion = '12.9';
 
 var
-  SettingsPage: TWizardPage;
-  ModelCombo: TNewComboBox;
-  LangCombo: TNewComboBox;
-  DeviceCombo: TNewComboBox;
-  ThreadsEdit: TNewEdit;
-  SpeakersCombo: TNewComboBox;
-  NoDiarizeCheckbox: TNewCheckBox;
   CfgModel, CfgLanguage, CfgDevice, CfgThreads: string;
   CfgSpeakers, CfgNoDiarize: string;
   SetupLogPath: string;
@@ -295,24 +289,6 @@ begin
             FileExists('C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.6\bin\nvcc.exe');
 end;
 
-function FindComboIndex(Combo: TNewComboBox; const Value: string): Integer;
-var I: Integer;
-begin
-  Result := 0;
-  for I := 0 to Combo.Items.Count - 1 do
-    if CompareText(Combo.Items[I], Value) = 0 then begin Result := I; exit; end;
-end;
-
-function MakeLabel(Page: TWizardPage; const Caption: string; Left, Top: Integer): TNewStaticText;
-begin
-  Result := TNewStaticText.Create(Page);
-  Result.Parent := Page.Surface;
-  Result.Caption := Caption;
-  Result.Left := Left;
-  Result.Top := Top;
-  Result.Font.Style := [fsBold];
-end;
-
 procedure CreateLogControls();
 var
   InstallingPage: TWinControl;
@@ -372,80 +348,11 @@ begin
 end;
 
 procedure InitializeWizard();
-var I: Integer;
 begin
   LoadExistingConfig();
   InitLog();
 
   if WizardSilent() then exit;
-
-  SettingsPage := CreateCustomPage(wpSelectDir,
-    'Settings', 'Configure wt defaults. Saved to config.yml.');
-
-  MakeLabel(SettingsPage, 'Model', 0, 0);
-  ModelCombo := TNewComboBox.Create(SettingsPage);
-  ModelCombo.Parent := SettingsPage.Surface;
-  ModelCombo.Top := 18; ModelCombo.Left := 0; ModelCombo.Width := 180;
-  ModelCombo.Style := csDropDownList;
-  ModelCombo.Items.Add('tiny');
-  ModelCombo.Items.Add('base');
-  ModelCombo.Items.Add('small');
-  ModelCombo.Items.Add('medium');
-  ModelCombo.Items.Add('large-v3');
-  ModelCombo.Items.Add('turbo');
-  if CfgModel <> '' then ModelCombo.ItemIndex := FindComboIndex(ModelCombo, CfgModel)
-  else ModelCombo.ItemIndex := FindComboIndex(ModelCombo, 'turbo');
-
-  MakeLabel(SettingsPage, 'Language', 220, 0);
-  LangCombo := TNewComboBox.Create(SettingsPage);
-  LangCombo.Parent := SettingsPage.Surface;
-  LangCombo.Top := 18; LangCombo.Left := 220; LangCombo.Width := 180;
-  LangCombo.Style := csDropDownList;
-  LangCombo.Items.Add('auto'); LangCombo.Items.Add('en');
-  LangCombo.Items.Add('zh');   LangCombo.Items.Add('de');
-  LangCombo.Items.Add('es');   LangCombo.Items.Add('ru');
-  LangCombo.Items.Add('ko');   LangCombo.Items.Add('fr');
-  LangCombo.Items.Add('ja');   LangCombo.Items.Add('pt');
-  LangCombo.Items.Add('tr');   LangCombo.Items.Add('pl');
-  LangCombo.Items.Add('nl');   LangCombo.Items.Add('ar');
-  LangCombo.Items.Add('sv');   LangCombo.Items.Add('it');
-  LangCombo.Items.Add('uk');
-  if (CfgLanguage <> '') and (CfgLanguage <> '""') then
-    LangCombo.ItemIndex := FindComboIndex(LangCombo, CfgLanguage)
-  else LangCombo.ItemIndex := 0;
-
-  MakeLabel(SettingsPage, 'Device', 0, 55);
-  DeviceCombo := TNewComboBox.Create(SettingsPage);
-  DeviceCombo.Parent := SettingsPage.Surface;
-  DeviceCombo.Top := 73; DeviceCombo.Left := 0; DeviceCombo.Width := 180;
-  DeviceCombo.Style := csDropDownList;
-  DeviceCombo.Items.Add('auto'); DeviceCombo.Items.Add('cuda'); DeviceCombo.Items.Add('cpu');
-  if CfgDevice <> '' then DeviceCombo.ItemIndex := FindComboIndex(DeviceCombo, CfgDevice)
-  else DeviceCombo.ItemIndex := 0;
-
-  MakeLabel(SettingsPage, 'Threads', 220, 55);
-  ThreadsEdit := TNewEdit.Create(SettingsPage);
-  ThreadsEdit.Parent := SettingsPage.Surface;
-  ThreadsEdit.Top := 73; ThreadsEdit.Left := 220; ThreadsEdit.Width := 80;
-  if (CfgThreads <> '') and (CfgThreads <> '0') then ThreadsEdit.Text := CfgThreads
-  else ThreadsEdit.Text := ExpandConstant('{%NUMBER_OF_PROCESSORS|4}');
-
-  MakeLabel(SettingsPage, 'Speakers', 0, 110);
-  SpeakersCombo := TNewComboBox.Create(SettingsPage);
-  SpeakersCombo.Parent := SettingsPage.Surface;
-  SpeakersCombo.Top := 128; SpeakersCombo.Left := 0; SpeakersCombo.Width := 180;
-  SpeakersCombo.Style := csDropDownList;
-  SpeakersCombo.Items.Add('auto');
-  for I := 2 to 10 do SpeakersCombo.Items.Add(IntToStr(I));
-  if (CfgSpeakers <> '') and (CfgSpeakers <> '0') then
-    SpeakersCombo.ItemIndex := FindComboIndex(SpeakersCombo, CfgSpeakers)
-  else SpeakersCombo.ItemIndex := 0;
-
-  NoDiarizeCheckbox := TNewCheckBox.Create(SettingsPage);
-  NoDiarizeCheckbox.Parent := SettingsPage.Surface;
-  NoDiarizeCheckbox.Top := 130; NoDiarizeCheckbox.Left := 220; NoDiarizeCheckbox.Width := 200;
-  NoDiarizeCheckbox.Caption := 'Skip speaker diarization';
-  NoDiarizeCheckbox.Checked := (CfgNoDiarize = 'true');
 
   CreateLogControls();
   ShowLogControls(False);
@@ -453,52 +360,37 @@ end;
 
 function GetModel(Param: string): string;
 begin
-  if Assigned(ModelCombo) and (ModelCombo.ItemIndex >= 0) then
-    Result := ModelCombo.Items[ModelCombo.ItemIndex]
-  else if CfgModel <> '' then Result := CfgModel
+  if CfgModel <> '' then Result := CfgModel
   else Result := 'turbo';
 end;
 
 function GetLanguage(Param: string): string;
 begin
-  if Assigned(LangCombo) and (LangCombo.ItemIndex >= 0) then
-    Result := LangCombo.Items[LangCombo.ItemIndex]
-  else if CfgLanguage <> '' then Result := CfgLanguage
+  if CfgLanguage <> '' then Result := CfgLanguage
   else Result := 'auto';
 end;
 
 function GetDevice(Param: string): string;
 begin
-  if Assigned(DeviceCombo) and (DeviceCombo.ItemIndex >= 0) then
-    Result := DeviceCombo.Items[DeviceCombo.ItemIndex]
-  else if CfgDevice <> '' then Result := CfgDevice
+  if CfgDevice <> '' then Result := CfgDevice
   else Result := 'auto';
 end;
 
 function GetThreads(Param: string): string;
 begin
-  if Assigned(ThreadsEdit) and (ThreadsEdit.Text <> '') then Result := ThreadsEdit.Text
-  else if CfgThreads <> '' then Result := CfgThreads
+  if CfgThreads <> '' then Result := CfgThreads
   else Result := ExpandConstant('{%NUMBER_OF_PROCESSORS|4}');
 end;
 
 function GetSpeakers(Param: string): string;
 begin
-  if Assigned(SpeakersCombo) and (SpeakersCombo.ItemIndex >= 0) then
-  begin
-    Result := SpeakersCombo.Items[SpeakersCombo.ItemIndex];
-    if Result = 'auto' then Result := '0';
-  end
-  else if CfgSpeakers <> '' then Result := CfgSpeakers
+  if CfgSpeakers <> '' then Result := CfgSpeakers
   else Result := '0';
 end;
 
 function GetNoDiarize(Param: string): string;
 begin
-  if Assigned(NoDiarizeCheckbox) then begin
-    if NoDiarizeCheckbox.Checked then Result := 'true' else Result := 'false';
-  end
-  else if CfgNoDiarize <> '' then Result := CfgNoDiarize
+  if CfgNoDiarize <> '' then Result := CfgNoDiarize
   else Result := 'false';
 end;
 
