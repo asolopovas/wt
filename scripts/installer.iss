@@ -79,7 +79,6 @@ var
   CfgSpeakers, CfgNoDiarize: string;
   SetupLogPath: string;
   OutputMemo: TNewMemo;
-  StatusLabel: TNewStaticText;
   OverallProgress: TNewProgressBar;
   TotalSteps, CurrentStep: Integer;
 
@@ -116,8 +115,6 @@ end;
 
 procedure SetStepStatus(const Msg: string);
 begin
-  if Assigned(StatusLabel) then
-    StatusLabel.Caption := Msg;
   WizardForm.StatusLabel.Caption := Msg;
   MemoLog('');
   MemoLog('--- ' + Msg + ' ---');
@@ -248,42 +245,34 @@ end;
 
 procedure CreateLogControls();
 var
-  InstallingPage: TWinControl;
+  Page: TWinControl;
   L, W, MemoTop: Integer;
 begin
-  InstallingPage := WizardForm.InnerPage;
-  L := WizardForm.ProgressGauge.Left;
-  W := WizardForm.ProgressGauge.Width;
+  Page := WizardForm.InstallingPage;
+  L := WizardForm.StatusLabel.Left;
+  W := WizardForm.StatusLabel.Width;
 
-  StatusLabel := TNewStaticText.Create(WizardForm);
-  StatusLabel.Parent := InstallingPage;
-  StatusLabel.Left := L;
-  StatusLabel.Top := 0;
-  StatusLabel.Width := W;
-  StatusLabel.AutoSize := False;
-  StatusLabel.WordWrap := False;
-  StatusLabel.Caption := 'Preparing...';
-  StatusLabel.Font.Style := [fsBold];
-  StatusLabel.Font.Size := 9;
+  WizardForm.StatusLabel.Font.Style := [fsBold];
 
   OverallProgress := TNewProgressBar.Create(WizardForm);
-  OverallProgress.Parent := InstallingPage;
+  OverallProgress.Parent := Page;
   OverallProgress.Left := L;
-  OverallProgress.Top := StatusLabel.Top + StatusLabel.Height + ScaleY(6);
+  OverallProgress.Top := WizardForm.ProgressGauge.Top;
   OverallProgress.Width := W;
-  OverallProgress.Height := ScaleY(18);
+  OverallProgress.Height := WizardForm.ProgressGauge.Height;
   OverallProgress.Min := 0;
   OverallProgress.Max := 6;
   OverallProgress.Position := 0;
 
-  MemoTop := OverallProgress.Top + OverallProgress.Height + ScaleY(8);
+  MemoTop := OverallProgress.Top + OverallProgress.Height + ScaleY(10);
 
   OutputMemo := TNewMemo.Create(WizardForm);
-  OutputMemo.Parent := InstallingPage;
+  OutputMemo.Parent := Page;
   OutputMemo.Left := L;
   OutputMemo.Top := MemoTop;
   OutputMemo.Width := W;
-  OutputMemo.Height := InstallingPage.ClientHeight - MemoTop;
+  OutputMemo.Height := Page.ClientHeight - MemoTop - ScaleY(4);
+  OutputMemo.Anchors := [akLeft, akTop, akRight, akBottom];
   OutputMemo.ReadOnly := True;
   OutputMemo.ScrollBars := ssVertical;
   OutputMemo.WantReturns := False;
@@ -295,11 +284,9 @@ end;
 
 procedure ShowLogControls(Show: Boolean);
 begin
-  if Assigned(StatusLabel) then StatusLabel.Visible := Show;
   if Assigned(OverallProgress) then OverallProgress.Visible := Show;
   if Assigned(OutputMemo) then OutputMemo.Visible := Show;
 
-  WizardForm.StatusLabel.Visible := not Show;
   WizardForm.FilenameLabel.Visible := not Show;
   WizardForm.ProgressGauge.Visible := not Show;
 end;
