@@ -32,7 +32,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: third_party/whisper.cpp
-          key: whisper-cpp-windows-${{ env.WHISPER_VERSION }}
+          key: whisper-cpp-windows-${{ env.WHISPER_VERSION }}-nowarn
 
       - name: Build whisper.cpp (CPU, static)
         shell: msys2 {0}
@@ -46,7 +46,9 @@ jobs:
               -DCMAKE_BUILD_TYPE=Release \
               -DBUILD_SHARED_LIBS=OFF \
               -DWHISPER_BUILD_EXAMPLES=OFF \
-              -DWHISPER_BUILD_TESTS=OFF
+              -DWHISPER_BUILD_TESTS=OFF \
+              -DGGML_ALL_WARNINGS=OFF \
+              -DWHISPER_ALL_WARNINGS=OFF
             cmake --build build -j$(nproc)
             cd build/ggml/src
             for f in ggml.a ggml-base.a ggml-cpu.a; do
