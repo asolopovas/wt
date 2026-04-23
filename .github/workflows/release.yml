@@ -1,0 +1,92 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+
+      - name: Install MSYS2 and MinGW
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          install: mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake make
+
+      - name: Cache whisper.cpp build
+        uses: actions/cache@v4
+        with:
+          path: third_party/whisper.cpp
+          key: whisper-cpp-windows-${{ hashFiles('.github/workflows/release.yml') }}
+
+      - name: Build whisper.cpp (CPU, static)
+        shell: msys2 {0}
+        run: |
+          if [ ! -d "third_party/whisper.cpp" ]; then
+            git clone --depth 1 https://github.com/ggml-org/whisper.cpp.git third_party/whisper.cpp
+          fi
+          if [ ! -f "third_party/whisper.cpp/build/src/libwhisper.a" ]; then
+            cd third_party/whisper.cpp
+            cmake -B build -G "MinGW Makefiles" \
+              -DCMAKE_BUILD_TYPE=Release \
+              -DBUILD_SHARED_LIBS=OFF \
+              -DWHISPER_BUILD_EXAMPLES=OFF \
+              -DWHISPER_BUILD_TESTS=OFF
+            cmake --build build -j$(nproc)
+            cd build/ggml/src
+            for f in ggml.a ggml-base.a ggml-cpu.a; do
+              [ -f "$f" ] && cp "$f" "lib$f" 2>/dev/null || true
+            done
+          fi
+
+      - name: Build wt
+        shell: msys2 {0}
+        env:
+          CGO_ENABLED: "1"
+          CGO_CFLAGS: "-I${{ github.workspace }}/third_party/whisper.cpp/include -I${{ github.workspace }}/third_party/whisper.cpp/ggml/include"
+          CGO_LDFLAGS: "-L${{ github.workspace }}/third_party/whisper.cpp/build/src -L${{ github.workspace }}/third_party/whisper.cpp/build/ggml/src -lwhisper -lggml -lggml-base -lggml-cpu -lm -lstdc++ -fopenmp -static"
+        run: |
+          export PATH="/mingw64/bin:$PATH"
+          go build -ldflags="-s -w -X main.version=${{ github.ref_name }}" -o wt.exe ./cmd/wt
+
+      - name: Package
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $zipName = "wt-${tag}-windows-amd64.zip"
+          Compress-Archive -Path wt.exe -DestinationPath $zipName
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-amd64
+          path: wt-*-windows-amd64.zip
+
+  release:
+    needs: [build-windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            dist/*

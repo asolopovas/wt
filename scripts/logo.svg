@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="Layer_1" data-name="Layer 1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 440.53 451.77">
+  <defs>
+    <style>
+      .cls-1 {
+        font-size: 88.05px;
+        letter-spacing: .12em;
+      }
+
+      .cls-1, .cls-2 {
+        fill: #616763;
+        font-family: SpartanMB-SemiBold, 'Spartan MB';
+        font-weight: 600;
+      }
+
+      .cls-3 {
+        fill: none;
+        stroke: #616763;
+        stroke-miterlimit: 10;
+      }
+
+      .cls-2 {
+        font-size: 37.35px;
+        letter-spacing: .11em;
+      }
+    </style>
+  </defs>
+  <path class="cls-3" d="M14.79,199.12C14.79,89.43,103.72.5,213.42.5h0c109.7,0,198.62,88.93,198.62,198.62"/>
+  <path class="cls-3" d="M59.57,130.21c25.35-57.93,84.68-98.57,153.84-98.57h0c53.17,0,100.54,24.03,131.11,61.46"/>
+  <text class="cls-1" transform="translate(1.4 286.52)"><tspan x="0" y="0">WHISPER</tspan></text>
+  <text class="cls-2" transform="translate(185.14 334.82)"><tspan x="0" y="0">GO</tspan></text>
+  <polyline class="cls-3" points="289.92 318.74 412.04 318.74 412.04 345.96 412.04 451.27 14.79 451.27 14.79 345.96 14.79 318.74 129.87 318.74"/>
+  <circle class="cls-3" cx="356.22" cy="110.61" r="8.73"/>
+  <path class="cls-3" d="M210.78,187.62c0,4.82-3.91,8.73-8.73,8.73s-8.73-3.91-8.73-8.73,3.91-8.73,8.73-8.73,8.73,3.91,8.73,8.73Z"/>
+  <circle class="cls-3" cx="307.67" cy="427.66" r="8.73"/>
+  <polyline class="cls-3" points="35.23 346.27 35.23 427.66 287.13 427.66"/>
+</svg>

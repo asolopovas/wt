@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+
+      - name: Install build dependencies
+        run: sudo apt-get update && sudo apt-get install -y cmake gcc g++ ffmpeg
+
+      - name: Cache whisper.cpp build
+        uses: actions/cache@v4
+        with:
+          path: third_party/whisper.cpp
+          key: whisper-cpp-${{ runner.os }}-${{ hashFiles('.github/workflows/ci.yml') }}
+
+      - name: Build whisper.cpp
+        run: |
+          if [ ! -d "third_party/whisper.cpp" ]; then
+            git clone --depth 1 https://github.com/ggml-org/whisper.cpp.git third_party/whisper.cpp
+          fi
+          if [ ! -f "third_party/whisper.cpp/build/src/libwhisper.a" ]; then
+            cd third_party/whisper.cpp
+            cmake -B build \
+              -DCMAKE_BUILD_TYPE=Release \
+              -DBUILD_SHARED_LIBS=OFF \
+              -DWHISPER_BUILD_EXAMPLES=OFF \
+              -DWHISPER_BUILD_TESTS=OFF
+            cmake --build build -j$(nproc)
+            # Create lib symlinks if needed (some cmake versions produce ggml.a instead of libggml.a)
+            for lib in ggml ggml-base ggml-cpu; do
+              src="build/ggml/src/${lib}.a"
+              dst="build/ggml/src/lib${lib}.a"
+              if [ -f "$src" ] && [ ! -f "$dst" ]; then
+                cp "$src" "$dst"
+              fi
+            done
+          fi
+
+      - name: Set CGo environment
+        run: |
+          WHISPER_ROOT="${{ github.workspace }}/third_party/whisper.cpp"
+          echo "CGO_ENABLED=1" >> $GITHUB_ENV
+          echo "CGO_CFLAGS=-I${WHISPER_ROOT}/include -I${WHISPER_ROOT}/ggml/include" >> $GITHUB_ENV
+          echo "CGO_LDFLAGS=-L${WHISPER_ROOT}/build/src -L${WHISPER_ROOT}/build/ggml/src -lwhisper -lggml -lggml-base -lggml-cpu -lm -lstdc++ -fopenmp" >> $GITHUB_ENV
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Build
+        run: go build -o wt ./cmd/wt
+
+      - name: Test
+        run: go test -v -count=1 ./...

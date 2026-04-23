@@ -1,0 +1,481 @@
+version: '3'
+
+vars:
+  BINARY: wt
+  VERSION: '0.0.1'
+  WHISPER_ROOT: '{{.ROOT_DIR | toSlash}}/third_party/whisper.cpp'
+  WHISPER_BUILD: '{{.WHISPER_ROOT}}/build'
+
+  MINGW_BIN:
+    sh: |
+      if gcc --version >/dev/null 2>&1; then echo ""; exit 0; fi
+      for d in C:/msys64/mingw64/bin C:/msys64/ucrt64/bin C:/mingw64/bin; do
+        if [ -f "$d/gcc.exe" ]; then echo "$d"; exit 0; fi
+      done
+      echo ""
+
+  CUDA_DIR:
+    sh: |
+      for d in "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA"/v*; do
+        if [ -f "$d/bin/nvcc.exe" ]; then echo "$d"; exit 0; fi
+      done
+      echo ""
+
+  CUDA_ARCH:
+    sh: echo "61;75;80;86;89"
+
+  GCC_PATH:
+    sh: |
+      if command -v gcc >/dev/null 2>&1; then echo "gcc"; exit 0; fi
+      for d in C:/msys64/mingw64/bin C:/msys64/ucrt64/bin C:/mingw64/bin; do
+        if [ -f "$d/gcc.exe" ]; then echo "$d/gcc.exe"; exit 0; fi
+      done
+      echo "gcc"
+
+  EXTRA_PATH:
+    sh: |
+      p=""
+      mingw="{{.MINGW_BIN}}"
+      if [ -n "$mingw" ]; then p="$mingw"; fi
+      cuda="{{.CUDA_DIR}}"
+      if [ -n "$cuda" ]; then
+        if [ -n "$p" ]; then p="{{.WHISPER_BUILD}}/bin;$p"; else p="{{.WHISPER_BUILD}}/bin"; fi
+      fi
+      echo "$p"
+
+env:
+  CGO_ENABLED: '1'
+  CC: '{{.GCC_PATH}}'
+  CGO_CFLAGS: '-I{{.WHISPER_ROOT}}/include -I{{.WHISPER_ROOT}}/ggml/include'
+  CGO_LDFLAGS: '{{if .CUDA_DIR}}-L{{.WHISPER_BUILD}}/src -L{{.WHISPER_BUILD}}/ggml/src {{.WHISPER_BUILD}}/src/whisper.lib {{.WHISPER_BUILD}}/ggml/src/ggml.lib {{.WHISPER_BUILD}}/ggml/src/ggml-base.lib -lm -lstdc++ -fopenmp{{else}}-L{{.WHISPER_ROOT}}/build/src -L{{.WHISPER_ROOT}}/build/ggml/src -lwhisper -lggml -lggml-base -lggml-cpu -lm -lstdc++ -fopenmp -static{{end}}'
+  CGO_LDFLAGS_ALLOW: '.*\.lib'
+
+tasks:
+  default:
+    desc: Show available tasks
+    cmds:
+      - task --list
+
+  whisper-lib:
+    desc: Build whisper.cpp (with CUDA if available)
+    internal: true
+    cmds:
+      - cmd: git clone --depth 1 https://github.com/ggml-org/whisper.cpp.git {{.WHISPER_ROOT}}
+        if: '[ ! -d "{{.WHISPER_ROOT}}" ]'
+      - cmd: |
+          echo "CUDA detected: {{.CUDA_DIR}} (arch {{.CUDA_ARCH}})"
+          echo "Building whisper.cpp with CUDA (via MSVC + Ninja)..."
+          export CUDA_ARCH="{{.CUDA_ARCH}}"
+          cmd.exe /c "{{.ROOT_DIR | toSlash}}/scripts/build-whisper-cuda.bat" "{{.WHISPER_ROOT}}"
+        if: '[ -n "{{.CUDA_DIR}}" ] && [ ! -f "{{.WHISPER_BUILD}}/bin/whisper.dll" ]'
+      - cmd: |
+          echo "CUDA not found, building CPU-only..."
+          cd "{{.WHISPER_ROOT}}"
+          cmake -B build -G "MinGW Makefiles" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_SHARED_LIBS=OFF \
+            -DWHISPER_BUILD_EXAMPLES=OFF \
+            -DWHISPER_BUILD_TESTS=OFF
+          cmake --build build -j$NUMBER_OF_PROCESSORS
+          cd build/ggml/src
+          for f in ggml.a ggml-base.a ggml-cpu.a; do
+            [ -f "$f" ] && cp "$f" "lib$f" 2>/dev/null
+          done
+        if: '[ -z "{{.CUDA_DIR}}" ] && [ ! -f "{{.WHISPER_ROOT}}/build/src/libwhisper.a" ]'
+
+  build:
+    desc: 'Build binaries, copy runtime DLLs, and produce dist/wt-setup.exe. Use ONLY=cli or ONLY=gui to limit (skips installer).'
+    deps: [whisper-lib, fetch-deps]
+    vars:
+      ISCC_PATH:
+        sh: |
+          for d in \
+            "$LOCALAPPDATA/Programs/Inno Setup 6" \
+            "C:/Program Files (x86)/Inno Setup 6" \
+            "C:/Program Files/Inno Setup 6"; do
+            if [ -f "$d/ISCC.exe" ]; then echo "$d/ISCC.exe"; exit 0; fi
+          done
+          echo ""
+    cmds:
+      - mkdir -p dist/bin
+      - cmd: 'export PATH="{{.WHISPER_BUILD}}/bin;{{.EXTRA_PATH}};$PATH" && go build -ldflags "-X main.Version={{.VERSION}}" -o dist/bin/{{.BINARY}}.exe ./cmd/wt'
+        if: '[ "{{.ONLY}}" != "gui" ]'
+      - cmd: 'export PATH="{{.WHISPER_BUILD}}/bin;{{.EXTRA_PATH}};$PATH" && go build -ldflags "-X main.Version={{.VERSION}} -H windowsgui" -o dist/bin/{{.BINARY}}-gui.exe ./cmd/wt-gui'
+        if: '[ "{{.ONLY}}" != "cli" ]'
+      - cmd: |
+          dlldir="{{.WHISPER_BUILD}}/bin"
+          cp "$dlldir"/whisper.dll "$dlldir"/ggml.dll "$dlldir"/ggml-base.dll dist/bin/
+          cp "$dlldir"/ggml-cpu-*.dll dist/bin/ 2>/dev/null || true
+          cp "$dlldir"/ggml-cuda.dll dist/bin/ 2>/dev/null || true
+        if: '[ -n "{{.CUDA_DIR}}" ]'
+      - cp scripts/diarize.py dist/bin/
+      - cmd: |
+          if [ -z "{{.ISCC_PATH}}" ]; then
+            echo "ERROR: Inno Setup not found. Install via: winget install JRSoftware.InnoSetup"
+            exit 1
+          fi
+        if: '[ -z "{{.ONLY}}" ]'
+      - cmd: '"{{.ISCC_PATH}}" scripts/installer.iss'
+        if: '[ -z "{{.ONLY}}" ]'
+      - cmd: 'ls -l dist/wt-setup.exe'
+        if: '[ -z "{{.ONLY}}" ]'
+
+  install:
+    desc: 'Build then replace binaries at {localappdata}/wt (skips full installer)'
+    deps: [build]
+    cmds:
+      - cmd: |
+          dest="$LOCALAPPDATA/{{.BINARY}}"
+          if [ ! -d "$dest" ]; then
+            echo "ERROR: $dest not found. Run 'task setup' for initial install."
+            exit 1
+          fi
+          taskkill //F //IM {{.BINARY}}-gui.exe 2>/dev/null || true
+          taskkill //F //IM {{.BINARY}}.exe 2>/dev/null || true
+          sleep 1
+          cp -f dist/bin/*.exe "$dest/"
+          cp -f dist/bin/*.dll "$dest/" 2>/dev/null || true
+          cp -f dist/bin/diarize.py "$dest/" 2>/dev/null || true
+          echo "Updated $dest"
+          "$dest/{{.BINARY}}.exe" --version
+
+  install-android:
+    desc: Build APK, install on device, and launch
+    deps: [android-apk]
+    cmds:
+      - cmd: |
+          export MSYS_NO_PATHCONV=1
+          adb uninstall com.asolopovas.whispergo 2>/dev/null || true
+          adb install dist/wt.apk
+          adb logcat -c
+          adb shell "am start -n com.asolopovas.whispergo/org.golang.app.GoNativeActivity"
+          sleep 2
+          adb logcat -d | grep -E "whispergo|GoLog|dlopen|FATAL|panic|AndroidRuntime" | head -30
+
+  fetch-deps:
+    internal: true
+    cmds:
+      - mkdir -p dist/deps
+      - |
+        if [ ! -f dist/deps/uv.exe ]; then
+          echo "Downloading uv..."
+          curl -sL "https://github.com/astral-sh/uv/releases/latest/download/uv-x86_64-pc-windows-msvc.zip" -o dist/deps/uv.zip
+          powershell -NoProfile -Command "Expand-Archive -Force 'dist/deps/uv.zip' 'dist/deps/uv-tmp'"
+          cp dist/deps/uv-tmp/uv.exe dist/deps/uv.exe
+          rm -rf dist/deps/uv-tmp dist/deps/uv.zip
+        fi
+    status:
+      - test -f dist/deps/uv.exe
+
+  package:
+    desc: Alias for build (installer is produced by build)
+    deps: [build]
+
+  setup:
+    desc: Full install via silent installer (+ launch GUI)
+    deps: [package]
+    vars:
+      SETUP_LOG:
+        sh: echo "$USERPROFILE/.wt/setup.log"
+    cmds:
+      - cmd: 'taskkill //F //IM {{.BINARY}}-gui.exe 2>/dev/null || true'
+      - cmd: 'rm -f "{{.SETUP_LOG}}"'
+      - cmd: |
+          export MSYS_NO_PATHCONV=1
+          dist/wt-setup.exe /VERYSILENT /SUPPRESSMSGBOXES /SP- &
+          INSTALLER_PID=$!
+          echo "=== Installer started (PID $INSTALLER_PID) ==="
+          echo "=== Tailing {{.SETUP_LOG}} ==="
+          while ! [ -f "{{.SETUP_LOG}}" ]; do
+            if ! kill -0 $INSTALLER_PID 2>/dev/null; then break; fi
+            sleep 0.5
+          done
+          if [ -f "{{.SETUP_LOG}}" ]; then
+            tail -f "{{.SETUP_LOG}}" &
+            TAIL_PID=$!
+            wait $INSTALLER_PID 2>/dev/null
+            sleep 1
+            kill $TAIL_PID 2>/dev/null
+          else
+            wait $INSTALLER_PID 2>/dev/null
+          fi
+      - cmd: '"$LOCALAPPDATA/{{.BINARY}}/{{.BINARY}}-gui.exe" &'
+
+  dist:
+    desc: Create distributable zip (dist/wt-dist.zip)
+    deps: [package]
+    cmds:
+      - |
+        cd dist
+        rm -f wt-dist.zip
+        powershell -NoProfile -Command "Compress-Archive -Path 'wt-setup.exe' -DestinationPath 'wt-dist.zip'"
+        ls -l wt-dist.zip
+
+  release:
+    desc: 'Tag v{{.VERSION}}, push tag, and attach dist/wt-setup.exe to a GitHub release'
+    deps: [build]
+    cmds:
+      - |
+        if ! command -v gh >/dev/null 2>&1; then
+          echo "ERROR: gh CLI not found. Install via: winget install GitHub.cli"
+          exit 1
+        fi
+      - |
+        tag="v{{.VERSION}}"
+        if git rev-parse "$tag" >/dev/null 2>&1; then
+          echo "Tag $tag already exists locally; skipping tag creation."
+        else
+          git tag -a "$tag" -m "Release $tag"
+          git push origin "$tag"
+        fi
+        if gh release view "$tag" >/dev/null 2>&1; then
+          echo "Release $tag already exists; uploading installer (clobber)..."
+        else
+          gh release create "$tag" --title "$tag" --generate-notes
+        fi
+        gh release upload "$tag" dist/wt-setup.exe --clobber
+        gh release view "$tag" --web || true
+
+  bump:
+    desc: Bump patch version, build, install, verify, and commit
+    vars:
+      NEW_VERSION:
+        sh: |
+          cur="{{.VERSION}}"
+          major="${cur%%.*}"
+          rest="${cur#*.}"
+          minor="${rest%%.*}"
+          patch="${rest#*.}"
+          patch=$((patch + 1))
+          if [ "$patch" -ge 10 ]; then patch=0; minor=$((minor + 1)); fi
+          if [ "$minor" -ge 10 ]; then minor=0; major=$((major + 1)); fi
+          echo "$major.$minor.$patch"
+    cmds:
+      - |
+        cur="{{.VERSION}}"
+        new="{{.NEW_VERSION}}"
+        echo "Bumping version: $cur -> $new"
+        powershell -NoProfile -Command "(Get-Content Taskfile.yml -Raw) -replace \"VERSION: '$cur'\",\"VERSION: '$new'\" | Set-Content Taskfile.yml -NoNewline"
+        powershell -NoProfile -Command "(Get-Content scripts/installer.iss -Raw) -replace '#define MyAppVersion \"$cur\"','#define MyAppVersion \"$new\"' | Set-Content scripts/installer.iss -NoNewline"
+      - cmd: task install
+      - |
+        cur="{{.VERSION}}"
+        new="{{.NEW_VERSION}}"
+        git add Taskfile.yml scripts/installer.iss
+        git commit -m "Bump version $cur -> $new"
+
+  test:
+    desc: Run all tests
+    deps: [whisper-lib]
+    cmds:
+      - cmd: 'export PATH="{{.EXTRA_PATH}};$PATH" && go test -v ./...'
+
+  test-unit:
+    desc: Run unit tests (no CGo / model required)
+    cmds:
+      - cmd: 'export PATH="{{.EXTRA_PATH}};$PATH" && go test -v -short ./...'
+
+  lint:
+    desc: Run golangci-lint (falls back to go vet)
+    cmds:
+      - cmd: |
+          export PATH="{{.EXTRA_PATH}};$PATH"
+          if command -v golangci-lint >/dev/null 2>&1; then
+            golangci-lint run ./...
+          else
+            echo "golangci-lint not found, falling back to go vet"
+            go vet ./...
+          fi
+
+  fmt:
+    desc: Run gofumpt (falls back to gofmt)
+    cmds:
+      - cmd: |
+          if command -v gofumpt >/dev/null 2>&1; then
+            gofumpt -w ./cmd/ ./internal/
+          else
+            gofmt -w ./cmd/ ./internal/
+          fi
+
+  clean-comments:
+    desc: Strip non-directive comments from Go files (excluding third_party)
+    cmds:
+      - go run ./scripts/clean-comments ./cmd ./internal ./bindings
+      - task: fmt
+
+  clean:
+    desc: 'Remove dist/ and samples/*.json. DEEP=1 also clears whisper.cpp build.'
+    cmds:
+      - rm -rf build dist
+      - rm -f samples/*.json
+      - cmd: rm -rf {{.WHISPER_BUILD}}
+        if: '[ -n "{{.DEEP}}" ]'
+
+  deps:
+    desc: Tidy Go modules
+    cmds:
+      - go mod tidy
+
+  check:
+    desc: Verify toolchain installation
+    cmds:
+      - |
+        echo "Go version:"
+        go version
+        echo ""
+        echo "GCC:"
+        export PATH="{{.EXTRA_PATH}};$PATH"
+        gcc --version 2>/dev/null || echo "  NOT FOUND (required for CGo)"
+      - cmd: 'echo "CUDA: {{.CUDA_DIR}} (arch {{.CUDA_ARCH}})"'
+        if: '[ -n "{{.CUDA_DIR}}" ]'
+      - cmd: 'echo "CUDA: not found (CPU-only build)"'
+        if: '[ -z "{{.CUDA_DIR}}" ]'
+      - cmd: |
+          echo "whisper.cpp:"
+          if [ -f "{{.WHISPER_BUILD}}/bin/whisper.dll" ]; then echo "  Built (CUDA)";
+          else echo "  NOT BUILT (run: task build)"; fi
+        if: '[ -n "{{.CUDA_DIR}}" ]'
+      - cmd: |
+          echo "whisper.cpp:"
+          if [ -f "{{.WHISPER_ROOT}}/build/src/libwhisper.a" ]; then echo "  Built (CPU)";
+          else echo "  NOT BUILT (run: task build)"; fi
+        if: '[ -z "{{.CUDA_DIR}}" ]'
+      - |
+        echo ""
+        echo "ffmpeg:"
+        ffmpeg -version 2>/dev/null || echo "  NOT FOUND (needed for non-WAV audio)"
+
+  android-vulkan-headers:
+    internal: true
+    vars:
+      VK_VER: '1.3.275'
+      VK_INCLUDE:
+        sh: echo "$LOCALAPPDATA/Android/Sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/windows-x86_64/sysroot/usr/include/vulkan"
+    status:
+      - test -f "{{.VK_INCLUDE}}/vulkan.hpp"
+      - test -f "{{.VK_INCLUDE}}/vulkan_hpp_macros.hpp"
+    cmds:
+      - cmd: |
+          vk_include="{{.VK_INCLUDE}}"
+          vk_ver="{{.VK_VER}}"
+          echo "Downloading Vulkan C++ headers v${vk_ver}..."
+          for f in vulkan.hpp vulkan_enums.hpp vulkan_funcs.hpp vulkan_handles.hpp \
+                   vulkan_hash.hpp vulkan_raii.hpp vulkan_structs.hpp \
+                   vulkan_to_string.hpp vulkan_format_traits.hpp \
+                   vulkan_static_assertions.hpp vulkan_shared.hpp \
+                   vulkan_hpp_macros.hpp vulkan_extension_inspection.hpp; do
+            curl -sL "https://raw.githubusercontent.com/KhronosGroup/Vulkan-Hpp/v${vk_ver}/vulkan/$f" \
+              -o "$vk_include/$f"
+          done
+
+  android-whisper-lib:
+    internal: true
+    deps: [android-vulkan-headers]
+    vars:
+      NDK_ROOT:
+        sh: echo "$LOCALAPPDATA/Android/Sdk/ndk/27.2.12479018"
+      NDK_TOOLCHAIN:
+        sh: echo "$LOCALAPPDATA/Android/Sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/windows-x86_64"
+      ANDROID_BUILD: '{{.WHISPER_ROOT}}/build-android-arm64'
+    status:
+      - test -f "{{.ANDROID_BUILD}}/src/libwhisper.a"
+      - test -f "{{.ANDROID_BUILD}}/ggml/src/ggml-vulkan/libggml-vulkan.a"
+    cmds:
+      - cmd: git clone --depth 1 https://github.com/ggml-org/whisper.cpp.git {{.WHISPER_ROOT}}
+        if: '[ ! -d "{{.WHISPER_ROOT}}" ]'
+      - cmd: |
+          export PATH="/c/msys64/mingw64/bin:$PATH"
+          cmake -B "{{.ANDROID_BUILD}}" -S "{{.WHISPER_ROOT}}" \
+            -DCMAKE_TOOLCHAIN_FILE="{{.NDK_ROOT}}/build/cmake/android.toolchain.cmake" \
+            -DANDROID_ABI=arm64-v8a \
+            -DANDROID_PLATFORM=android-28 \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_SHARED_LIBS=OFF \
+            -DGGML_VULKAN=ON \
+            -DGGML_NATIVE=OFF \
+            -DGGML_OPENMP=OFF \
+            -DWHISPER_BUILD_EXAMPLES=OFF \
+            -DWHISPER_BUILD_TESTS=OFF \
+            -DVulkan_INCLUDE_DIR="{{.NDK_TOOLCHAIN}}/sysroot/usr/include" \
+            -DVulkan_LIBRARY="{{.NDK_TOOLCHAIN}}/sysroot/usr/lib/aarch64-linux-android/28/libvulkan.so" \
+            -DVulkan_GLSLC_EXECUTABLE="{{.NDK_ROOT}}/shader-tools/windows-x86_64/glslc.exe" \
+            -DGGML_VULKAN_SHADERS_GEN_TOOLCHAIN="{{.ROOT_DIR | toSlash}}/scripts/host-mingw-toolchain.cmake" \
+            -G "MinGW Makefiles"
+          cmake --build "{{.ANDROID_BUILD}}" --config Release -j$NUMBER_OF_PROCESSORS
+          cp "{{.NDK_TOOLCHAIN}}/sysroot/usr/lib/aarch64-linux-android/28/libvulkan.so" \
+            "{{.ANDROID_BUILD}}/ggml/src/ggml-vulkan/libvulkan.so"
+
+  android-apk:
+    internal: true
+    deps: [android-whisper-lib]
+    vars:
+      NDK_ROOT:
+        sh: echo "$LOCALAPPDATA/Android/Sdk/ndk/27.2.12479018"
+      BUILD_TOOLS:
+        sh: echo "$LOCALAPPDATA/Android/Sdk/build-tools/36.1.0"
+    cmds:
+      - cmd: |
+          export ANDROID_HOME="$LOCALAPPDATA/Android/Sdk"
+          export ANDROID_NDK_HOME="{{.NDK_ROOT}}"
+          fyne package --os android/arm64 \
+            --app-id com.asolopovas.whispergo \
+            --name wt \
+            --icon "{{.ROOT_DIR | toSlash}}/winres/icon.png" \
+            --src "{{.ROOT_DIR | toSlash}}/cmd/wt-gui"
+      - cmd: |
+          set -e
+          apk="cmd/wt-gui/whisper_go.apk"
+          ndk_libcxx="{{.NDK_ROOT}}/toolchains/llvm/prebuilt/windows-x86_64/sysroot/usr/lib/aarch64-linux-android/libc++_shared.so"
+          ndk_libomp="{{.NDK_ROOT}}/toolchains/llvm/prebuilt/windows-x86_64/lib/clang/18/lib/linux/aarch64/libomp.so"
+          mkdir -p dist
+          libcxx_fwd=$(echo "$ndk_libcxx" | sed 's|\\|/|g')
+          libomp_fwd=$(echo "$ndk_libomp" | sed 's|\\|/|g')
+          python -c "
+          import zipfile, os, sys
+          libcxx = r'$libcxx_fwd'.replace('\\\\', '/')
+          libomp = r'$libomp_fwd'.replace('\\\\', '/')
+          with zipfile.ZipFile('$apk', 'r') as zin:
+              with zipfile.ZipFile('dist/unsigned.apk', 'w', zipfile.ZIP_DEFLATED) as zout:
+                  for item in zin.infolist():
+                      if item.filename.startswith('META-INF/'):
+                          continue
+                      zout.writestr(item, zin.read(item.filename))
+                  zout.write(libcxx, 'lib/arm64-v8a/libc++_shared.so', compress_type=zipfile.ZIP_STORED)
+                  zout.write(libomp, 'lib/arm64-v8a/libomp.so', compress_type=zipfile.ZIP_STORED)
+          print('Patched:', os.path.getsize('dist/unsigned.apk'))
+          "
+          "{{.BUILD_TOOLS}}/zipalign.exe" -f 4 dist/unsigned.apk dist/aligned.apk
+          if [ ! -f "$USERPROFILE/.android/debug.keystore" ]; then
+            keytool -genkey -v -keystore "$USERPROFILE/.android/debug.keystore" \
+              -storepass android -alias androiddebugkey -keypass android \
+              -keyalg RSA -keysize 2048 -validity 10000 \
+              -dname "CN=Android Debug,O=Android,C=US"
+          fi
+          "{{.BUILD_TOOLS}}/apksigner.bat" sign \
+            --ks "$USERPROFILE/.android/debug.keystore" \
+            --ks-pass pass:android --key-pass pass:android \
+            --ks-key-alias androiddebugkey \
+            --out dist/wt.apk dist/aligned.apk
+          rm -f dist/unsigned.apk dist/aligned.apk
+          rm -f "$apk" "${apk}.idsig"
+
+  android-test:
+    desc: Build native Android test CLI, push to device, run (pass args via -- ...)
+    deps: [android-whisper-lib]
+    vars:
+      NDK_ROOT:
+        sh: echo "$LOCALAPPDATA/Android/Sdk/ndk/27.2.12479018"
+      NDK_CC:
+        sh: echo "$LOCALAPPDATA/Android/Sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/windows-x86_64/bin/aarch64-linux-android35-clang"
+    cmds:
+      - mkdir -p dist/bin
+      - cmd: |
+          CGO_ENABLED=1 GOOS=android GOARCH=arm64 \
+          CC="{{.NDK_CC}}" \
+          go build -tags android -o dist/bin/wt-test-arm64 ./cmd/wt-test
+      - cmd: |
+          export MSYS_NO_PATHCONV=1
+          adb push dist/bin/wt-test-arm64 /data/local/tmp/wt-test
+          adb push "{{.NDK_ROOT}}/toolchains/llvm/prebuilt/windows-x86_64/sysroot/usr/lib/aarch64-linux-android/libc++_shared.so" /data/local/tmp/libc++_shared.so
+          adb shell "chmod 755 /data/local/tmp/wt-test"
+          adb shell "cd /data/local/tmp && LD_LIBRARY_PATH=/data/local/tmp ./wt-test {{.CLI_ARGS}}"

@@ -1,0 +1,60 @@
+# Build output
+/build/
+dist/
+.claude
+
+# Dependencies (cloned/downloaded at build time)
+third_party/
+
+# C/C++ build artifacts (stray from CGo)
+*.o
+*.a
+
+# Android build artifacts
+*.apk
+*.apk.idsig
+*.so
+
+# Vulkan shader build artifacts
+ggml-vulkan-shaders.hpp
+
+# Audio files
+*.wav
+*.ogg
+*.mp3
+*.flac
+*.m4a
+
+# Transcription output
+samples/*.json
+*.csv
+
+# Logs
+*.log
+
+# Environment
+.env
+
+# OS
+.DS_Store
+Thumbs.db
+nul
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Go
+vendor/
+
+# ML model artifacts / caches
+pretrained_models/
+tmp_vad/
+*.ckpt
+*.nemo
+
+# Tool caches
+.task/
+.ruff_cache/
