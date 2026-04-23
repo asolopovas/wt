@@ -3,9 +3,13 @@ name: Release
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
 
 permissions:
   contents: write
+
+env:
+  WHISPER_VERSION: v1.8.4
 
 jobs:
   build-windows:
@@ -21,19 +25,19 @@ jobs:
         uses: msys2/setup-msys2@v2
         with:
           msystem: MINGW64
-          install: mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake make
+          install: git mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake make
 
       - name: Cache whisper.cpp build
         uses: actions/cache@v4
         with:
           path: third_party/whisper.cpp
-          key: whisper-cpp-windows-${{ hashFiles('.github/workflows/release.yml') }}
+          key: whisper-cpp-windows-${{ env.WHISPER_VERSION }}
 
       - name: Build whisper.cpp (CPU, static)
         shell: msys2 {0}
         run: |
           if [ ! -d "third_party/whisper.cpp" ]; then
-            git clone --depth 1 https://github.com/ggml-org/whisper.cpp.git third_party/whisper.cpp
+            git clone --depth 1 --branch ${WHISPER_VERSION} https://github.com/ggml-org/whisper.cpp.git third_party/whisper.cpp
           fi
           if [ ! -f "third_party/whisper.cpp/build/src/libwhisper.a" ]; then
             cd third_party/whisper.cpp
@@ -74,6 +78,7 @@ jobs:
 
   release:
     needs: [build-windows]
+    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
