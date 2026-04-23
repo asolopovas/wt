@@ -78,7 +78,6 @@ var
   CfgModel, CfgLanguage, CfgDevice, CfgThreads: string;
   CfgSpeakers, CfgNoDiarize: string;
   SetupLogPath: string;
-  CmdOutputFile: string;
   OutputMemo: TNewMemo;
   StatusLabel: TNewStaticText;
   OverallProgress: TNewProgressBar;
@@ -90,7 +89,6 @@ begin
   LogDir := ExpandConstant('{%APPDATA}\wt');
   ForceDirectories(LogDir);
   SetupLogPath := LogDir + '\setup.log';
-  CmdOutputFile := ExpandConstant('{tmp}\wt-cmd-output.txt');
 end;
 
 procedure Log(const Msg: string);
@@ -109,20 +107,11 @@ procedure LogError(const Msg: string); begin Log('  ERROR: ' + Msg); end;
 procedure MemoLog(const Msg: string);
 begin
   if Assigned(OutputMemo) then
+  begin
     OutputMemo.Lines.Add(Msg);
+    SendMessage(OutputMemo.Handle, $00B6 {EM_LINESCROLL}, 0, OutputMemo.Lines.Count);
+  end;
   WizardForm.Refresh;
-end;
-
-procedure MemoLogFile(const FilePath: string);
-var
-  Lines: TArrayOfString;
-  I: Integer;
-begin
-  if not FileExists(FilePath) then exit;
-  if not LoadStringsFromFile(FilePath, Lines) then exit;
-  for I := 0 to GetArrayLength(Lines) - 1 do
-    if Trim(Lines[I]) <> '' then
-      MemoLog('  ' + Lines[I]);
 end;
 
 procedure SetStepStatus(const Msg: string);
@@ -144,78 +133,46 @@ begin
   end;
 end;
 
-procedure LogFileContents(const FilePath: string);
-var
-  Lines: TArrayOfString;
-  I: Integer;
+procedure StreamLogLine(const S: String; const Error, FirstLine: Boolean);
+var Prefix: string;
 begin
-  if not FileExists(FilePath) then exit;
-  if not LoadStringsFromFile(FilePath, Lines) then exit;
-  for I := 0 to GetArrayLength(Lines) - 1 do
-    if Trim(Lines[I]) <> '' then
-      Log('    ' + Lines[I]);
+  if Error then Prefix := '  [!] ' else Prefix := '      ';
+  Log('    ' + S);
+  if Assigned(OutputMemo) then
+  begin
+    OutputMemo.Lines.Add(Prefix + S);
+    SendMessage(OutputMemo.Handle, $00B6 {EM_LINESCROLL}, 0, OutputMemo.Lines.Count);
+  end;
 end;
 
-function RunLogged(const Description, Executable, Params: string): Integer;
+function RunStreamed(const Description, Executable, Params: string): Integer;
 var
-  CmdLine: string;
   EC: Integer;
+  Launched: Boolean;
 begin
   LogStep(Description);
   LogStep('cmd: ' + Executable + ' ' + Params);
   MemoLog('> ' + Description);
   WizardForm.Refresh;
 
-  if FileExists(CmdOutputFile) then
-    DeleteFile(CmdOutputFile);
+  EC := 0;
+  Launched := ExecAndLogOutput(Executable, Params, '', SW_HIDE,
+    ewWaitUntilTerminated, EC, @StreamLogLine);
 
-  CmdLine := '/c "' + Executable + ' ' + Params + ' >"' + CmdOutputFile + '" 2>&1"';
-  Exec('cmd.exe', CmdLine, '', SW_HIDE, ewWaitUntilTerminated, EC);
+  if not Launched then
+  begin
+    Result := -1;
+    LogError('Failed to launch: ' + Executable + ' (error ' + IntToStr(EC) + ')');
+    MemoLog('  [failed to launch: ' + Executable + ']');
+    exit;
+  end;
+
   Result := EC;
-
-  LogFileContents(CmdOutputFile);
-  MemoLogFile(CmdOutputFile);
   Log('  exit code: ' + IntToStr(EC));
-
   if EC = 0 then
     MemoLog('  [OK]')
   else
     MemoLog('  [exit code ' + IntToStr(EC) + ']');
-end;
-
-function RunVisible(const Description, Executable, Params: string): Integer;
-var
-  CmdLine: string;
-  EC: Integer;
-begin
-  LogStep(Description);
-  LogStep('cmd: ' + Executable + ' ' + Params);
-  MemoLog('> ' + Description);
-  MemoLog('  (output in console window)');
-  WizardForm.Refresh;
-
-  if FileExists(CmdOutputFile) then
-    DeleteFile(CmdOutputFile);
-
-  CmdLine := '/c "title wt setup: ' + Description + ' && ' +
-    Executable + ' ' + Params + ' 2>&1 | powershell -NoProfile -Command ' +
-    '"$input | Tee-Object -FilePath ''' + CmdOutputFile + '''"' + '"';
-  Exec('cmd.exe', CmdLine, '', SW_SHOWNORMAL, ewWaitUntilTerminated, EC);
-  Result := EC;
-
-  LogFileContents(CmdOutputFile);
-  MemoLogFile(CmdOutputFile);
-  Log('  exit code: ' + IntToStr(EC));
-
-  if EC = 0 then
-    MemoLog('  [OK]')
-  else
-    MemoLog('  [exit code ' + IntToStr(EC) + ']');
-end;
-
-function RunQuiet(const Executable, Params: string; var ExitCode: Integer): Boolean;
-begin
-  Result := Exec(Executable, Params, '', SW_HIDE, ewWaitUntilTerminated, ExitCode);
 end;
 
 function GetConfigPath(): string;
@@ -426,7 +383,7 @@ procedure InstallFFmpeg();
 var EC: Integer;
 begin
   SetStepStatus('Checking ffmpeg...');
-  EC := RunLogged('Checking ffmpeg', 'cmd.exe', '/c where ffmpeg');
+  EC := RunStreamed('Checking ffmpeg', 'where', 'ffmpeg');
   if EC = 0 then begin
     LogOk('ffmpeg found');
     MemoLog('  ffmpeg found in PATH');
@@ -434,7 +391,7 @@ begin
     exit;
   end;
   SetStepStatus('Installing ffmpeg via winget...');
-  EC := RunVisible('Installing ffmpeg', 'winget',
+  EC := RunStreamed('Installing ffmpeg', 'winget',
     'install --id Gyan.FFmpeg --accept-source-agreements --accept-package-agreements --silent');
   if EC = 0 then begin
     LogOk('ffmpeg installed');
@@ -457,7 +414,7 @@ begin
     exit;
   end;
 
-  RunLogged('Detecting GPU', 'nvidia-smi', '--query-gpu=name --format=csv,noheader');
+  RunStreamed('Detecting GPU', 'nvidia-smi', '--query-gpu=name --format=csv,noheader');
 
   if CudaInstalled() then begin
     LogOk('CUDA toolkit found');
@@ -466,7 +423,7 @@ begin
     exit;
   end;
 
-  EC := RunLogged('Checking nvcc in PATH', 'cmd.exe', '/c where nvcc');
+  EC := RunStreamed('Checking nvcc in PATH', 'where', 'nvcc');
   if EC = 0 then begin
     LogOk('CUDA toolkit found in PATH');
     MemoLog('  CUDA toolkit found in PATH');
@@ -475,7 +432,7 @@ begin
   end;
 
   SetStepStatus('Installing CUDA ' + RequiredCudaVersion + '...');
-  EC := RunVisible('Installing CUDA ' + RequiredCudaVersion, 'winget',
+  EC := RunStreamed('Installing CUDA ' + RequiredCudaVersion, 'winget',
     'install --id Nvidia.CUDA --version ' + RequiredCudaVersion +
     ' --accept-source-agreements --accept-package-agreements --silent');
   if EC = 0 then begin
@@ -514,7 +471,7 @@ begin
 
   if not FileExists(VenvPython) then begin
     SetStepStatus('Downloading Python 3.12...');
-    EC := RunVisible('Creating Python 3.12 venv', UvPath,
+    EC := RunStreamed('Creating Python 3.12 venv', UvPath,
       'venv "' + PythonDir + '" --python 3.12 --python-preference only-managed');
     if not FileExists(VenvPython) then begin
       LogError('Python venv creation failed (exit code ' + IntToStr(EC) + ')');
@@ -538,8 +495,7 @@ begin
 
   SetStepStatus('Installing NeMo toolkit (this may take several minutes)...');
   MemoLog('  This is the longest step — pip will download ~2 GB of packages.');
-  MemoLog('  Progress is shown in the console window...');
-  EC := RunVisible('Installing NeMo toolkit', UvPath,
+  EC := RunStreamed('Installing NeMo toolkit', UvPath,
     'pip install "nemo_toolkit[asr]" --python "' + VenvPython + '"');
   if EC = 0 then begin
     LogOk('NeMo installed');
@@ -551,7 +507,7 @@ begin
 
   if HasNvidiaGpu() then begin
     SetStepStatus('Installing PyTorch with CUDA support...');
-    EC := RunVisible('Installing torch with CUDA', UvPath,
+    EC := RunStreamed('Installing torch with CUDA', UvPath,
       'pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124 --python "' + VenvPython + '"');
     if EC = 0 then begin
       LogOk('CUDA torch installed');
@@ -584,8 +540,8 @@ begin
   TmpPath := ModelPath + '.downloading';
 
   SetStepStatus('Downloading ' + GetModel('') + ' model...');
-  EC := RunVisible('Downloading model ' + GetModel(''), 'curl',
-    '-L --progress-bar -o "' + TmpPath + '" "' + ModelUrl + '"');
+  EC := RunStreamed('Downloading model ' + GetModel(''), 'curl',
+    '-L --silent --show-error --fail -o "' + TmpPath + '" "' + ModelUrl + '"');
 
   if (EC = 0) and FileExists(TmpPath) then begin
     RenameFile(TmpPath, ModelPath);
@@ -619,8 +575,8 @@ begin
   TmpPath := ModelPath + '.downloading';
 
   SetStepStatus('Downloading VAD model...');
-  EC := RunVisible('Downloading VAD model', 'curl',
-    '-L --progress-bar -o "' + TmpPath + '" "' + ModelUrl + '"');
+  EC := RunStreamed('Downloading VAD model', 'curl',
+    '-L --silent --show-error --fail -o "' + TmpPath + '" "' + ModelUrl + '"');
 
   if (EC = 0) and FileExists(TmpPath) then begin
     RenameFile(TmpPath, ModelPath);
@@ -670,9 +626,6 @@ begin
   InstallPythonEnv();
   DownloadModel();
   DownloadVADModel();
-
-  if FileExists(CmdOutputFile) then
-    DeleteFile(CmdOutputFile);
 
   Log('=========================================');
   Log('Setup complete.');
