@@ -134,7 +134,7 @@ func (p *transcribePanel) onPreview() {
 	}
 
 	scroll := container.NewScroll(content)
-	scroll.SetMinSize(fyne.NewSize(640, 360))
+	scroll.SetMinSize(previewScrollMinSize())
 
 	currentItem = p.results[0]
 	var picker *widget.Select
@@ -187,9 +187,7 @@ func (p *transcribePanel) onPreview() {
 	render()
 
 	body := container.NewBorder(top, nil, nil, nil, scroll)
-	dlg := dialog.NewCustom("Transcript preview", "Close", body, p.window)
-	dlg.Resize(fyne.NewSize(760, 600))
-	dlg.Show()
+	showTranscriptPreview("Transcript preview", body, p.window)
 }
 
 func (p *transcribePanel) renamedTranscript(tr *transcriber.Transcript) *transcriber.Transcript {
