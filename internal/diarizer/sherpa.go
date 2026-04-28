@@ -183,6 +183,28 @@ func androidNativeLibDirs() []string {
 			}
 		}
 	}
+	// Most reliable on Android: parse /proc/self/maps for any loaded .so
+	// from /data/app/, since whatever loaded libwt.so necessarily has
+	// access to that directory regardless of strict shell glob permissions.
+	if data, err := os.ReadFile("/proc/self/maps"); err == nil {
+		seen := map[string]bool{}
+		for _, line := range strings.Split(string(data), "\n") {
+			idx := strings.Index(line, "/data/app/")
+			if idx < 0 {
+				continue
+			}
+			path := line[idx:]
+			if !strings.HasSuffix(path, ".so") {
+				continue
+			}
+			dir := filepath.Dir(path)
+			if seen[dir] {
+				continue
+			}
+			seen[dir] = true
+			dirs = append(dirs, dir)
+		}
+	}
 	if matches, err := filepath.Glob("/data/app/*/com.asolopovas.wtranscribe-*/lib/arm64"); err == nil {
 		dirs = append(dirs, matches...)
 	}

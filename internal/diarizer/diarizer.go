@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 
 	shared "github.com/asolopovas/wt/internal"
 )
@@ -24,8 +25,15 @@ type Backend interface {
 }
 
 func New() (Backend, error) {
-	if b, err := newSherpaDiarizer(); err == nil {
+	b, sherpaErr := newSherpaDiarizer()
+	if sherpaErr == nil {
 		return b, nil
+	}
+	// On Android the NeMo path requires CPython which is not bundled, so
+	// surface the real sherpa error rather than the misleading
+	// "python not found" from the fallback.
+	if runtime.GOOS == "android" {
+		return nil, fmt.Errorf("sherpa-onnx diarizer unavailable: %w", sherpaErr)
 	}
 	return newNemoDiarizer()
 }

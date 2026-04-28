@@ -137,3 +137,87 @@ func pcmToFloat32(buf []byte, numSamples int) []float32 {
 	}
 	return samples
 }
+
+// WritePCM16WAV writes float32 samples (range [-1,1]) to a 16-bit mono PCM WAV.
+func WritePCM16WAV(path string, samples []float32, sampleRate int) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	f, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = f.Close() }()
+
+	const numChannels = 1
+	const bitsPerSample = 16
+	byteRate := sampleRate * numChannels * bitsPerSample / 8
+	blockAlign := numChannels * bitsPerSample / 8
+	dataSize := uint32(len(samples) * 2)
+	chunkSize := 36 + dataSize
+
+	w := f
+	write := func(b []byte) error { _, err := w.Write(b); return err }
+	u32 := func(v uint32) []byte {
+		b := make([]byte, 4)
+		binary.LittleEndian.PutUint32(b, v)
+		return b
+	}
+	u16 := func(v uint16) []byte {
+		b := make([]byte, 2)
+		binary.LittleEndian.PutUint16(b, v)
+		return b
+	}
+
+	if err := write([]byte("RIFF")); err != nil {
+		return err
+	}
+	if err := write(u32(chunkSize)); err != nil {
+		return err
+	}
+	if err := write([]byte("WAVEfmt ")); err != nil {
+		return err
+	}
+	if err := write(u32(16)); err != nil {
+		return err
+	}
+	if err := write(u16(1)); err != nil { // PCM
+		return err
+	}
+	if err := write(u16(uint16(numChannels))); err != nil {
+		return err
+	}
+	if err := write(u32(uint32(sampleRate))); err != nil {
+		return err
+	}
+	if err := write(u32(uint32(byteRate))); err != nil {
+		return err
+	}
+	if err := write(u16(uint16(blockAlign))); err != nil {
+		return err
+	}
+	if err := write(u16(uint16(bitsPerSample))); err != nil {
+		return err
+	}
+	if err := write([]byte("data")); err != nil {
+		return err
+	}
+	if err := write(u32(dataSize)); err != nil {
+		return err
+	}
+
+	buf := make([]byte, 2)
+	for _, s := range samples {
+		v := s * 32767
+		if v > 32767 {
+			v = 32767
+		} else if v < -32768 {
+			v = -32768
+		}
+		binary.LittleEndian.PutUint16(buf, uint16(int16(v)))
+		if _, err := w.Write(buf); err != nil {
+			return err
+		}
+	}
+	return nil
+}

@@ -6,10 +6,12 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"time"
 
 	"fyne.io/fyne/v2/dialog"
 
+	shared "github.com/asolopovas/wt/internal"
 	"github.com/asolopovas/wt/internal/diarizer"
 	"github.com/asolopovas/wt/internal/transcriber"
 	whisper "github.com/ggerganov/whisper.cpp/bindings/go/pkg/whisper"
@@ -233,6 +235,24 @@ func (p *transcribePanel) transcribeFile(model whisper.Model, path, modelSize, l
 	diarOK := false
 	if !noDiarize && diarizer.SupportsExternalBackend() {
 		wavPath := transcriber.ResolveWAVPath(absPath)
+		// Sherpa-onnx requires a real 16kHz mono PCM WAV file. If the cache
+		// only has the source m4a/flac, materialize the decoded samples to
+		// disk first so the diarizer subprocess can read them.
+		if !strings.HasSuffix(strings.ToLower(wavPath), ".wav") || wavPath == absPath {
+			cacheKey, err := transcriber.AudioCacheKey(absPath)
+			if err == nil {
+				cachePath := filepath.Join(shared.CacheDir(), cacheKey)
+				if _, statErr := os.Stat(cachePath); statErr != nil {
+					if werr := transcriber.WritePCM16WAV(cachePath, samples, transcriber.WhisperSampleRate); werr == nil {
+						wavPath = cachePath
+					} else {
+						p.debugLog(fmt.Sprintf("could not write WAV cache: %v", werr))
+					}
+				} else {
+					wavPath = cachePath
+				}
+			}
+		}
 		diarSegs, diarOK = p.runDiarization(wavPath, speakers, audioDurSec)
 	}
 	usedTDRZ := transcriber.UseTDRZ(false, diarOK, noDiarize)
