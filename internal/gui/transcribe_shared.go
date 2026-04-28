@@ -65,7 +65,7 @@ func (p *transcribePanel) resolveStartTime() (time.Time, error) {
 }
 
 func (p *transcribePanel) onStartTimeNow() {
-	if p.dateEntry == nil || p.timeEntry == nil {
+	if p.timeEntry == nil {
 		return
 	}
 	current := time.Now()
@@ -73,7 +73,27 @@ func (p *transcribePanel) onStartTimeNow() {
 		current = t
 	}
 	showTimePicker(p.window, current, func(h, m, s int) {
-		p.timeEntry.SetText(fmt.Sprintf("%02d:%02d:%02d", h, m, s))
+		txt := fmt.Sprintf("%02d:%02d:%02d", h, m, s)
+		p.timeEntry.SetText(txt)
+		if p.timeBtn != nil {
+			p.timeBtn.SetText(txt)
+		}
+	})
+}
+
+func (p *transcribePanel) onPickDate() {
+	if p.dateEntry == nil {
+		return
+	}
+	current := time.Now()
+	if p.dateEntry.Date != nil {
+		current = *p.dateEntry.Date
+	}
+	showDatePicker(p.window, current, func(t time.Time) {
+		p.dateEntry.SetDate(&t)
+		if p.dateBtn != nil {
+			p.dateBtn.SetText(t.Format("2006-01-02"))
+		}
 	})
 }
 

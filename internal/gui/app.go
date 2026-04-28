@@ -81,7 +81,7 @@ func buildTranscodeTab(tp *transcribePanel, deviceInfo string) fyne.CanvasObject
 		settingsField("SPEAKERS", tp.settings.speakersSelect),
 	)
 
-	dateAndTime := container.NewGridWithColumns(2, tp.dateEntry, tp.timeEntry)
+	dateAndTime := container.NewGridWithColumns(2, tp.dateBtn, tp.timeBtn)
 	startTimeRow := settingsField("RECORDED AT", dateAndTime)
 
 	btnSpacer := canvas.NewRectangle(transparent)

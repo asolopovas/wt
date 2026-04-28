@@ -30,6 +30,8 @@ type transcribePanel struct {
 	dateEntry    *widget.DateEntry
 	timeEntry    *tappableEntry
 	startTimeNow *pointerButton
+	dateBtn      *widget.Button
+	timeBtn      *widget.Button
 
 	speakerRenames map[string]string
 

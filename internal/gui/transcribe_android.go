@@ -45,9 +45,16 @@ func (p *transcribePanel) build() {
 	p.timeEntry = newTappableEntry(p.onStartTimeNow)
 	p.timeEntry.PlaceHolder = timeOnlyLayout
 	p.timeEntry.SetText(formatTimeOnly(now))
-	clockBtn := widget.NewButtonWithIcon("", clockIconResource, p.onStartTimeNow)
-	clockBtn.Importance = widget.LowImportance
-	p.timeEntry.ActionItem = clockBtn
+
+	p.dateBtn = widget.NewButtonWithIcon(now.Format("2006-01-02"), theme.MenuExpandIcon(), p.onPickDate)
+	p.dateBtn.Importance = widget.LowImportance
+	p.dateBtn.IconPlacement = widget.ButtonIconTrailingText
+	p.dateBtn.Alignment = widget.ButtonAlignLeading
+
+	p.timeBtn = widget.NewButtonWithIcon(formatTimeOnly(now), clockIconResource, p.onStartTimeNow)
+	p.timeBtn.Importance = widget.LowImportance
+	p.timeBtn.IconPlacement = widget.ButtonIconTrailingText
+	p.timeBtn.Alignment = widget.ButtonAlignLeading
 
 	p.progress = newThinProgress()
 
