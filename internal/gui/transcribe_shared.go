@@ -68,9 +68,13 @@ func (p *transcribePanel) onStartTimeNow() {
 	if p.dateEntry == nil || p.timeEntry == nil {
 		return
 	}
-	now := time.Now()
-	p.dateEntry.SetDate(&now)
-	p.timeEntry.SetText(formatTimeOnly(now))
+	current := time.Now()
+	if t, err := p.resolveStartTime(); err == nil {
+		current = t
+	}
+	showTimePicker(p.window, current, func(h, m, s int) {
+		p.timeEntry.SetText(fmt.Sprintf("%02d:%02d:%02d", h, m, s))
+	})
 }
 
 func (p *transcribePanel) displayName(speaker string) string {

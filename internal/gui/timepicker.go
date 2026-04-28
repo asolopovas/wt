@@ -1,0 +1,61 @@
+package gui
+
+import (
+	"fmt"
+	"time"
+
+	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/dialog"
+	"fyne.io/fyne/v2/widget"
+)
+
+// showTimePicker opens a modal time picker with hour / minute / second
+// scrollable selectors and a "Now" shortcut. Calls onSelect when the user
+// confirms. Fyne does not bridge to Android's native TimePickerDialog,
+// so this is implemented in pure Fyne and looks the same on every platform.
+func showTimePicker(parent fyne.Window, current time.Time, onSelect func(h, m, s int)) {
+	hours := makeRange(0, 23, "%02d")
+	minutes := makeRange(0, 59, "%02d")
+	seconds := makeRange(0, 59, "%02d")
+
+	hourSel := widget.NewSelect(hours, nil)
+	minSel := widget.NewSelect(minutes, nil)
+	secSel := widget.NewSelect(seconds, nil)
+
+	hourSel.SetSelected(fmt.Sprintf("%02d", current.Hour()))
+	minSel.SetSelected(fmt.Sprintf("%02d", current.Minute()))
+	secSel.SetSelected(fmt.Sprintf("%02d", current.Second()))
+
+	colon1 := widget.NewLabel(":")
+	colon2 := widget.NewLabel(":")
+	row := container.NewHBox(hourSel, colon1, minSel, colon2, secSel)
+
+	nowBtn := widget.NewButton("NOW", func() {
+		now := time.Now()
+		hourSel.SetSelected(fmt.Sprintf("%02d", now.Hour()))
+		minSel.SetSelected(fmt.Sprintf("%02d", now.Minute()))
+		secSel.SetSelected(fmt.Sprintf("%02d", now.Second()))
+	})
+
+	body := container.NewVBox(row, nowBtn)
+
+	dialog.ShowCustomConfirm("Pick time", "OK", "CANCEL", body, func(ok bool) {
+		if !ok {
+			return
+		}
+		var h, m, s int
+		fmt.Sscanf(hourSel.Selected, "%d", &h)
+		fmt.Sscanf(minSel.Selected, "%d", &m)
+		fmt.Sscanf(secSel.Selected, "%d", &s)
+		onSelect(h, m, s)
+	}, parent)
+}
+
+func makeRange(lo, hi int, format string) []string {
+	out := make([]string, 0, hi-lo+1)
+	for i := lo; i <= hi; i++ {
+		out = append(out, fmt.Sprintf(format, i))
+	}
+	return out
+}

@@ -78,10 +78,9 @@ func buildTranscodeTabAndroid(tp *transcribePanel, deviceInfo string) fyne.Canva
 		borderedBtn(tp.previewBtn, colOutline),
 	)
 
-	timeField := container.NewGridWrap(fyne.NewSize(96, 36), tp.timeEntry)
-	dateAndTime := container.NewBorder(nil, nil, nil, timeField, tp.dateEntry)
-	startTimeRow := settingsField("RECORDED AT",
-		container.NewBorder(nil, nil, nil, tp.startTimeNow, dateAndTime))
+	timeWithIcon := container.NewBorder(nil, nil, nil, tp.startTimeNow, tp.timeEntry)
+	dateAndTime := container.NewGridWithColumns(2, tp.dateEntry, timeWithIcon)
+	startTimeRow := settingsField("RECORDED AT", dateAndTime)
 
 	bottomGap := canvas.NewRectangle(transparent)
 	bottomGap.SetMinSize(fyne.NewSize(0, 6))
