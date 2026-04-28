@@ -161,46 +161,7 @@ func (p *transcribePanel) runTranscription() {
 }
 
 func (p *transcribePanel) loadModel(modelSize string) (whisper.Model, error) {
-	dlStart := time.Now()
-	var lastLogged time.Time
-	var loggedHeader bool
-	prog := func(downloaded, total int64) {
-		if downloaded < 0 {
-			attempt := -downloaded
-			p.appendLog(fmt.Sprintf("  Download interrupted (attempt %d/5) — retrying...", attempt))
-			lastLogged = time.Time{}
-			return
-		}
-		if total <= 0 {
-			return
-		}
-		if !loggedHeader {
-			p.appendLog(fmt.Sprintf("  Downloading model (%.1f MB)...", float64(total)/(1024*1024)))
-			loggedHeader = true
-		}
-		pct := float64(downloaded) / float64(total)
-		dlMB := float64(downloaded) / (1024 * 1024)
-		totalMB := float64(total) / (1024 * 1024)
-		elapsed := time.Since(dlStart).Seconds()
-		var rate float64
-		if elapsed > 0 {
-			rate = dlMB / elapsed
-		}
-		var eta string
-		if rate > 0 && downloaded < total {
-			remaining := (totalMB - dlMB) / rate
-			eta = ", ETA " + formatETA(remaining)
-		}
-		status := fmt.Sprintf("Downloading %s: %.1f / %.1f MB (%.0f%%, %.1f MB/s%s)",
-			modelSize, dlMB, totalMB, pct*100, rate, eta)
-		p.setStatus(status)
-		p.setProgress(pct)
-		now := time.Now()
-		if downloaded == total || now.Sub(lastLogged) >= 2*time.Second {
-			p.appendLog("  " + status)
-			lastLogged = now
-		}
-	}
+	prog := p.makeDownloadProgress(modelSize)
 
 	path, err := transcriber.ResolveModelPathWithProgress(modelSize, "", prog)
 	if err != nil {

@@ -327,3 +327,90 @@ func (p *transcribePanel) setProgress(val float64) {
 		p.progress.SetValue(val)
 	})
 }
+
+var spinnerFrames = []rune{'⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'}
+
+// makeDownloadProgress builds a quiet-by-default progress callback for shared.DownloadFile:
+//   - logs the start once and the completion once (no per-tick spam)
+//   - updates status line + progress bar in place every callback
+//   - includes an animated spinner glyph and instantaneous rate (delta-based)
+//   - logs retries as a single line each
+func (p *transcribePanel) makeDownloadProgress(label string) func(downloaded, total int64) {
+	var (
+		startTime    time.Time
+		startOffset  int64
+		lastBytes    int64
+		lastTime     time.Time
+		instRate     float64
+		headerLogged bool
+		ticks        int
+	)
+	return func(downloaded, total int64) {
+		if downloaded < 0 {
+			p.appendLog(fmt.Sprintf("  %s: retry %d — resuming", label, -downloaded))
+			lastBytes = 0
+			startTime = time.Time{}
+			return
+		}
+		if total <= 0 {
+			return
+		}
+		if startTime.IsZero() {
+			startTime = time.Now()
+			startOffset = downloaded
+			lastBytes = downloaded
+			lastTime = startTime
+		}
+		if !headerLogged {
+			if downloaded > 0 && downloaded < total {
+				p.appendLog(fmt.Sprintf("  %s: resuming %.0f/%.0f MB...",
+					label, float64(downloaded)/(1024*1024), float64(total)/(1024*1024)))
+			} else {
+				p.appendLog(fmt.Sprintf("  %s: downloading %.0f MB...",
+					label, float64(total)/(1024*1024)))
+			}
+			headerLogged = true
+		}
+
+		now := time.Now()
+		dt := now.Sub(lastTime).Seconds()
+		if dt >= 0.4 {
+			delta := downloaded - lastBytes
+			if delta > 0 {
+				cur := float64(delta) / dt / (1024 * 1024)
+				if instRate == 0 {
+					instRate = cur
+				} else {
+					instRate = instRate*0.7 + cur*0.3
+				}
+			}
+			lastBytes = downloaded
+			lastTime = now
+		}
+
+		pct := float64(downloaded) / float64(total)
+		dlMB := float64(downloaded) / (1024 * 1024)
+		totalMB := float64(total) / (1024 * 1024)
+		eta := "--"
+		if instRate > 0 && downloaded < total {
+			eta = formatETA((totalMB - dlMB) / instRate)
+		}
+		ticks++
+		spinner := string(spinnerFrames[ticks%len(spinnerFrames)])
+		status := fmt.Sprintf("%s %s %.0f%% • %.0f/%.0fMB • %.1fMB/s • ETA %s",
+			spinner, label, pct*100, dlMB, totalMB, instRate, eta)
+		p.setStatus(status)
+		p.setProgress(pct)
+
+		if downloaded == total {
+			elapsed := time.Since(startTime).Seconds()
+			gotMB := float64(downloaded-startOffset) / (1024 * 1024)
+			avg := 0.0
+			if elapsed > 0 {
+				avg = gotMB / elapsed
+			}
+			p.appendLog(fmt.Sprintf("  %s: done — %.0f MB in %.0fs (%.1f MB/s avg)",
+				label, gotMB, elapsed, avg))
+		}
+	}
+}

@@ -50,7 +50,7 @@ func newSherpaDiarizer() (Backend, error) {
 
 const (
 	sherpaSegURL = "https://huggingface.co/csukuangfj/sherpa-onnx-pyannote-segmentation-3-0/resolve/main/model.onnx"
-	sherpaEmbURL = "https://huggingface.co/k2-fsa/sherpa-onnx-3d-speaker/resolve/main/3dspeaker_speech_eres2net_base_sv_zh-cn_3dspeaker_16k.onnx"
+	sherpaEmbURL = "https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-recongition-models/3dspeaker_speech_eres2net_base_sv_zh-cn_3dspeaker_16k.onnx"
 )
 
 // SherpaModelPaths returns the canonical (seg, emb) paths inside ModelsDir.
