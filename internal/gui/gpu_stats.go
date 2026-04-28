@@ -26,22 +26,29 @@ func (p *transcribePanel) collectStats() string {
 	var parts []string
 
 	if cpu := queryCPUUsage(); cpu >= 0 {
-		parts = append(parts, fmt.Sprintf("CPU: %d%%", cpu))
+		parts = append(parts, fmt.Sprintf("CPU %d%%", cpu))
 	}
 
 	gpuUtil, gpuMem := queryGpuStats()
 	if gpuUtil >= 0 {
-		parts = append(parts, fmt.Sprintf("GPU: %d%%", gpuUtil))
+		parts = append(parts, fmt.Sprintf("GPU %d%%", gpuUtil))
 	}
 	if gpuMem >= 0 {
-		parts = append(parts, fmt.Sprintf("VRAM: %dMB", gpuMem))
+		parts = append(parts, "VRAM "+formatMB(int64(gpuMem)))
 	}
 
 	var memStats runtime.MemStats
 	runtime.ReadMemStats(&memStats)
-	parts = append(parts, fmt.Sprintf("MEM: %dMB", memStats.Sys/1024/1024))
+	parts = append(parts, "APP RAM "+formatMB(int64(memStats.Sys/1024/1024)))
 
-	return strings.Join(parts, "  |  ")
+	return strings.Join(parts, "  •  ")
+}
+
+func formatMB(mb int64) string {
+	if mb >= 1024 {
+		return fmt.Sprintf("%.1f GB", float64(mb)/1024)
+	}
+	return fmt.Sprintf("%d MB", mb)
 }
 
 func queryGpuStats() (utilPct int, memMB int) {

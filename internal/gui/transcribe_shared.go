@@ -81,6 +81,23 @@ func (p *transcribePanel) onStartTimeNow() {
 	})
 }
 
+func (p *transcribePanel) onStartTimeBothNow() {
+	now := time.Now()
+	if p.dateEntry != nil {
+		p.dateEntry.SetDate(&now)
+	}
+	if p.dateBtn != nil {
+		p.dateBtn.SetText(now.Format("2006-01-02"))
+	}
+	txt := formatTimeOnly(now)
+	if p.timeEntry != nil {
+		p.timeEntry.SetText(txt)
+	}
+	if p.timeBtn != nil {
+		p.timeBtn.SetText(txt)
+	}
+}
+
 func (p *transcribePanel) onPickDate() {
 	if p.dateEntry == nil {
 		return

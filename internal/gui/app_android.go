@@ -78,7 +78,13 @@ func buildTranscodeTabAndroid(tp *transcribePanel, deviceInfo string) fyne.Canva
 		borderedBtn(tp.previewBtn, colOutline),
 	)
 
-	dateAndTime := container.NewGridWithColumns(2, tp.dateBtn, tp.timeBtn)
+	nowBtn := newPointerButton("NOW", tp.onStartTimeBothNow)
+	nowBtn.Importance = widget.LowImportance
+	dateAndTime := container.NewGridWithColumns(3,
+		borderedBtn(tp.dateBtn, colOutline),
+		borderedBtn(tp.timeBtn, colOutline),
+		borderedBtn(nowBtn, colOutline),
+	)
 	startTimeRow := settingsField("RECORDED AT", dateAndTime)
 
 	bottomGap := canvas.NewRectangle(transparent)
