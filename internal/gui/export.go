@@ -15,6 +15,7 @@ import (
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/storage"
+	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 	"github.com/xuri/excelize/v2"
 
@@ -76,29 +77,41 @@ func (p *transcribePanel) onPreview() {
 		p.speakerRenames = map[string]string{}
 	}
 
-	content := widget.NewMultiLineEntry()
+	content := widget.NewRichText()
 	content.Wrapping = fyne.TextWrapWord
-	content.TextStyle = fyne.TextStyle{Monospace: true}
-	content.Disable()
 
 	var currentItem exportItem
 	render := func() {
 		tr := transcripts[currentItem.cachePath]
+		content.Segments = nil
 		if tr == nil {
-			content.SetText("")
+			content.Refresh()
 			return
 		}
-		var sb strings.Builder
-		for _, u := range tr.Utterances {
-			sb.WriteString(fmt.Sprintf("[%s] %s: %s\n",
-				formatAbsoluteTimestamp(u.Start, start),
-				p.displayName(u.Speaker),
-				strings.TrimSpace(u.Text)))
+		if len(tr.Utterances) == 0 {
+			content.Segments = append(content.Segments, &widget.TextSegment{
+				Text: "(no utterances)",
+				Style: widget.RichTextStyle{
+					ColorName: theme.ColorNameForeground,
+					TextStyle: fyne.TextStyle{Monospace: true},
+				},
+			})
+		} else {
+			for _, u := range tr.Utterances {
+				line := fmt.Sprintf("[%s] %s: %s\n",
+					formatAbsoluteTimestamp(u.Start, start),
+					p.displayName(u.Speaker),
+					strings.TrimSpace(u.Text))
+				content.Segments = append(content.Segments, &widget.TextSegment{
+					Text: line,
+					Style: widget.RichTextStyle{
+						ColorName: theme.ColorNamePrimary,
+						TextStyle: fyne.TextStyle{Monospace: true},
+					},
+				})
+			}
 		}
-		if sb.Len() == 0 {
-			sb.WriteString("(no utterances)")
-		}
-		content.SetText(sb.String())
+		content.Refresh()
 	}
 
 	speakerRows := make([]fyne.CanvasObject, 0, len(speakerOrder))
@@ -156,21 +169,19 @@ func (p *transcribePanel) onPreview() {
 	}
 
 	editing := false
-	editBtn := widget.NewButton("EDIT", nil)
+	editBtn := widget.NewButton("RENAME", nil)
 	editBtn.OnTapped = func() {
 		editing = !editing
 		if editing {
-			content.Enable()
 			if speakerPanel != nil {
 				speakerPanel.Show()
 			}
 			editBtn.SetText("DONE")
 		} else {
-			content.Disable()
 			if speakerPanel != nil {
 				speakerPanel.Hide()
 			}
-			editBtn.SetText("EDIT")
+			editBtn.SetText("RENAME")
 		}
 	}
 

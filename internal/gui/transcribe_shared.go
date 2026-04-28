@@ -95,7 +95,7 @@ func extensionSet(extensions []string) map[string]bool {
 	return set
 }
 
-func buildLogPanel(scroll *container.Scroll, copyBtn, clearLogBtn *pointerButton) fyne.CanvasObject {
+func buildLogPanel(scroll *container.Scroll, copyBtn, clearLogBtn *pointerButton, extraBtns ...*pointerButton) fyne.CanvasObject {
 	bg := canvas.NewRectangle(colSurfLowest)
 	bg.StrokeColor = colGhostBorder
 	bg.StrokeWidth = 1
@@ -105,7 +105,12 @@ func buildLogPanel(scroll *container.Scroll, copyBtn, clearLogBtn *pointerButton
 	logLabel.TextStyle = fyne.TextStyle{Bold: true}
 
 	headerBg := canvas.NewRectangle(colSurfLow)
-	headerContent := container.NewHBox(logLabel, layout.NewSpacer(), copyBtn, clearLogBtn)
+	headerObjs := []fyne.CanvasObject{logLabel, layout.NewSpacer()}
+	for _, b := range extraBtns {
+		headerObjs = append(headerObjs, b)
+	}
+	headerObjs = append(headerObjs, copyBtn, clearLogBtn)
+	headerContent := container.NewHBox(headerObjs...)
 	header := container.NewStack(headerBg, container.NewPadded(headerContent))
 
 	inner := container.NewBorder(header, nil, nil, nil, scroll)
@@ -293,7 +298,9 @@ func (p *transcribePanel) appendLog(msg string) {
 		}
 		p.logText.Segments = append(p.logText.Segments, seg)
 		p.logText.Refresh()
-		p.logScroll.ScrollToBottom()
+		if p.autoScroll.Load() {
+			p.logScroll.ScrollToBottom()
+		}
 	})
 }
 

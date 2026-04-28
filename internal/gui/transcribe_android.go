@@ -69,7 +69,12 @@ func (p *transcribePanel) build() {
 	clearLogBtn := newPointerButtonWithIcon("", theme.HistoryIcon(), p.onClearLog)
 	clearLogBtn.Importance = widget.LowImportance
 
-	logPanel := buildLogPanel(p.logScroll, copyBtn, clearLogBtn)
+	p.autoScroll.Store(true)
+	p.autoBtn = newPointerButtonWithIcon("", theme.MoveDownIcon(), nil)
+	p.autoBtn.Importance = widget.HighImportance
+	p.autoBtn.OnTapped = p.toggleAutoScroll
+
+	logPanel := buildLogPanel(p.logScroll, copyBtn, clearLogBtn, p.autoBtn)
 
 	p.container = logPanel
 }

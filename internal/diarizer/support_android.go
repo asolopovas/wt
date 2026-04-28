@@ -3,5 +3,5 @@
 package diarizer
 
 func SupportsExternalBackend() bool {
-	return false
+	return true
 }

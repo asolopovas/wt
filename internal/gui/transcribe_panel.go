@@ -38,6 +38,8 @@ type transcribePanel struct {
 	statsLine  *widget.Label
 	logText    *widget.RichText
 	logScroll  *container.Scroll
+	autoScroll atomic.Bool
+	autoBtn    *pointerButton
 
 	lastCSVPath string
 	results     []exportItem

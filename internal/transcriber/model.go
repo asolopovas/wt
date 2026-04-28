@@ -52,7 +52,13 @@ func ValidModelNames() []string {
 	return names
 }
 
+type DownloadProgress func(downloaded, total int64)
+
 func ResolveModelPath(modelSize, modelPath string) (string, error) {
+	return ResolveModelPathWithProgress(modelSize, modelPath, nil)
+}
+
+func ResolveModelPathWithProgress(modelSize, modelPath string, prog DownloadProgress) (string, error) {
 	if modelPath != "" {
 		if _, err := os.Stat(modelPath); err != nil {
 			return "", fmt.Errorf("model file not found: %s", modelPath)
@@ -92,15 +98,18 @@ func ResolveModelPath(modelSize, modelPath string) (string, error) {
 	}
 
 	url := modelURLBase + "/" + filename
-	pterm.Info.Printf("Downloading model '%s' from %s\n", modelSize, url)
-	pterm.FgDarkGray.Println("This may take a few minutes on first run.")
+	if prog == nil {
+		pterm.Info.Printf("Downloading model '%s' from %s\n", modelSize, url)
+		pterm.FgDarkGray.Println("This may take a few minutes on first run.")
+	}
 
-	if err := downloadFile(path, url); err != nil {
-		_ = os.Remove(path)
+	if err := downloadFile(path, url, prog); err != nil {
 		return "", fmt.Errorf("downloading model: %w", err)
 	}
 
-	ui.Done(fmt.Sprintf("Model saved to %s", path))
+	if prog == nil {
+		ui.Done(fmt.Sprintf("Model saved to %s", path))
+	}
 	return path, nil
 }
 
@@ -122,7 +131,7 @@ func ResolveVADModelPath() (string, error) {
 	}
 
 	ui.Stage("Downloading VAD model...")
-	if err := downloadFile(path, vadModelURL); err != nil {
+	if err := downloadFile(path, vadModelURL, nil); err != nil {
 		_ = os.Remove(path)
 		return "", fmt.Errorf("downloading VAD model: %w", err)
 	}
@@ -142,49 +151,138 @@ func legacyModelDirs() []string {
 	}
 }
 
-func downloadFile(dst, url string) error {
-	resp, err := http.Get(url)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		_ = resp.Body.Close()
-	}()
+func downloadFile(dst, url string, prog DownloadProgress) error {
+	const maxReadAttempts = 8
+	const maxDialAttempts = 30
+	tmp := dst + ".part"
 
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("HTTP %d: %s", resp.StatusCode, resp.Status)
-	}
+	client := &http.Client{Timeout: 0}
 
-	f, err := os.Create(dst)
-	if err != nil {
-		return err
-	}
+	var pb *pterm.ProgressbarPrinter
+	var totalSize int64
+	var lastErr error
+	readAttempt := 0
+	dialAttempt := 0
 
-	size := resp.ContentLength
-	reader := io.Reader(resp.Body)
+	for {
+		if readAttempt >= maxReadAttempts || dialAttempt >= maxDialAttempts {
+			break
+		}
 
-	if size > 0 {
-		pb, err := pterm.DefaultProgressbar.
-			WithTitle("Downloading").
-			WithTotal(int(size / (1024 * 1024))).
-			WithShowCount(true).
-			Start()
+		var offset int64
+		if st, err := os.Stat(tmp); err == nil {
+			offset = st.Size()
+		}
 
-		if err == nil && pb != nil {
-			reader = &progressReader{
-				reader:    resp.Body,
-				totalSize: size,
-				bar:       pb,
+		req, err := http.NewRequest("GET", url, nil)
+		if err != nil {
+			return err
+		}
+		if offset > 0 {
+			req.Header.Set("Range", fmt.Sprintf("bytes=%d-", offset))
+		}
+
+		resp, err := client.Do(req)
+		if err != nil {
+			dialAttempt++
+			lastErr = err
+			if prog != nil {
+				prog(-int64(dialAttempt), 0)
+			} else {
+				ui.Warn(fmt.Sprintf("connect failed (%d/%d): %v — retrying", dialAttempt, maxDialAttempts, err))
+			}
+			sleep := time.Duration(dialAttempt) * 2 * time.Second
+			if sleep > 15*time.Second {
+				sleep = 15 * time.Second
+			}
+			time.Sleep(sleep)
+			continue
+		}
+
+		if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusPartialContent {
+			_ = resp.Body.Close()
+			return fmt.Errorf("HTTP %d: %s", resp.StatusCode, resp.Status)
+		}
+
+		if resp.StatusCode == http.StatusOK {
+			offset = 0
+			_ = os.Remove(tmp)
+		}
+
+		flag := os.O_WRONLY | os.O_CREATE
+		if offset > 0 {
+			flag |= os.O_APPEND
+		} else {
+			flag |= os.O_TRUNC
+		}
+		f, err := os.OpenFile(tmp, flag, 0o644)
+		if err != nil {
+			_ = resp.Body.Close()
+			return err
+		}
+
+		totalSize = resp.ContentLength + offset
+		if prog == nil && pb == nil && totalSize > 0 {
+			p, perr := pterm.DefaultProgressbar.
+				WithTitle("Downloading").
+				WithTotal(int(totalSize / (1024 * 1024))).
+				WithShowCount(true).
+				Start()
+			if perr == nil {
+				pb = p
+				if offset > 0 {
+					pb.Add(int(offset / (1024 * 1024)))
+				}
 			}
 		}
-	}
 
-	if _, err := io.Copy(f, reader); err != nil {
+		if prog != nil {
+			prog(offset, totalSize)
+		}
+
+		reader := io.Reader(resp.Body)
+		if pb != nil || prog != nil {
+			reader = &progressReader{
+				reader:    resp.Body,
+				totalSize: totalSize,
+				written:   offset,
+				lastMB:    int(offset / (1024 * 1024)),
+				bar:       pb,
+				cb:        prog,
+			}
+		}
+
+		_, copyErr := io.Copy(f, reader)
 		_ = f.Close()
-		return err
+		_ = resp.Body.Close()
+
+		if copyErr == nil {
+			if prog != nil {
+				prog(totalSize, totalSize)
+			}
+			return os.Rename(tmp, dst)
+		}
+
+		readAttempt++
+		lastErr = copyErr
+		if prog != nil {
+			prog(-int64(readAttempt), totalSize)
+		} else {
+			ui.Warn(fmt.Sprintf("download interrupted (%d/%d): %v — retrying", readAttempt, maxReadAttempts, copyErr))
+		}
+		sleep := time.Duration(readAttempt) * 2 * time.Second
+		if sleep > 15*time.Second {
+			sleep = 15 * time.Second
+		}
+		time.Sleep(sleep)
 	}
 
-	return f.Close()
+	partSize := int64(0)
+	if st, err := os.Stat(tmp); err == nil {
+		partSize = st.Size()
+	}
+	return fmt.Errorf("gave up after %d read / %d connect retries (partial download preserved: %.1f MB at %s.part — re-run to resume): %w",
+		readAttempt, dialAttempt, float64(partSize)/(1024*1024), filepath.Base(dst), lastErr)
 }
 
 type progressReader struct {
@@ -193,6 +291,8 @@ type progressReader struct {
 	written   int64
 	lastMB    int
 	bar       *pterm.ProgressbarPrinter
+	cb        DownloadProgress
+	lastCb    time.Time
 }
 
 func (pr *progressReader) Read(p []byte) (int, error) {
@@ -200,8 +300,17 @@ func (pr *progressReader) Read(p []byte) (int, error) {
 	pr.written += int64(n)
 	mb := int(pr.written / (1024 * 1024))
 	if mb > pr.lastMB {
-		pr.bar.Add(mb - pr.lastMB)
+		if pr.bar != nil {
+			pr.bar.Add(mb - pr.lastMB)
+		}
 		pr.lastMB = mb
+	}
+	if pr.cb != nil {
+		now := time.Now()
+		if now.Sub(pr.lastCb) >= 250*time.Millisecond {
+			pr.cb(pr.written, pr.totalSize)
+			pr.lastCb = now
+		}
 	}
 	return n, err
 }

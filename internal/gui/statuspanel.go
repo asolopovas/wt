@@ -50,6 +50,20 @@ func (p *transcribePanel) onCancel() {
 	p.setStatus("Cancelling...")
 }
 
+func (p *transcribePanel) toggleAutoScroll() {
+	on := !p.autoScroll.Load()
+	p.autoScroll.Store(on)
+	fyne.Do(func() {
+		if on {
+			p.autoBtn.Importance = widget.HighImportance
+			p.logScroll.ScrollToBottom()
+		} else {
+			p.autoBtn.Importance = widget.LowImportance
+		}
+		p.autoBtn.Refresh()
+	})
+}
+
 func (p *transcribePanel) debugLog(msg string) {
 	if !p.settings.debug() {
 		return
