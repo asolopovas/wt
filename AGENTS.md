@@ -1,6 +1,6 @@
 # AGENTS.md — wt
 
-Go CLI + GUI wrapping [whisper.cpp](https://github.com/ggml-org/whisper.cpp) for audio transcription with speaker diarization via [senko](https://github.com/narcotic-sh/senko).
+Go CLI + GUI wrapping [whisper.cpp](https://github.com/ggml-org/whisper.cpp) for audio transcription with speaker diarization. Desktop runs the bundled NeMo sortformer pipeline via `scripts/diarize.py` (better English speaker separation); Android uses sherpa-onnx pyannote-3.0 + 3dspeaker via `libsherpa-diar.so` (no bundled CPython).
 
 ## Versioning
 
@@ -16,7 +16,7 @@ cmd/wt-test/    Android test CLI
 internal/               Shared: config, window-hiding
 internal/gui/           Fyne GUI (drag-drop, settings, theme)
 internal/transcriber/   Audio, model, CSV, live mode
-internal/diarizer/      senko Python subprocess wrapper
+internal/diarizer/      NeMo Python subprocess + sherpa-onnx (Android)
 internal/ui/            Terminal spinners/progress (CLI only)
 bindings/go/            Vendored whisper.cpp CGo bindings
 scripts/                Build helpers, Inno Setup, diarize.py
@@ -68,7 +68,12 @@ task fmt            # gofumpt -w (falls back to gofmt)
 CI runs `go vet` only.
 
 ## Code Style
-- No comments unless explicitly requested.
+- No comments unless explicitly requested. The only comments allowed in
+  Go sources are compiler/runtime directives: `//go:build`, `//go:embed`,
+  `//go:generate`, `//export ...`, `//line ...`, `// +build`, the
+  `// Code generated ... DO NOT EDIT.` marker, and the cgo `/* ... */`
+  preamble immediately preceding `import "C"`. Run
+  `task clean-comments` to strip everything else.
 - No commits unless explicitly instructed.
 
 ## Platform Build Tags

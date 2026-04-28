@@ -111,7 +111,6 @@ func ResolveModelPathWithProgress(modelSize, modelPath string, prog DownloadProg
 	return path, nil
 }
 
-// wrapForCLI adds CLI progress bar / warn lines when no GUI prog was supplied.
 func wrapForCLI(prog DownloadProgress, label string) DownloadProgress {
 	if prog != nil {
 		return prog
@@ -182,7 +181,6 @@ func legacyModelDirs() []string {
 		filepath.Join(home, ".cache", "wt"),
 	}
 }
-
 
 func LoadModel(modelSize, modelPath string, threads int) (*Model, error) {
 	path, err := ResolveModelPath(modelSize, modelPath)

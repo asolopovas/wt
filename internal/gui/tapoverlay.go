@@ -8,9 +8,6 @@ import (
 	"fyne.io/fyne/v2/widget"
 )
 
-// tapOverlay is a fully transparent widget that captures taps and forwards
-// them to onTap. Used to put a click-shield over an Entry/DateEntry so the
-// underlying widget never receives focus and the soft keyboard never opens.
 type tapOverlay struct {
 	widget.BaseWidget
 	onTap func()

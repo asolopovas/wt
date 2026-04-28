@@ -138,7 +138,6 @@ func pcmToFloat32(buf []byte, numSamples int) []float32 {
 	return samples
 }
 
-// WritePCM16WAV writes float32 samples (range [-1,1]) to a 16-bit mono PCM WAV.
 func WritePCM16WAV(path string, samples []float32, sampleRate int) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
@@ -181,7 +180,7 @@ func WritePCM16WAV(path string, samples []float32, sampleRate int) error {
 	if err := write(u32(16)); err != nil {
 		return err
 	}
-	if err := write(u16(1)); err != nil { // PCM
+	if err := write(u16(1)); err != nil {
 		return err
 	}
 	if err := write(u16(uint16(numChannels))); err != nil {

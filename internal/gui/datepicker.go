@@ -8,9 +8,6 @@ import (
 	"fyne.io/fyne/v2/widget"
 )
 
-// showDatePicker opens a modal calendar widget for picking a date, mirroring
-// the time picker UX. Used because Fyne's mobile DateEntry tap behavior
-// otherwise focuses the underlying entry and pops the soft keyboard.
 func showDatePicker(parent fyne.Window, current time.Time, onSelect func(time.Time)) {
 	picked := current
 	cal := widget.NewCalendar(current, func(t time.Time) {

@@ -32,14 +32,6 @@ func formatETA(secs float64) string {
 	return fmt.Sprintf("%dh%02dm", int(secs)/3600, (int(secs)%3600)/60)
 }
 
-// progressSmoother interpolates between whisper's coarse integer-percent
-// callbacks. Whisper.cpp can take tens of seconds (sometimes >1min on the
-// first chunk) before bumping the percent, then jump several points at once.
-// We expose a continuous (display, etaSec) by:
-//   - seeding an initial seconds-per-percent estimate from audio duration,
-//   - refining it via EMA from observed pct transitions,
-//   - asymptotically advancing the displayed value between reports
-//     (tanh saturation so we never overshoot the next real percent).
 type progressSmoother struct {
 	mu        sync.Mutex
 	lastPct   int
@@ -49,8 +41,6 @@ type progressSmoother struct {
 }
 
 func newProgressSmoother(audioDurSec float64) *progressSmoother {
-	// Rough RTF guess: ~0.4× audio duration to fully transcribe. Refined
-	// after the first real percent transition.
 	initial := audioDurSec * 0.4 / 100.0
 	if initial < 0.3 {
 		initial = 0.3
@@ -73,8 +63,7 @@ func (s *progressSmoother) report(pct int) {
 	if elapsed > 0 && pctDelta > 0 {
 		observed := elapsed / float64(pctDelta)
 		if !s.seeded {
-			// First real measurement carries far more signal than our
-			// audio-duration guess — replace outright.
+
 			s.secPerPct = observed
 			s.seeded = true
 		} else {
@@ -93,9 +82,7 @@ func (s *progressSmoother) snapshot() (display float64, etaSec float64) {
 	if rate <= 0 {
 		rate = 1
 	}
-	// Asymptotic advance: linear at first, saturating at +softCap percents
-	// ahead of the last reported value so a stalled callback can never push
-	// the bar past the next real report.
+
 	const softCap = 4.0
 	raw := elapsed / rate
 	interp := softCap * math.Tanh(raw/softCap)
@@ -103,9 +90,7 @@ func (s *progressSmoother) snapshot() (display float64, etaSec float64) {
 	if display > 99 {
 		display = 99
 	}
-	// If we've waited much longer than estimated, the real rate is slower
-	// than our EMA — inflate the rate used for ETA so it grows instead of
-	// counting down past zero.
+
 	effRate := rate
 	if elapsed > 2*rate {
 		effRate = elapsed / 2.0
@@ -296,8 +281,6 @@ func (p *transcribePanel) transcribeFile(model whisper.Model, path, modelSize, l
 		return fmt.Errorf("cancelled")
 	}
 
-	// Phase 1: transcribe (whisper) — try raw cache first so iterating on
-	// the diarizer doesn't redo the slow ASR pass.
 	var (
 		segs     []diarizer.TranscriptSegment
 		detected string
@@ -395,7 +378,6 @@ func (p *transcribePanel) transcribeFile(model whisper.Model, path, modelSize, l
 		return fmt.Errorf("cancelled")
 	}
 
-	// Phase 2: diarize and overlay onto the transcript.
 	var diarSegs []diarizer.Segment
 	diarOK := false
 	if !noDiarize && diarizer.SupportsExternalBackend() {

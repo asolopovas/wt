@@ -25,7 +25,6 @@ type Backend interface {
 }
 
 func New() (Backend, error) {
-	// Android has no bundled CPython, so it can only use sherpa-onnx.
 	if runtime.GOOS == "android" {
 		b, err := newSherpaDiarizer()
 		if err != nil {
@@ -33,10 +32,7 @@ func New() (Backend, error) {
 		}
 		return b, nil
 	}
-	// Desktop: the bundled NeMo (sortformer) Python pipeline gives
-	// noticeably better speaker separation than the sherpa-onnx pyannote
-	// + 3dspeaker combo on English audio, so prefer it. Fall back to
-	// sherpa only if Python / the script aren't available.
+
 	if b, err := newNemoDiarizer(); err == nil {
 		return b, nil
 	}

@@ -10,10 +10,6 @@ import (
 	"fyne.io/fyne/v2/widget"
 )
 
-// showTimePicker opens a modal time picker with hour / minute / second
-// scrollable selectors and a "Now" shortcut. Calls onSelect when the user
-// confirms. Fyne does not bridge to Android's native TimePickerDialog,
-// so this is implemented in pure Fyne and looks the same on every platform.
 func showTimePicker(parent fyne.Window, current time.Time, onSelect func(h, m, s int)) {
 	hours := makeRange(0, 23, "%02d")
 	minutes := makeRange(0, 59, "%02d")

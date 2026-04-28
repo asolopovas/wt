@@ -11,8 +11,6 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// CurrentConfigVersion is bumped whenever Config has a breaking change.
-// Add a migration branch in upgradeConfig for each new version.
 const CurrentConfigVersion = 1
 
 type Config struct {
@@ -64,17 +62,15 @@ func Defaults() Config {
 	}
 }
 
-// upgradeConfig walks an old config forward to CurrentConfigVersion.
-// Each case migrates one version up; do not return until you reach current.
 func upgradeConfig(cfg *Config) (changed bool) {
 	for cfg.Version < CurrentConfigVersion {
 		switch cfg.Version {
 		case 0:
-			// v0 → v1: explicit version field added; no field changes.
+
 			cfg.Version = 1
 			changed = true
 		default:
-			// Unknown intermediate version; jump to current to avoid infinite loop.
+
 			cfg.Version = CurrentConfigVersion
 			changed = true
 		}

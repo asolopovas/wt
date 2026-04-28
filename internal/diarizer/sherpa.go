@@ -53,7 +53,6 @@ const (
 	sherpaEmbURL = "https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-recongition-models/3dspeaker_speech_eres2net_base_sv_zh-cn_3dspeaker_16k.onnx"
 )
 
-// SherpaModelPaths returns the canonical (seg, emb) paths inside ModelsDir.
 func SherpaModelPaths() (string, string) {
 	root := shared.ModelsDir()
 	if runtime.GOOS == "android" {
@@ -63,10 +62,6 @@ func SherpaModelPaths() (string, string) {
 		filepath.Join(root, "3dspeaker.onnx")
 }
 
-// EnsureSherpaModels makes sure both pyannote-segmentation and 3dspeaker
-// embedding models are present on disk. Tries APK assets on Android first
-// (no network), then downloads from huggingface with progress reporting.
-// progress is called as progress(name, downloaded, total); name is "seg" or "emb".
 func EnsureSherpaModels(progress func(name string, downloaded, total int64)) error {
 	seg, emb := SherpaModelPaths()
 
@@ -183,9 +178,7 @@ func androidNativeLibDirs() []string {
 			}
 		}
 	}
-	// Most reliable on Android: parse /proc/self/maps for any loaded .so
-	// from /data/app/, since whatever loaded libwt.so necessarily has
-	// access to that directory regardless of strict shell glob permissions.
+
 	if data, err := os.ReadFile("/proc/self/maps"); err == nil {
 		seen := map[string]bool{}
 		for _, line := range strings.Split(string(data), "\n") {
@@ -297,20 +290,12 @@ func (d *sherpaDiarizer) Diarize(ctx context.Context, wavPath string, numSpeaker
 	args := []string{
 		"--segmentation.pyannote-model=" + d.segModel,
 		"--embedding.model=" + d.embModel,
-		// Default 0.3 discards brief interjections ("yeah", "right") which
-		// in fast turn-taking are exactly the moments where the second
-		// speaker is audible. 0.0 keeps every voice-active frame; the
-		// embedding/clustering stages still drop noise-only segments.
+
 		"--min-duration-on=0.0",
 	}
 	if numSpeakers > 0 {
 		args = append(args, fmt.Sprintf("--clustering.num-clusters=%d", numSpeakers))
 	} else {
-		// 0.85 found empirically on Android with the bundled
-		// pyannote-3.0 + 3dspeaker models: tight enough to keep two
-		// distinct speakers separated on short clips, loose enough to
-		// avoid over-clustering. Values >=1.1 occasionally crash
-		// sherpa-onnx's clustering when only one cluster is found.
 		args = append(args, "--clustering.cluster-threshold=0.85")
 	}
 	args = append(args, wavPath)

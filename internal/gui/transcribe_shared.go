@@ -385,11 +385,6 @@ func (p *transcribePanel) setProgress(val float64) {
 
 var spinnerFrames = []rune{'⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'}
 
-// makeDownloadProgress builds a quiet-by-default progress callback for shared.DownloadFile:
-//   - logs the start once and the completion once (no per-tick spam)
-//   - updates status line + progress bar in place every callback
-//   - includes an animated spinner glyph and instantaneous rate (delta-based)
-//   - logs retries as a single line each
 func (p *transcribePanel) makeDownloadProgress(label string) func(downloaded, total int64) {
 	var (
 		startTime    time.Time
