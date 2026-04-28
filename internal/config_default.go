@@ -33,3 +33,7 @@ func appDir() string {
 func defaultModel() string {
 	return "turbo"
 }
+
+func defaultThreads() int {
+	return runtime.NumCPU()
+}

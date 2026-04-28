@@ -5,6 +5,7 @@ package shared
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 )
 
 func appDir() string {
@@ -18,4 +19,12 @@ func appDir() string {
 
 func defaultModel() string {
 	return "tiny"
+}
+
+func defaultThreads() int {
+	n := runtime.NumCPU() - 2
+	if n < 1 {
+		n = 1
+	}
+	return n
 }

@@ -301,7 +301,7 @@ func (d *sherpaDiarizer) Diarize(ctx context.Context, wavPath string, numSpeaker
 	if numSpeakers > 0 {
 		args = append(args, fmt.Sprintf("--clustering.num-clusters=%d", numSpeakers))
 	} else {
-		args = append(args, "--clustering.cluster-threshold=0.90")
+		args = append(args, "--clustering.cluster-threshold=0.5")
 	}
 	args = append(args, wavPath)
 

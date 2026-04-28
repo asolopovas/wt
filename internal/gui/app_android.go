@@ -34,14 +34,13 @@ func Run(version string) error {
 
 	deviceInfo := detectDevice()
 
-	filesTab := transcribe.buildFilesTab()
+	libraryTab := transcribe.buildLibraryTab(history)
 	transcodeTab := buildTranscodeTabAndroid(transcribe, deviceInfo)
 	settingsTab := buildSettingsTab(settings)
 
 	tabs := container.NewAppTabs(
-		container.NewTabItem("FILES", filesTab),
+		container.NewTabItem("LIBRARY", libraryTab),
 		container.NewTabItem("TRANSCODE", transcodeTab),
-		container.NewTabItem("HISTORY", history.container),
 		container.NewTabItem("SETTINGS", settingsTab),
 	)
 	tabs.SetTabLocation(container.TabLocationBottom)
@@ -68,11 +67,16 @@ func buildTranscodeTabAndroid(tp *transcribePanel, deviceInfo string) fyne.Canva
 	tp.clearBtn.SetText("CLEAR LOG")
 	tp.clearBtn.Importance = widget.LowImportance
 
+	settingsRow := container.NewGridWithColumns(3,
+		settingsField("MODEL", tp.settings.modelSelect),
+		settingsField("LANGUAGE", tp.settings.langSelect),
+		settingsField("SPEAKERS", tp.settings.speakersSelect),
+	)
+
 	actionRow1 := container.NewGridWithColumns(2,
 		borderedBtn(tp.clearBtn, colOutline),
 		borderedBtn(tp.exportBtn, colOutline),
 	)
-
 	actionRow2 := container.NewGridWithColumns(2,
 		borderedBtn(tp.openBtn, colOutline),
 		borderedBtn(tp.previewBtn, colOutline),
@@ -96,6 +100,7 @@ func buildTranscodeTabAndroid(tp *transcribePanel, deviceInfo string) fyne.Canva
 		tp.statsLine,
 		deviceLabel,
 		startTimeRow,
+		settingsRow,
 		actionRow1,
 		actionRow2,
 		borderedBtn(tp.transcribeBtn, colPrimary),
@@ -110,11 +115,8 @@ func buildTranscodeTabAndroid(tp *transcribePanel, deviceInfo string) fyne.Canva
 
 func buildSettingsTab(sp *settingsPanel) fyne.CanvasObject {
 	settingsGrid := container.NewGridWithColumns(2,
-		settingsField("MODEL", sp.modelSelect),
-		settingsField("LANGUAGE", sp.langSelect),
 		settingsField("DEVICE", sp.deviceSelect),
 		settingsField("THREADS", sp.threadsSelect),
-		settingsField("SPEAKERS", sp.speakersSelect),
 		settingsField("CACHE EXPIRY (DAYS)", sp.expirySelect),
 	)
 

@@ -59,7 +59,7 @@ func Defaults() Config {
 		Version:         CurrentConfigVersion,
 		Model:           defaultModel(),
 		Device:          "auto",
-		Threads:         runtime.NumCPU(),
+		Threads:         defaultThreads(),
 		CacheExpiryDays: 30,
 	}
 }
@@ -101,7 +101,7 @@ func Load() (Config, error) {
 	}
 
 	if cfg.Threads <= 0 {
-		cfg.Threads = runtime.NumCPU()
+		cfg.Threads = defaultThreads()
 	}
 	if cfg.Model == "" {
 		cfg.Model = defaultModel()

@@ -87,6 +87,46 @@ func (p *transcribePanel) build() {
 	p.container = logPanel
 }
 
+func (p *transcribePanel) buildLibraryTab(history *historyPanel) fyne.CanvasObject {
+	addBtn := newPointerButton("ADD FILES", p.onBrowse)
+	addBtn.Importance = widget.HighImportance
+
+	clearBtn := newPointerButton("CLEAR ALL", func() {
+		p.files = nil
+		p.rebuildChips()
+		p.updateDropLabel()
+	})
+	clearBtn.Importance = widget.LowImportance
+
+	btnRow := container.NewGridWithColumns(2,
+		borderedBtn(addBtn, colPrimary),
+		borderedBtn(clearBtn, colOutline),
+	)
+
+	filesLabel := canvas.NewText("SELECTED FILES", colMuted)
+	filesLabel.TextSize = 10
+	filesLabel.TextStyle = fyne.TextStyle{Bold: true}
+
+	chipsScroll := container.NewVScroll(container.NewVBox(p.fileChips, p.dropText))
+
+	filesBg := canvas.NewRectangle(colSurfLowest)
+	filesBg.StrokeColor = colGhostBorder
+	filesBg.StrokeWidth = 1
+	filesInner := container.NewBorder(filesLabel, nil, nil, nil, chipsScroll)
+	filesPanel := container.NewStack(filesBg, container.NewPadded(filesInner))
+
+	split := container.NewVSplit(filesPanel, history.container)
+	split.Offset = 0.4
+
+	bottomGap := canvas.NewRectangle(transparent)
+	bottomGap.SetMinSize(fyne.NewSize(0, 6))
+
+	return container.NewBorder(
+		nil, container.NewVBox(btnRow, bottomGap), nil, nil,
+		split,
+	)
+}
+
 func (p *transcribePanel) buildFilesTab() fyne.CanvasObject {
 	addBtn := newPointerButton("ADD FILES", p.onBrowse)
 	addBtn.Importance = widget.HighImportance

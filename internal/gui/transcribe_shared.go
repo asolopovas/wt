@@ -2,6 +2,7 @@ package gui
 
 import (
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -349,8 +350,17 @@ func (p *transcribePanel) setStatus(msg string) {
 	p.mu.Lock()
 	running := p.running
 	p.mu.Unlock()
+	upper := strings.ToUpper(msg)
+	if running && p.smoothStop != nil {
+		s := upper
+		p.statusTarget.Store(&s)
+		fyne.Do(func() {
+			p.statusText.Color = colSecondary
+			p.statusText.TextStyle = fyne.TextStyle{Monospace: true, Bold: true}
+		})
+		return
+	}
 	fyne.Do(func() {
-		upper := strings.ToUpper(msg)
 		if running {
 			p.statusText.Color = colSecondary
 			p.statusText.TextStyle = fyne.TextStyle{Monospace: true, Bold: true}
@@ -364,6 +374,10 @@ func (p *transcribePanel) setStatus(msg string) {
 }
 
 func (p *transcribePanel) setProgress(val float64) {
+	if p.smoothStop != nil {
+		p.progressTarget.Store(math.Float64bits(val))
+		return
+	}
 	fyne.Do(func() {
 		p.progress.SetValue(val)
 	})

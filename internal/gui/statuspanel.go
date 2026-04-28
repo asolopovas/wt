@@ -16,6 +16,14 @@ func (p *transcribePanel) setRunning(running bool) {
 	p.running = running
 	p.mu.Unlock()
 
+	if running {
+		p.progressTarget.Store(0)
+		p.statusTarget.Store(nil)
+		p.startSmoothUpdates()
+	} else {
+		p.stopSmoothUpdates()
+	}
+
 	fyne.Do(func() {
 		if running {
 			p.transcribeBtn.SetText("CANCEL")

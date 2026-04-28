@@ -145,16 +145,17 @@ tasks:
     cmds:
       - cmd: |
           export MSYS_NO_PATHCONV=1
-          # -r reinstalls preserving /data/data/<pkg>/files (config + models).
-          # Falls back to uninstall+install if signing keys differ or schema mismatch.
-          install_out=$(adb install -r dist/wt-{{.VERSION}}.apk 2>&1)
+          # -r reinstalls preserving /data/data/<pkg>/files (config + models + cache).
+          # -d allows downgrades. We never automatically uninstall, since that wipes
+          # transcript cache and downloaded models. If install fails, fix manually.
+          install_out=$(adb install -r -d dist/wt-{{.VERSION}}.apk 2>&1)
           echo "$install_out"
           case "$install_out" in
             *Success*) ;;
             *)
-              echo "install -r failed, falling back to uninstall+install (data will be wiped)"
-              adb uninstall com.asolopovas.wtranscribe 2>/dev/null || true
-              adb install dist/wt-{{.VERSION}}.apk
+              echo "install failed; NOT auto-uninstalling (would wipe cache + models)."
+              echo "Run: adb uninstall com.asolopovas.wtranscribe && task install-android"
+              exit 1
               ;;
           esac
           adb logcat -c
