@@ -79,6 +79,7 @@ func (p *transcribePanel) onPreview() {
 	content := widget.NewMultiLineEntry()
 	content.Wrapping = fyne.TextWrapWord
 	content.TextStyle = fyne.TextStyle{Monospace: true}
+	content.Disable()
 
 	var currentItem exportItem
 	render := func() {
@@ -123,25 +124,26 @@ func (p *transcribePanel) onPreview() {
 			container.NewBorder(nil, nil, container.NewGridWrap(fyne.NewSize(130, 30), container.NewCenter(label)), nil, entry))
 	}
 
-	var speakerPanel fyne.CanvasObject
+	var speakerPanel *fyne.Container
 	if len(speakerRows) > 0 {
 		header := canvas.NewText("SPEAKERS (edit to rename)", colMuted)
 		header.TextSize = 10
 		header.TextStyle = fyne.TextStyle{Bold: true}
 		speakerPanel = container.NewVBox(append([]fyne.CanvasObject{header}, speakerRows...)...)
+		speakerPanel.Hide()
 	}
 
 	scroll := container.NewScroll(content)
 	scroll.SetMinSize(fyne.NewSize(640, 360))
 
 	currentItem = p.results[0]
-	var top fyne.CanvasObject = speakerPanel
+	var picker *widget.Select
 	if len(p.results) > 1 {
 		names := make([]string, len(p.results))
 		for i, it := range p.results {
 			names[i] = it.sourceName
 		}
-		picker := widget.NewSelect(names, func(sel string) {
+		picker = widget.NewSelect(names, func(sel string) {
 			for _, it := range p.results {
 				if it.sourceName == sel {
 					currentItem = it
@@ -151,12 +153,36 @@ func (p *transcribePanel) onPreview() {
 			}
 		})
 		picker.SetSelected(names[0])
-		if speakerPanel != nil {
-			top = container.NewVBox(picker, speakerPanel)
+	}
+
+	editing := false
+	editBtn := widget.NewButton("EDIT", nil)
+	editBtn.OnTapped = func() {
+		editing = !editing
+		if editing {
+			content.Enable()
+			if speakerPanel != nil {
+				speakerPanel.Show()
+			}
+			editBtn.SetText("DONE")
 		} else {
-			top = picker
+			content.Disable()
+			if speakerPanel != nil {
+				speakerPanel.Hide()
+			}
+			editBtn.SetText("EDIT")
 		}
 	}
+
+	topItems := []fyne.CanvasObject{}
+	if picker != nil {
+		topItems = append(topItems, picker)
+	}
+	topItems = append(topItems, container.NewBorder(nil, nil, nil, editBtn, widget.NewLabel("")))
+	if speakerPanel != nil {
+		topItems = append(topItems, speakerPanel)
+	}
+	top := container.NewVBox(topItems...)
 
 	render()
 
