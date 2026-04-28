@@ -160,7 +160,7 @@ tasks:
           esac
           adb logcat -c
           adb shell "am start -n com.asolopovas.wtranscribe/org.golang.app.GoNativeActivity"
-          sleep 2
+          python -c "import time; time.sleep(2)"
           adb logcat -d | python -c "import sys,re,itertools;p=re.compile(r'wtranscribe|GoLog|dlopen|FATAL|panic|AndroidRuntime');sys.stdout.writelines(itertools.islice((l for l in sys.stdin if p.search(l)),30))"
 
   fetch-deps:
