@@ -48,37 +48,75 @@ func newSherpaDiarizer() (Backend, error) {
 	return &sherpaDiarizer{binPath: bin, segModel: seg, embModel: emb}, nil
 }
 
-func resolveSherpaModels() (string, string, error) {
+const (
+	sherpaSegURL = "https://huggingface.co/csukuangfj/sherpa-onnx-pyannote-segmentation-3-0/resolve/main/model.onnx"
+	sherpaEmbURL = "https://huggingface.co/k2-fsa/sherpa-onnx-3d-speaker/resolve/main/3dspeaker_speech_eres2net_base_sv_zh-cn_3dspeaker_16k.onnx"
+)
+
+// SherpaModelPaths returns the canonical (seg, emb) paths inside ModelsDir.
+func SherpaModelPaths() (string, string) {
 	root := shared.ModelsDir()
-	seg := filepath.Join(root, "sherpa-onnx-pyannote-segmentation-3-0", "model.onnx")
-	emb := filepath.Join(root, "3dspeaker.onnx")
+	if runtime.GOOS == "android" {
+		return filepath.Join(root, "seg.onnx"), filepath.Join(root, "emb.onnx")
+	}
+	return filepath.Join(root, "sherpa-onnx-pyannote-segmentation-3-0", "model.onnx"),
+		filepath.Join(root, "3dspeaker.onnx")
+}
+
+// EnsureSherpaModels makes sure both pyannote-segmentation and 3dspeaker
+// embedding models are present on disk. Tries APK assets on Android first
+// (no network), then downloads from huggingface with progress reporting.
+// progress is called as progress(name, downloaded, total); name is "seg" or "emb".
+func EnsureSherpaModels(progress func(name string, downloaded, total int64)) error {
+	seg, emb := SherpaModelPaths()
+
+	if runtime.GOOS == "android" && (!fileExists(seg) || !fileExists(emb)) {
+		if err := installSherpaModelsFromAssets(shared.ModelsDir()); err == nil {
+			seg, emb = SherpaModelPaths()
+		}
+	}
+
+	if !fileExists(seg) {
+		cb := func(d, t int64) {
+			if progress != nil {
+				progress("seg", d, t)
+			}
+		}
+		if err := shared.DownloadFile(seg, sherpaSegURL, cb); err != nil {
+			return fmt.Errorf("downloading segmentation model: %w", err)
+		}
+	}
+	if !fileExists(emb) {
+		cb := func(d, t int64) {
+			if progress != nil {
+				progress("emb", d, t)
+			}
+		}
+		if err := shared.DownloadFile(emb, sherpaEmbURL, cb); err != nil {
+			return fmt.Errorf("downloading embedding model: %w", err)
+		}
+	}
+	return nil
+}
+
+func resolveSherpaModels() (string, string, error) {
+	seg, emb := SherpaModelPaths()
 	segOK := fileExists(seg)
 	embOK := fileExists(emb)
 
-	if runtime.GOOS == "android" {
-		altSeg := filepath.Join(root, "seg.onnx")
-		altEmb := filepath.Join(root, "emb.onnx")
-		if !segOK && fileExists(altSeg) {
-			seg, segOK = altSeg, true
-		}
-		if !embOK && fileExists(altEmb) {
-			emb, embOK = altEmb, true
-		}
-		if !segOK || !embOK {
-			if err := installSherpaModelsFromAssets(root); err == nil {
-				seg = filepath.Join(root, "seg.onnx")
-				emb = filepath.Join(root, "emb.onnx")
-				segOK = fileExists(seg)
-				embOK = fileExists(emb)
-			}
+	if runtime.GOOS == "android" && (!segOK || !embOK) {
+		if err := installSherpaModelsFromAssets(shared.ModelsDir()); err == nil {
+			seg, emb = SherpaModelPaths()
+			segOK = fileExists(seg)
+			embOK = fileExists(emb)
 		}
 	}
 
 	if !segOK {
-		return "", "", fmt.Errorf("segmentation model missing at %s", seg)
+		return "", "", fmt.Errorf("segmentation model missing at %s (call EnsureSherpaModels first)", seg)
 	}
 	if !embOK {
-		return "", "", fmt.Errorf("embedding model missing at %s", emb)
+		return "", "", fmt.Errorf("embedding model missing at %s (call EnsureSherpaModels first)", emb)
 	}
 	return seg, emb, nil
 }

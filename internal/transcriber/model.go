@@ -2,8 +2,6 @@ package transcriber
 
 import (
 	"fmt"
-	"io"
-	"net/http"
 	"os"
 	"path/filepath"
 	"slices"
@@ -52,7 +50,7 @@ func ValidModelNames() []string {
 	return names
 }
 
-type DownloadProgress func(downloaded, total int64)
+type DownloadProgress = shared.DownloadProgress
 
 func ResolveModelPath(modelSize, modelPath string) (string, error) {
 	return ResolveModelPathWithProgress(modelSize, modelPath, nil)
@@ -103,7 +101,7 @@ func ResolveModelPathWithProgress(modelSize, modelPath string, prog DownloadProg
 		pterm.FgDarkGray.Println("This may take a few minutes on first run.")
 	}
 
-	if err := downloadFile(path, url, prog); err != nil {
+	if err := shared.DownloadFile(path, url, wrapForCLI(prog, modelSize)); err != nil {
 		return "", fmt.Errorf("downloading model: %w", err)
 	}
 
@@ -111,6 +109,40 @@ func ResolveModelPathWithProgress(modelSize, modelPath string, prog DownloadProg
 		ui.Done(fmt.Sprintf("Model saved to %s", path))
 	}
 	return path, nil
+}
+
+// wrapForCLI adds CLI progress bar / warn lines when no GUI prog was supplied.
+func wrapForCLI(prog DownloadProgress, label string) DownloadProgress {
+	if prog != nil {
+		return prog
+	}
+	var pb *pterm.ProgressbarPrinter
+	var lastMB int
+	return func(downloaded, total int64) {
+		if downloaded < 0 {
+			ui.Warn(fmt.Sprintf("%s: download interrupted (retry %d) — resuming", label, -downloaded))
+			return
+		}
+		if total <= 0 {
+			return
+		}
+		if pb == nil {
+			p, perr := pterm.DefaultProgressbar.
+				WithTitle("Downloading " + label).
+				WithTotal(int(total / (1024 * 1024))).
+				WithShowCount(true).
+				Start()
+			if perr == nil {
+				pb = p
+			}
+			lastMB = 0
+		}
+		mb := int(downloaded / (1024 * 1024))
+		if pb != nil && mb > lastMB {
+			pb.Add(mb - lastMB)
+			lastMB = mb
+		}
+	}
 }
 
 const (
@@ -131,7 +163,7 @@ func ResolveVADModelPath() (string, error) {
 	}
 
 	ui.Stage("Downloading VAD model...")
-	if err := downloadFile(path, vadModelURL, nil); err != nil {
+	if err := shared.DownloadFile(path, vadModelURL, wrapForCLI(nil, "VAD")); err != nil {
 		_ = os.Remove(path)
 		return "", fmt.Errorf("downloading VAD model: %w", err)
 	}
@@ -151,169 +183,6 @@ func legacyModelDirs() []string {
 	}
 }
 
-func downloadFile(dst, url string, prog DownloadProgress) error {
-	const maxReadAttempts = 8
-	const maxDialAttempts = 30
-	tmp := dst + ".part"
-
-	client := &http.Client{Timeout: 0}
-
-	var pb *pterm.ProgressbarPrinter
-	var totalSize int64
-	var lastErr error
-	readAttempt := 0
-	dialAttempt := 0
-
-	for {
-		if readAttempt >= maxReadAttempts || dialAttempt >= maxDialAttempts {
-			break
-		}
-
-		var offset int64
-		if st, err := os.Stat(tmp); err == nil {
-			offset = st.Size()
-		}
-
-		req, err := http.NewRequest("GET", url, nil)
-		if err != nil {
-			return err
-		}
-		if offset > 0 {
-			req.Header.Set("Range", fmt.Sprintf("bytes=%d-", offset))
-		}
-
-		resp, err := client.Do(req)
-		if err != nil {
-			dialAttempt++
-			lastErr = err
-			if prog != nil {
-				prog(-int64(dialAttempt), 0)
-			} else {
-				ui.Warn(fmt.Sprintf("connect failed (%d/%d): %v — retrying", dialAttempt, maxDialAttempts, err))
-			}
-			sleep := time.Duration(dialAttempt) * 2 * time.Second
-			if sleep > 15*time.Second {
-				sleep = 15 * time.Second
-			}
-			time.Sleep(sleep)
-			continue
-		}
-
-		if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusPartialContent {
-			_ = resp.Body.Close()
-			return fmt.Errorf("HTTP %d: %s", resp.StatusCode, resp.Status)
-		}
-
-		if resp.StatusCode == http.StatusOK {
-			offset = 0
-			_ = os.Remove(tmp)
-		}
-
-		flag := os.O_WRONLY | os.O_CREATE
-		if offset > 0 {
-			flag |= os.O_APPEND
-		} else {
-			flag |= os.O_TRUNC
-		}
-		f, err := os.OpenFile(tmp, flag, 0o644)
-		if err != nil {
-			_ = resp.Body.Close()
-			return err
-		}
-
-		totalSize = resp.ContentLength + offset
-		if prog == nil && pb == nil && totalSize > 0 {
-			p, perr := pterm.DefaultProgressbar.
-				WithTitle("Downloading").
-				WithTotal(int(totalSize / (1024 * 1024))).
-				WithShowCount(true).
-				Start()
-			if perr == nil {
-				pb = p
-				if offset > 0 {
-					pb.Add(int(offset / (1024 * 1024)))
-				}
-			}
-		}
-
-		if prog != nil {
-			prog(offset, totalSize)
-		}
-
-		reader := io.Reader(resp.Body)
-		if pb != nil || prog != nil {
-			reader = &progressReader{
-				reader:    resp.Body,
-				totalSize: totalSize,
-				written:   offset,
-				lastMB:    int(offset / (1024 * 1024)),
-				bar:       pb,
-				cb:        prog,
-			}
-		}
-
-		_, copyErr := io.Copy(f, reader)
-		_ = f.Close()
-		_ = resp.Body.Close()
-
-		if copyErr == nil {
-			if prog != nil {
-				prog(totalSize, totalSize)
-			}
-			return os.Rename(tmp, dst)
-		}
-
-		readAttempt++
-		lastErr = copyErr
-		if prog != nil {
-			prog(-int64(readAttempt), totalSize)
-		} else {
-			ui.Warn(fmt.Sprintf("download interrupted (%d/%d): %v — retrying", readAttempt, maxReadAttempts, copyErr))
-		}
-		sleep := time.Duration(readAttempt) * 2 * time.Second
-		if sleep > 15*time.Second {
-			sleep = 15 * time.Second
-		}
-		time.Sleep(sleep)
-	}
-
-	partSize := int64(0)
-	if st, err := os.Stat(tmp); err == nil {
-		partSize = st.Size()
-	}
-	return fmt.Errorf("gave up after %d read / %d connect retries (partial download preserved: %.1f MB at %s.part — re-run to resume): %w",
-		readAttempt, dialAttempt, float64(partSize)/(1024*1024), filepath.Base(dst), lastErr)
-}
-
-type progressReader struct {
-	reader    io.Reader
-	totalSize int64
-	written   int64
-	lastMB    int
-	bar       *pterm.ProgressbarPrinter
-	cb        DownloadProgress
-	lastCb    time.Time
-}
-
-func (pr *progressReader) Read(p []byte) (int, error) {
-	n, err := pr.reader.Read(p)
-	pr.written += int64(n)
-	mb := int(pr.written / (1024 * 1024))
-	if mb > pr.lastMB {
-		if pr.bar != nil {
-			pr.bar.Add(mb - pr.lastMB)
-		}
-		pr.lastMB = mb
-	}
-	if pr.cb != nil {
-		now := time.Now()
-		if now.Sub(pr.lastCb) >= 250*time.Millisecond {
-			pr.cb(pr.written, pr.totalSize)
-			pr.lastCb = now
-		}
-	}
-	return n, err
-}
 
 func LoadModel(modelSize, modelPath string, threads int) (*Model, error) {
 	path, err := ResolveModelPath(modelSize, modelPath)

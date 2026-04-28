@@ -145,8 +145,13 @@ tasks:
     cmds:
       - cmd: |
           export MSYS_NO_PATHCONV=1
-          adb uninstall com.asolopovas.wtranscribe 2>/dev/null || true
-          adb install dist/wt-{{.VERSION}}.apk
+          # -r reinstalls preserving /data/data/<pkg>/files (config + models).
+          # Falls back to uninstall+install if signing keys differ or schema mismatch.
+          if ! adb install -r dist/wt-{{.VERSION}}.apk 2>&1 | tee /tmp/wt-install.log | grep -q "Success"; then
+            echo "install -r failed, falling back to uninstall+install (data will be wiped)"
+            adb uninstall com.asolopovas.wtranscribe 2>/dev/null || true
+            adb install dist/wt-{{.VERSION}}.apk
+          fi
           adb logcat -c
           adb shell "am start -n com.asolopovas.wtranscribe/org.golang.app.GoNativeActivity"
           sleep 2
