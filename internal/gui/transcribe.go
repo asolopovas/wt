@@ -56,11 +56,12 @@ func (p *transcribePanel) build() {
 	now := time.Now()
 	p.dateEntry = widget.NewDateEntry()
 	p.dateEntry.SetDate(&now)
-	p.timeEntry = widget.NewEntry()
+	p.timeEntry = newTappableEntry(p.onStartTimeNow)
 	p.timeEntry.PlaceHolder = timeOnlyLayout
 	p.timeEntry.SetText(formatTimeOnly(now))
-	p.startTimeNow = newPointerButtonWithIcon("", theme.HistoryIcon(), p.onStartTimeNow)
-	p.startTimeNow.Importance = widget.LowImportance
+	clockBtn := widget.NewButtonWithIcon("", clockIconResource, p.onStartTimeNow)
+	clockBtn.Importance = widget.LowImportance
+	p.timeEntry.ActionItem = clockBtn
 
 	p.progress = newThinProgress()
 
