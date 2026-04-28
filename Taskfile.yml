@@ -117,7 +117,7 @@ tasks:
         if: '[ -z "{{.ONLY}}" ]'
       - cmd: '"{{.ISCC_PATH}}" scripts/installer.iss'
         if: '[ -z "{{.ONLY}}" ]'
-      - cmd: 'ls -l dist/wt-setup.exe'
+      - cmd: 'ls -l dist/wt-setup-{{.VERSION}}.exe'
         if: '[ -z "{{.ONLY}}" ]'
 
   install:
@@ -146,7 +146,7 @@ tasks:
       - cmd: |
           export MSYS_NO_PATHCONV=1
           adb uninstall com.asolopovas.wtranscribe 2>/dev/null || true
-          adb install dist/wt.apk
+          adb install dist/wt-{{.VERSION}}.apk
           adb logcat -c
           adb shell "am start -n com.asolopovas.wtranscribe/org.golang.app.GoNativeActivity"
           sleep 2
@@ -182,7 +182,7 @@ tasks:
       - cmd: 'rm -f "{{.SETUP_LOG}}"'
       - cmd: |
           export MSYS_NO_PATHCONV=1
-          dist/wt-setup.exe /VERYSILENT /SUPPRESSMSGBOXES /SP- &
+          dist/wt-setup-{{.VERSION}}.exe /VERYSILENT /SUPPRESSMSGBOXES /SP- &
           INSTALLER_PID=$!
           echo "=== Installer started (PID $INSTALLER_PID) ==="
           echo "=== Tailing {{.SETUP_LOG}} ==="
@@ -212,8 +212,8 @@ tasks:
         ls -l wt-dist.zip
 
   release:
-    desc: 'Tag v{{.VERSION}}, push tag, and attach dist/wt-setup.exe to a GitHub release'
-    deps: [build]
+    desc: 'Tag v{{.VERSION}}, push tag, and attach Windows installer + Android APK to GitHub release'
+    deps: [build, android-apk]
     cmds:
       - |
         if ! command -v gh >/dev/null 2>&1; then
@@ -229,11 +229,11 @@ tasks:
           git push origin "$tag"
         fi
         if gh release view "$tag" >/dev/null 2>&1; then
-          echo "Release $tag already exists; uploading installer (clobber)..."
+          echo "Release $tag already exists; uploading artifacts (clobber)..."
         else
           gh release create "$tag" --title "$tag" --generate-notes
         fi
-        gh release upload "$tag" dist/wt-setup.exe --clobber
+        gh release upload "$tag" dist/wt-setup-{{.VERSION}}.exe dist/wt-{{.VERSION}}.apk --clobber
         gh release view "$tag" --web || true
 
   bump:
@@ -422,6 +422,7 @@ tasks:
           fyne package --os android/arm64 \
             --app-id com.asolopovas.wtranscribe \
             --name wt \
+            --app-version {{.VERSION}} \
             --icon "{{.ROOT_DIR | toSlash}}/winres/icon.png" \
             --src "{{.ROOT_DIR | toSlash}}/cmd/wt-gui"
       - cmd: |
@@ -457,7 +458,7 @@ tasks:
             --ks "$USERPROFILE/.android/debug.keystore" \
             --ks-pass pass:android --key-pass pass:android \
             --ks-key-alias androiddebugkey \
-            --out dist/wt.apk dist/aligned.apk
+            --out dist/wt-{{.VERSION}}.apk dist/aligned.apk
           rm -f dist/unsigned.apk dist/aligned.apk
           rm -f "$apk" "${apk}.idsig"
 
