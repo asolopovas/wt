@@ -83,8 +83,11 @@ func (p *transcribePanel) startSmoothUpdates() {
 					current = target
 				} else if target > current {
 					delta := target - current
-					if delta > 0.005 {
-						current += delta * 0.3
+					if delta > 0.001 {
+						current += delta * 0.5
+						if current < 0.02 && target >= 0.02 {
+							current = 0.02
+						}
 					} else {
 						current = target
 					}

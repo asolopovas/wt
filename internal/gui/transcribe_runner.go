@@ -231,17 +231,100 @@ func (p *transcribePanel) transcribeFile(model whisper.Model, path, modelSize, l
 		return fmt.Errorf("cancelled")
 	}
 
+	// Phase 1: transcribe (whisper) — try raw cache first so iterating on
+	// the diarizer doesn't redo the slow ASR pass.
+	var (
+		segs     []diarizer.TranscriptSegment
+		detected string
+		rawKey   string
+		rawHit   bool
+	)
+	if keyErr == nil {
+		rawKey = computeRawKey(params.SourcePath, params.MtimeNs, modelSize, language)
+		if cached, ok := loadRawSegments(rawKey); ok {
+			segs = cached
+			rawHit = true
+			detected = language
+			p.appendLog(fmt.Sprintf("  Raw transcript reused (%d segments)", len(cached)))
+			p.setProgress(0.5)
+		}
+	}
+
+	if !rawHit {
+		ctx, err := model.NewContext()
+		if err != nil {
+			return fmt.Errorf("creating context: %w", err)
+		}
+		transcriber.ConfigureContext(ctx, transcriber.ContextConfig{
+			Threads: threads,
+			TDRZ:    false,
+		})
+		if transcriber.ConfigureVAD(ctx) {
+			p.appendLog("  VAD: Silero v6.2.0")
+		}
+		transcriber.SetLanguage(ctx, language)
+
+		p.appendLog("  Transcribing...")
+		processStart := time.Now()
+		lastPct := -1
+		eta := newETATracker()
+		abortCb := func() bool { return !p.cancelled.Load() }
+		progressCb := func(pct int) {
+			if pct > 100 {
+				pct = 100
+			}
+			if pct > lastPct {
+				lastPct = pct
+				p.setProgress(float64(pct) / 100.0 * 0.5)
+				etaStr := eta.update(pct)
+				if etaStr != "" {
+					p.setStatus(fmt.Sprintf("Transcribing... %d%%  ETA: %s", pct, etaStr))
+				} else {
+					p.setStatus(fmt.Sprintf("Transcribing... %d%%", pct))
+				}
+			}
+		}
+		if err := ctx.Process(samples, abortCb, nil, whisper.ProgressCallback(progressCb)); err != nil {
+			if p.cancelled.Load() {
+				return fmt.Errorf("cancelled")
+			}
+			return fmt.Errorf("processing audio: %w", err)
+		}
+		transcribeElapsed := time.Since(processStart).Seconds()
+		p.appendLog(fmt.Sprintf("  Transcribed (%.0fs)", transcribeElapsed))
+		p.debugLog(fmt.Sprintf("RTF=%.2f (%.1fs audio / %.1fs processing)", audioDurSec/transcribeElapsed, audioDurSec, transcribeElapsed))
+
+		detected = ctx.DetectedLanguage()
+		if detected != "" {
+			p.appendLog(fmt.Sprintf("  Language: %s", detected))
+		} else {
+			detected = language
+		}
+		rawSegs := transcriber.ExtractSegments(ctx)
+		segs = transcriber.DeduplicateSegments(rawSegs)
+		if dropped := len(rawSegs) - len(segs); dropped > 0 {
+			p.debugLog(fmt.Sprintf("dedup: removed %d repeated segments", dropped))
+		}
+		if rawKey != "" {
+			if err := saveRawSegments(rawKey, segs); err != nil {
+				p.debugLog(fmt.Sprintf("could not save raw transcript cache: %v", err))
+			}
+		}
+	}
+
+	if p.cancelled.Load() {
+		return fmt.Errorf("cancelled")
+	}
+
+	// Phase 2: diarize and overlay onto the transcript.
 	var diarSegs []diarizer.Segment
 	diarOK := false
 	if !noDiarize && diarizer.SupportsExternalBackend() {
 		wavPath := transcriber.ResolveWAVPath(absPath)
-		// Sherpa-onnx requires a real 16kHz mono PCM WAV file. If the cache
-		// only has the source m4a/flac, materialize the decoded samples to
-		// disk first so the diarizer subprocess can read them.
 		if !strings.HasSuffix(strings.ToLower(wavPath), ".wav") || wavPath == absPath {
-			cacheKey, err := transcriber.AudioCacheKey(absPath)
+			audioKey, err := transcriber.AudioCacheKey(absPath)
 			if err == nil {
-				cachePath := filepath.Join(shared.CacheDir(), cacheKey)
+				cachePath := filepath.Join(shared.CacheDir(), audioKey)
 				if _, statErr := os.Stat(cachePath); statErr != nil {
 					if werr := transcriber.WritePCM16WAV(cachePath, samples, transcriber.WhisperSampleRate); werr == nil {
 						wavPath = cachePath
@@ -255,95 +338,12 @@ func (p *transcribePanel) transcribeFile(model whisper.Model, path, modelSize, l
 		}
 		diarSegs, diarOK = p.runDiarization(wavPath, speakers, audioDurSec)
 	}
-	usedTDRZ := transcriber.UseTDRZ(false, diarOK, noDiarize)
-
-	if p.cancelled.Load() {
-		return fmt.Errorf("cancelled")
-	}
-
-	ctx, err := model.NewContext()
-	if err != nil {
-		return fmt.Errorf("creating context: %w", err)
-	}
-
-	transcriber.ConfigureContext(ctx, transcriber.ContextConfig{
-		Threads: threads,
-		TDRZ:    usedTDRZ,
-	})
-
-	p.debugLog(fmt.Sprintf("TDRZ=%v (diarOK=%v)", usedTDRZ, diarOK))
-
-	if transcriber.ConfigureVAD(ctx) {
-		p.appendLog("  VAD: Silero v6.2.0")
-	}
-
-	transcriber.SetLanguage(ctx, language)
-
-	p.appendLog("  Transcribing...")
-	processStart := time.Now()
-	lastPct := -1
-	eta := newETATracker()
-
-	abortCb := func() bool {
-		return !p.cancelled.Load()
-	}
-
-	progressCb := func(pct int) {
-		if pct > 100 {
-			pct = 100
-		}
-		if pct > lastPct {
-			lastPct = pct
-			fileProgress := float64(pct) / 100.0
-			p.setProgress(fileProgress)
-			etaStr := eta.update(pct)
-			if etaStr != "" {
-				p.setStatus(fmt.Sprintf("Transcribing... %d%%  ETA: %s", pct, etaStr))
-			} else {
-				p.setStatus(fmt.Sprintf("Transcribing... %d%%", pct))
-			}
-		}
-	}
-
-	if err := ctx.Process(samples, abortCb, nil, whisper.ProgressCallback(progressCb)); err != nil {
-		if p.cancelled.Load() {
-			return fmt.Errorf("cancelled")
-		}
-		return fmt.Errorf("processing audio: %w", err)
-	}
-
-	transcribeElapsed := time.Since(processStart).Seconds()
-	p.appendLog(fmt.Sprintf("  Transcribed (%.0fs)", transcribeElapsed))
-	p.debugLog(fmt.Sprintf("RTF=%.2f (%.1fs audio / %.1fs processing)", audioDurSec/transcribeElapsed, audioDurSec, transcribeElapsed))
-
-	if detected := ctx.DetectedLanguage(); detected != "" {
-		p.appendLog(fmt.Sprintf("  Language: %s", detected))
-	}
-
-	rawSegs := transcriber.ExtractSegments(ctx)
-	segs := transcriber.DeduplicateSegments(rawSegs)
-	if dropped := len(rawSegs) - len(segs); dropped > 0 {
-		p.debugLog(fmt.Sprintf("dedup: removed %d repeated segments", dropped))
-	}
-
-	if !diarOK && usedTDRZ {
-		diarSegs = diarizer.SpeakerTurnSegments(segs)
-		diarOK = len(diarSegs) > 0
-	}
 
 	p.debugLog(fmt.Sprintf("transcript segments=%d diarize segments=%d diarOK=%v", len(segs), len(diarSegs), diarOK))
 
-	detected := ctx.DetectedLanguage()
-	if detected == "" {
-		detected = language
-	}
-
 	diarName := ""
 	if diarOK {
-		diarName = "nemo-sortformer"
-		if usedTDRZ {
-			diarName = "tinydiarize"
-		}
+		diarName = "sherpa-onnx-pyannote"
 	}
 
 	device := "cpu"

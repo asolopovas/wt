@@ -11,7 +11,45 @@ import (
 	"time"
 
 	shared "github.com/asolopovas/wt/internal"
+	"github.com/asolopovas/wt/internal/diarizer"
 )
+
+func rawTranscriptDir() string {
+	return filepath.Join(shared.CacheDir(), "raw")
+}
+
+func computeRawKey(sourcePath string, mtimeNs int64, model, language string) string {
+	s := fmt.Sprintf("%s\x00%d\x00%s\x00%s", sourcePath, mtimeNs, model, language)
+	sum := sha256.Sum256([]byte(s))
+	return hex.EncodeToString(sum[:])[:32]
+}
+
+func rawTranscriptPath(key string) string {
+	return filepath.Join(rawTranscriptDir(), key+".json")
+}
+
+func loadRawSegments(key string) ([]diarizer.TranscriptSegment, bool) {
+	data, err := os.ReadFile(rawTranscriptPath(key))
+	if err != nil {
+		return nil, false
+	}
+	var segs []diarizer.TranscriptSegment
+	if err := json.Unmarshal(data, &segs); err != nil {
+		return nil, false
+	}
+	return segs, true
+}
+
+func saveRawSegments(key string, segs []diarizer.TranscriptSegment) error {
+	if err := os.MkdirAll(rawTranscriptDir(), 0o755); err != nil {
+		return err
+	}
+	data, err := json.Marshal(segs)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(rawTranscriptPath(key), data, 0o644)
+}
 
 type cacheEntry struct {
 	Key        string    `json:"key"`
