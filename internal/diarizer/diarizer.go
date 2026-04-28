@@ -25,17 +25,22 @@ type Backend interface {
 }
 
 func New() (Backend, error) {
-	b, sherpaErr := newSherpaDiarizer()
-	if sherpaErr == nil {
+	// Android has no bundled CPython, so it can only use sherpa-onnx.
+	if runtime.GOOS == "android" {
+		b, err := newSherpaDiarizer()
+		if err != nil {
+			return nil, fmt.Errorf("sherpa-onnx diarizer unavailable: %w", err)
+		}
 		return b, nil
 	}
-	// On Android the NeMo path requires CPython which is not bundled, so
-	// surface the real sherpa error rather than the misleading
-	// "python not found" from the fallback.
-	if runtime.GOOS == "android" {
-		return nil, fmt.Errorf("sherpa-onnx diarizer unavailable: %w", sherpaErr)
+	// Desktop: the bundled NeMo (sortformer) Python pipeline gives
+	// noticeably better speaker separation than the sherpa-onnx pyannote
+	// + 3dspeaker combo on English audio, so prefer it. Fall back to
+	// sherpa only if Python / the script aren't available.
+	if b, err := newNemoDiarizer(); err == nil {
+		return b, nil
 	}
-	return newNemoDiarizer()
+	return newSherpaDiarizer()
 }
 
 func resolvePython() (string, error) {
