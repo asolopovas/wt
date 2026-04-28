@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"flag"
 	"fmt"
@@ -12,6 +13,7 @@ import (
 	"time"
 
 	shared "github.com/asolopovas/wt/internal"
+	"github.com/asolopovas/wt/internal/diarizer"
 	"github.com/asolopovas/wt/internal/transcriber"
 	whisper "github.com/ggerganov/whisper.cpp/bindings/go/pkg/whisper"
 )
@@ -21,6 +23,8 @@ func main() {
 	modelPath := flag.String("model", "", "explicit path to model file")
 	lang := flag.String("lang", "auto", "language code (auto/en/ru/...)")
 	threads := flag.Int("t", max(runtime.NumCPU()-2, 1), "threads")
+	diarizeOnly := flag.Bool("diarize-only", false, "run only the diarizer and exit")
+	speakers := flag.Int("speakers", 0, "force number of speakers (0=auto)")
 	flag.Parse()
 
 	if flag.NArg() < 1 {
@@ -39,6 +43,11 @@ func main() {
 
 	if _, err := os.Stat(audioPath); err != nil {
 		fatal("audio file not found: %v", err)
+	}
+
+	if *diarizeOnly {
+		runDiarizeOnly(audioPath, *speakers)
+		return
 	}
 
 	resolvedModel := resolveModel(*modelSize, *modelPath)
@@ -126,6 +135,61 @@ func main() {
 	}
 
 	fmt.Printf("\nSegments: %d\n", segCount)
+	memReport("final")
+	fmt.Printf("=== DONE ===\n")
+}
+
+func runDiarizeOnly(audioPath string, speakers int) {
+	if !strings.HasSuffix(strings.ToLower(audioPath), ".wav") {
+		fatal("--diarize-only requires a 16kHz mono WAV; got %q", audioPath)
+	}
+	st, err := os.Stat(audioPath)
+	if err != nil {
+		fatal("audio: %v", err)
+	}
+	audioDur := float64(st.Size()) / (16000.0 * 2.0)
+	fmt.Printf("Audio: %s (~%.1fs by size)\n", audioPath, audioDur)
+	wavPath := audioPath
+
+	fmt.Printf("\n--- Initializing diarizer ---\n")
+	t0 := time.Now()
+	backend, err := diarizer.New()
+	if err != nil {
+		fatal("init diarizer: %v", err)
+	}
+	fmt.Printf("Backend: %s (init %.1fs)\n", backend.Name(), since(t0))
+
+	fmt.Printf("\n--- Diarizing ---\n")
+	t0 = time.Now()
+	lastPct := -1.0
+	progressCb := func(pct float64) {
+		if pct-lastPct >= 10 {
+			lastPct = pct
+			fmt.Printf("  %.0f%% (%.0fs)\n", pct, since(t0))
+		}
+	}
+	segs, err := backend.Diarize(context.Background(), wavPath, speakers, audioDur, progressCb)
+	if err != nil {
+		fatal("diarize: %v", err)
+	}
+	elapsed := since(t0)
+	fmt.Printf("Done in %.1fs (RTF=%.2f), %d segments\n", elapsed, elapsed/audioDur, len(segs))
+
+	speakerSet := map[int]int{}
+	for _, s := range segs {
+		speakerSet[s.Speaker]++
+	}
+	fmt.Printf("Speakers: %d\n", len(speakerSet))
+	for spk, n := range speakerSet {
+		fmt.Printf("  speaker_%d: %d segments\n", spk, n)
+	}
+	for i, s := range segs {
+		if i >= 30 {
+			fmt.Printf("  ... (%d more)\n", len(segs)-i)
+			break
+		}
+		fmt.Printf("  %.2fs -- %.2fs speaker_%d\n", s.StartSec, s.EndSec, s.Speaker)
+	}
 	memReport("final")
 	fmt.Printf("=== DONE ===\n")
 }
