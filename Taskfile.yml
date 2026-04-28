@@ -76,7 +76,7 @@ tasks:
             -DBUILD_SHARED_LIBS=OFF \
             -DWHISPER_BUILD_EXAMPLES=OFF \
             -DWHISPER_BUILD_TESTS=OFF
-          cmake --build build -j$NUMBER_OF_PROCESSORS
+          cmake --build build -j${NUMBER_OF_PROCESSORS:-$(nproc)}
           cd build/ggml/src
           for f in ggml.a ggml-base.a ggml-cpu.a; do
             [ -f "$f" ] && cp "$f" "lib$f" 2>/dev/null
@@ -145,12 +145,12 @@ tasks:
     cmds:
       - cmd: |
           export MSYS_NO_PATHCONV=1
-          adb uninstall com.asolopovas.whispergo 2>/dev/null || true
+          adb uninstall com.asolopovas.wtranscribe 2>/dev/null || true
           adb install dist/wt.apk
           adb logcat -c
-          adb shell "am start -n com.asolopovas.whispergo/org.golang.app.GoNativeActivity"
+          adb shell "am start -n com.asolopovas.wtranscribe/org.golang.app.GoNativeActivity"
           sleep 2
-          adb logcat -d | grep -E "whispergo|GoLog|dlopen|FATAL|panic|AndroidRuntime" | head -30
+          adb logcat -d | grep -E "wtranscribe|GoLog|dlopen|FATAL|panic|AndroidRuntime" | head -30
 
   fetch-deps:
     internal: true
@@ -386,6 +386,7 @@ tasks:
       - cmd: |
           export PATH="/c/msys64/mingw64/bin:$PATH"
           cmake -B "{{.ANDROID_BUILD}}" -S "{{.WHISPER_ROOT}}" \
+            -DCMAKE_MAKE_PROGRAM="C:/msys64/mingw64/bin/mingw32-make.exe" \
             -DCMAKE_TOOLCHAIN_FILE="{{.NDK_ROOT}}/build/cmake/android.toolchain.cmake" \
             -DANDROID_ABI=arm64-v8a \
             -DANDROID_PLATFORM=android-28 \
@@ -401,7 +402,7 @@ tasks:
             -DVulkan_GLSLC_EXECUTABLE="{{.NDK_ROOT}}/shader-tools/windows-x86_64/glslc.exe" \
             -DGGML_VULKAN_SHADERS_GEN_TOOLCHAIN="{{.ROOT_DIR | toSlash}}/scripts/host-mingw-toolchain.cmake" \
             -G "MinGW Makefiles"
-          cmake --build "{{.ANDROID_BUILD}}" --config Release -j$NUMBER_OF_PROCESSORS
+          cmake --build "{{.ANDROID_BUILD}}" --config Release -j${NUMBER_OF_PROCESSORS:-$(nproc)}
           cp "{{.NDK_TOOLCHAIN}}/sysroot/usr/lib/aarch64-linux-android/28/libvulkan.so" \
             "{{.ANDROID_BUILD}}/ggml/src/ggml-vulkan/libvulkan.so"
 
@@ -417,14 +418,15 @@ tasks:
       - cmd: |
           export ANDROID_HOME="$LOCALAPPDATA/Android/Sdk"
           export ANDROID_NDK_HOME="{{.NDK_ROOT}}"
+          unset CGO_CFLAGS CGO_LDFLAGS CGO_LDFLAGS_ALLOW CC
           fyne package --os android/arm64 \
-            --app-id com.asolopovas.whispergo \
+            --app-id com.asolopovas.wtranscribe \
             --name wt \
             --icon "{{.ROOT_DIR | toSlash}}/winres/icon.png" \
             --src "{{.ROOT_DIR | toSlash}}/cmd/wt-gui"
       - cmd: |
           set -e
-          apk="cmd/wt-gui/whisper_go.apk"
+          apk="cmd/wt-gui/wt.apk"
           ndk_libcxx="{{.NDK_ROOT}}/toolchains/llvm/prebuilt/windows-x86_64/sysroot/usr/lib/aarch64-linux-android/libc++_shared.so"
           ndk_libomp="{{.NDK_ROOT}}/toolchains/llvm/prebuilt/windows-x86_64/lib/clang/18/lib/linux/aarch64/libomp.so"
           mkdir -p dist
@@ -470,6 +472,7 @@ tasks:
     cmds:
       - mkdir -p dist/bin
       - cmd: |
+          unset CGO_CFLAGS CGO_LDFLAGS CGO_LDFLAGS_ALLOW CC
           CGO_ENABLED=1 GOOS=android GOARCH=arm64 \
           CC="{{.NDK_CC}}" \
           go build -tags android -o dist/bin/wt-test-arm64 ./cmd/wt-test
@@ -477,5 +480,6 @@ tasks:
           export MSYS_NO_PATHCONV=1
           adb push dist/bin/wt-test-arm64 /data/local/tmp/wt-test
           adb push "{{.NDK_ROOT}}/toolchains/llvm/prebuilt/windows-x86_64/sysroot/usr/lib/aarch64-linux-android/libc++_shared.so" /data/local/tmp/libc++_shared.so
+          adb push "{{.NDK_ROOT}}/toolchains/llvm/prebuilt/windows-x86_64/lib/clang/18/lib/linux/aarch64/libomp.so" /data/local/tmp/libomp.so
           adb shell "chmod 755 /data/local/tmp/wt-test"
           adb shell "cd /data/local/tmp && LD_LIBRARY_PATH=/data/local/tmp ./wt-test {{.CLI_ARGS}}"

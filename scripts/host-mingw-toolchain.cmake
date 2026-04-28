@@ -1,5 +1,6 @@
 set(CMAKE_SYSTEM_NAME Windows)
 set(CMAKE_BUILD_TYPE Release)
+set(CMAKE_MAKE_PROGRAM "C:/msys64/mingw64/bin/mingw32-make.exe" CACHE FILEPATH "" FORCE)
 set(CMAKE_C_COMPILER "C:/msys64/mingw64/bin/gcc.exe")
 set(CMAKE_CXX_COMPILER "C:/msys64/mingw64/bin/g++.exe")
 set(CMAKE_C_FLAGS "-O2")

@@ -3,6 +3,7 @@ package gui
 import (
 	"fmt"
 	"runtime"
+	"slices"
 	"strconv"
 
 	"fyne.io/fyne/v2"
@@ -14,11 +15,6 @@ import (
 
 	shared "github.com/asolopovas/wt/internal"
 )
-
-var validModels = []string{
-	"tiny", "base", "small", "medium",
-	"large-v3", "turbo",
-}
 
 var languages = []string{
 	"auto", "en", "zh", "de", "es", "ru", "ko", "fr", "ja", "pt",
@@ -63,6 +59,9 @@ func newSettingsPanel(cfg shared.Config, window fyne.Window) *settingsPanel {
 func (p *settingsPanel) build() {
 	p.modelSelect = newPointerSelect(validModels, nil)
 	p.modelSelect.Selected = p.cfg.Model
+	if !slices.Contains(validModels, p.modelSelect.Selected) {
+		p.modelSelect.Selected = validModels[0]
+	}
 
 	langLabel := "auto"
 	if p.cfg.Language != "" {

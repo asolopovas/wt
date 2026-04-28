@@ -13,7 +13,7 @@ func appDir() string {
 		return filepath.Join(filesDir, "wt")
 	}
 
-	return "/data/data/com.asolopovas.whispergo/files/wt"
+	return "/data/data/com.asolopovas.wtranscribe/files/wt"
 }
 
 func defaultModel() string {
