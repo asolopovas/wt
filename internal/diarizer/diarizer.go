@@ -24,6 +24,9 @@ type Backend interface {
 }
 
 func New() (Backend, error) {
+	if b, err := newSherpaDiarizer(); err == nil {
+		return b, nil
+	}
 	return newNemoDiarizer()
 }
 

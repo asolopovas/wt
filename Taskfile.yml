@@ -430,6 +430,9 @@ tasks:
           apk="cmd/wt-gui/wt.apk"
           ndk_libcxx="{{.NDK_ROOT}}/toolchains/llvm/prebuilt/windows-x86_64/sysroot/usr/lib/aarch64-linux-android/libc++_shared.so"
           ndk_libomp="{{.NDK_ROOT}}/toolchains/llvm/prebuilt/windows-x86_64/lib/clang/18/lib/linux/aarch64/libomp.so"
+          sherpa_bin="dist/sherpa/sherpa-diar-android"
+          sherpa_seg="dist/sherpa/models/sherpa-onnx-pyannote-segmentation-3-0/model.onnx"
+          sherpa_emb="dist/sherpa/models/3dspeaker.onnx"
           mkdir -p dist
           libcxx_fwd=$(echo "$ndk_libcxx" | sed 's|\\|/|g')
           libomp_fwd=$(echo "$ndk_libomp" | sed 's|\\|/|g')
@@ -437,6 +440,9 @@ tasks:
           import zipfile, os, sys
           libcxx = r'$libcxx_fwd'.replace('\\\\', '/')
           libomp = r'$libomp_fwd'.replace('\\\\', '/')
+          sherpa_bin = r'$sherpa_bin'
+          sherpa_seg = r'$sherpa_seg'
+          sherpa_emb = r'$sherpa_emb'
           with zipfile.ZipFile('$apk', 'r') as zin:
               with zipfile.ZipFile('dist/unsigned.apk', 'w', zipfile.ZIP_DEFLATED) as zout:
                   for item in zin.infolist():
@@ -445,6 +451,12 @@ tasks:
                       zout.writestr(item, zin.read(item.filename))
                   zout.write(libcxx, 'lib/arm64-v8a/libc++_shared.so', compress_type=zipfile.ZIP_STORED)
                   zout.write(libomp, 'lib/arm64-v8a/libomp.so', compress_type=zipfile.ZIP_STORED)
+                  if os.path.exists(sherpa_bin):
+                      zout.write(sherpa_bin, 'lib/arm64-v8a/libsherpa-diar.so', compress_type=zipfile.ZIP_STORED)
+                  if os.path.exists(sherpa_seg):
+                      zout.write(sherpa_seg, 'assets/sherpa-models/seg.onnx', compress_type=zipfile.ZIP_STORED)
+                  if os.path.exists(sherpa_emb):
+                      zout.write(sherpa_emb, 'assets/sherpa-models/emb.onnx', compress_type=zipfile.ZIP_STORED)
           print('Patched:', os.path.getsize('dist/unsigned.apk'))
           "
           "{{.BUILD_TOOLS}}/zipalign.exe" -f 4 dist/unsigned.apk dist/aligned.apk
