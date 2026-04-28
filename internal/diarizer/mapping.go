@@ -15,10 +15,11 @@ type TokenData struct {
 }
 
 type TranscriptSegment struct {
-	Start  time.Duration
-	End    time.Duration
-	Text   string
-	Tokens []TokenData
+	Start           time.Duration
+	End             time.Duration
+	Text            string
+	SpeakerTurnNext bool
+	Tokens          []TokenData
 }
 
 type SpeakerSegment struct {
@@ -113,6 +114,27 @@ func MapSegmentsToSpeakers(transcriptSegs []TranscriptSegment, diarSegs []Segmen
 		}
 	}
 	return result
+}
+
+func SpeakerTurnSegments(transcriptSegs []TranscriptSegment) []Segment {
+	if len(transcriptSegs) == 0 {
+		return nil
+	}
+
+	segments := make([]Segment, 0, len(transcriptSegs))
+	speaker := 0
+	for _, seg := range transcriptSegs {
+		segments = append(segments, Segment{
+			Speaker:  speaker,
+			StartSec: seg.Start.Seconds(),
+			EndSec:   seg.End.Seconds(),
+		})
+		if seg.SpeakerTurnNext {
+			speaker = (speaker + 1) % 2
+		}
+	}
+
+	return segments
 }
 
 func sortedCopy(diarSegs []Segment) []Segment {

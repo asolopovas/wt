@@ -37,10 +37,11 @@ func TranscribeToJSON(model *Model, path, outputFilename, modelSize, language st
 	var diarSegs []diarizer.Segment
 	diarOK := false
 	diarName := ""
-	if !noDiarize {
+	if !noDiarize && diarizer.SupportsExternalBackend() {
 		wavPath := ResolveWAVPath(absPath)
 		diarSegs, diarName, diarOK = runDiarization(wavPath, speakers, audioDurSec)
 	}
+	usedTDRZ := UseTDRZ(tdrz, diarOK, noDiarize)
 
 	ctx, err := configureContext(model, threads, language, tdrz, diarOK, noDiarize)
 	if err != nil {
@@ -50,6 +51,14 @@ func TranscribeToJSON(model *Model, path, outputFilename, modelSize, language st
 	transcriptSegs, err := transcribe(ctx, samples)
 	if err != nil {
 		return err
+	}
+
+	if !diarOK && usedTDRZ {
+		diarSegs = diarizer.SpeakerTurnSegments(transcriptSegs)
+		diarOK = len(diarSegs) > 0
+		if diarOK {
+			diarName = "tinydiarize"
+		}
 	}
 
 	detected := ctx.DetectedLanguage()
@@ -144,7 +153,7 @@ func configureContext(model *Model, threads int, language string, tdrz, diarOK, 
 
 	ConfigureContext(ctx, ContextConfig{
 		Threads: threads,
-		TDRZ:    tdrz || !diarOK,
+		TDRZ:    UseTDRZ(tdrz, diarOK, noDiarize),
 	})
 
 	hasVAD := ConfigureVAD(ctx)
@@ -159,8 +168,10 @@ func configureContext(model *Model, threads int, language string, tdrz, diarOK, 
 
 	if noDiarize {
 		ui.Debug("Diarization", "disabled")
-	} else {
+	} else if UseTDRZ(tdrz, diarOK, noDiarize) {
 		ui.Debug("Diarization", "TDRZ fallback")
+	} else {
+		ui.Debug("Diarization", "NeMo Sortformer")
 	}
 
 	return ctx, nil

@@ -216,10 +216,11 @@ func (p *transcribePanel) transcribeFile(model whisper.Model, path, modelSize, l
 
 	var diarSegs []diarizer.Segment
 	diarOK := false
-	if !noDiarize {
+	if !noDiarize && diarizer.SupportsExternalBackend() {
 		wavPath := transcriber.ResolveWAVPath(absPath)
 		diarSegs, diarOK = p.runDiarization(wavPath, speakers, audioDurSec)
 	}
+	usedTDRZ := transcriber.UseTDRZ(false, diarOK, noDiarize)
 
 	if p.cancelled.Load() {
 		return fmt.Errorf("cancelled")
@@ -232,10 +233,10 @@ func (p *transcribePanel) transcribeFile(model whisper.Model, path, modelSize, l
 
 	transcriber.ConfigureContext(ctx, transcriber.ContextConfig{
 		Threads: threads,
-		TDRZ:    !diarOK,
+		TDRZ:    usedTDRZ,
 	})
 
-	p.debugLog(fmt.Sprintf("TDRZ=%v (diarOK=%v)", !diarOK, diarOK))
+	p.debugLog(fmt.Sprintf("TDRZ=%v (diarOK=%v)", usedTDRZ, diarOK))
 
 	if transcriber.ConfigureVAD(ctx) {
 		p.appendLog("  VAD: Silero v6.2.0")
@@ -290,6 +291,11 @@ func (p *transcribePanel) transcribeFile(model whisper.Model, path, modelSize, l
 		p.debugLog(fmt.Sprintf("dedup: removed %d repeated segments", dropped))
 	}
 
+	if !diarOK && usedTDRZ {
+		diarSegs = diarizer.SpeakerTurnSegments(segs)
+		diarOK = len(diarSegs) > 0
+	}
+
 	p.debugLog(fmt.Sprintf("transcript segments=%d diarize segments=%d diarOK=%v", len(segs), len(diarSegs), diarOK))
 
 	detected := ctx.DetectedLanguage()
@@ -300,6 +306,9 @@ func (p *transcribePanel) transcribeFile(model whisper.Model, path, modelSize, l
 	diarName := ""
 	if diarOK {
 		diarName = "nemo-sortformer"
+		if usedTDRZ {
+			diarName = "tinydiarize"
+		}
 	}
 
 	device := "cpu"

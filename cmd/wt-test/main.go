@@ -108,6 +108,7 @@ func main() {
 
 	fmt.Printf("\n--- Results ---\n")
 	segCount := 0
+	speaker := 1
 	for {
 		seg, err := ctx.NextSegment()
 		if errors.Is(err, io.EOF) {
@@ -118,7 +119,10 @@ func main() {
 			break
 		}
 		segCount++
-		fmt.Printf("[%s -> %s] %s\n", seg.Start, seg.End, seg.Text)
+		fmt.Printf("[%s -> %s] SPEAKER_%02d %s\n", seg.Start, seg.End, speaker, seg.Text)
+		if seg.SpeakerTurnNext {
+			speaker = 3 - speaker
+		}
 	}
 
 	fmt.Printf("\nSegments: %d\n", segCount)

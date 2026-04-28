@@ -22,6 +22,13 @@ func ConfigureContext(ctx whisper.Context, cfg ContextConfig) {
 	ctx.SetSplitOnWord(true)
 }
 
+func UseTDRZ(tdrz, diarOK, noDiarize bool) bool {
+	if noDiarize {
+		return false
+	}
+	return tdrz || !diarOK
+}
+
 func SetLanguage(ctx whisper.Context, language string) {
 	if language != "" {
 		_ = ctx.SetLanguage(language)

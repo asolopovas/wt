@@ -75,10 +75,11 @@ func ExtractSegments(ctx whisper.Context) []diarizer.TranscriptSegment {
 		}
 
 		segs = append(segs, diarizer.TranscriptSegment{
-			Start:  segment.Start,
-			End:    segment.End,
-			Text:   segment.Text,
-			Tokens: tokens,
+			Start:           segment.Start,
+			End:             segment.End,
+			Text:            segment.Text,
+			SpeakerTurnNext: segment.SpeakerTurnNext,
+			Tokens:          tokens,
 		})
 	}
 	return segs
