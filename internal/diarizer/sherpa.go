@@ -297,11 +297,21 @@ func (d *sherpaDiarizer) Diarize(ctx context.Context, wavPath string, numSpeaker
 	args := []string{
 		"--segmentation.pyannote-model=" + d.segModel,
 		"--embedding.model=" + d.embModel,
+		// Default 0.3 discards brief interjections ("yeah", "right") which
+		// in fast turn-taking are exactly the moments where the second
+		// speaker is audible. 0.0 keeps every voice-active frame; the
+		// embedding/clustering stages still drop noise-only segments.
+		"--min-duration-on=0.0",
 	}
 	if numSpeakers > 0 {
 		args = append(args, fmt.Sprintf("--clustering.num-clusters=%d", numSpeakers))
 	} else {
-		args = append(args, "--clustering.cluster-threshold=1.2")
+		// 0.85 found empirically on Android with the bundled
+		// pyannote-3.0 + 3dspeaker models: tight enough to keep two
+		// distinct speakers separated on short clips, loose enough to
+		// avoid over-clustering. Values >=1.1 occasionally crash
+		// sherpa-onnx's clustering when only one cluster is found.
+		args = append(args, "--clustering.cluster-threshold=0.85")
 	}
 	args = append(args, wavPath)
 

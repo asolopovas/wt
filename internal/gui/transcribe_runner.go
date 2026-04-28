@@ -3,10 +3,12 @@ package gui
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 
 	"fyne.io/fyne/v2/dialog"
@@ -30,27 +32,90 @@ func formatETA(secs float64) string {
 	return fmt.Sprintf("%dh%02dm", int(secs)/3600, (int(secs)%3600)/60)
 }
 
-type etaTracker struct {
-	start   time.Time
-	lastPct int
+// progressSmoother interpolates between whisper's coarse integer-percent
+// callbacks. Whisper.cpp can take tens of seconds (sometimes >1min on the
+// first chunk) before bumping the percent, then jump several points at once.
+// We expose a continuous (display, etaSec) by:
+//   - seeding an initial seconds-per-percent estimate from audio duration,
+//   - refining it via EMA from observed pct transitions,
+//   - asymptotically advancing the displayed value between reports
+//     (tanh saturation so we never overshoot the next real percent).
+type progressSmoother struct {
+	mu        sync.Mutex
+	lastPct   int
+	lastTick  time.Time
+	secPerPct float64
+	seeded    bool
 }
 
-func newETATracker() *etaTracker {
-	return &etaTracker{start: time.Now(), lastPct: 0}
-}
-
-func (e *etaTracker) update(pct int) string {
-	if pct <= 0 {
-		return ""
+func newProgressSmoother(audioDurSec float64) *progressSmoother {
+	// Rough RTF guess: ~0.4× audio duration to fully transcribe. Refined
+	// after the first real percent transition.
+	initial := audioDurSec * 0.4 / 100.0
+	if initial < 0.3 {
+		initial = 0.3
 	}
-	e.lastPct = pct
-	elapsed := time.Since(e.start)
-	totalEstimate := elapsed * time.Duration(100) / time.Duration(pct)
-	remaining := totalEstimate - elapsed
+	return &progressSmoother{
+		lastTick:  time.Now(),
+		secPerPct: initial,
+	}
+}
+
+func (s *progressSmoother) report(pct int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if pct <= s.lastPct {
+		return
+	}
+	now := time.Now()
+	elapsed := now.Sub(s.lastTick).Seconds()
+	pctDelta := pct - s.lastPct
+	if elapsed > 0 && pctDelta > 0 {
+		observed := elapsed / float64(pctDelta)
+		if !s.seeded {
+			// First real measurement carries far more signal than our
+			// audio-duration guess — replace outright.
+			s.secPerPct = observed
+			s.seeded = true
+		} else {
+			s.secPerPct = 0.6*s.secPerPct + 0.4*observed
+		}
+	}
+	s.lastPct = pct
+	s.lastTick = now
+}
+
+func (s *progressSmoother) snapshot() (display float64, etaSec float64) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	elapsed := time.Since(s.lastTick).Seconds()
+	rate := s.secPerPct
+	if rate <= 0 {
+		rate = 1
+	}
+	// Asymptotic advance: linear at first, saturating at +softCap percents
+	// ahead of the last reported value so a stalled callback can never push
+	// the bar past the next real report.
+	const softCap = 4.0
+	raw := elapsed / rate
+	interp := softCap * math.Tanh(raw/softCap)
+	display = float64(s.lastPct) + interp
+	if display > 99 {
+		display = 99
+	}
+	// If we've waited much longer than estimated, the real rate is slower
+	// than our EMA — inflate the rate used for ETA so it grows instead of
+	// counting down past zero.
+	effRate := rate
+	if elapsed > 2*rate {
+		effRate = elapsed / 2.0
+	}
+	remaining := 100 - display
 	if remaining < 0 {
 		remaining = 0
 	}
-	return transcriber.FormatHMS(remaining)
+	etaSec = remaining * effRate
+	return
 }
 
 func (p *transcribePanel) onTranscribe() {
@@ -266,25 +331,39 @@ func (p *transcribePanel) transcribeFile(model whisper.Model, path, modelSize, l
 
 		p.appendLog("  Transcribing...")
 		processStart := time.Now()
-		lastPct := -1
-		eta := newETATracker()
+		smoother := newProgressSmoother(audioDurSec)
+		stopTick := make(chan struct{})
+		tickDone := make(chan struct{})
+		go func() {
+			defer close(tickDone)
+			t := time.NewTicker(400 * time.Millisecond)
+			defer t.Stop()
+			render := func() {
+				disp, etaSec := smoother.snapshot()
+				p.setProgress(disp / 100.0 * 0.5)
+				p.setStatus(fmt.Sprintf("Transcribing... %.0f%%  ETA: %s", disp, formatETA(etaSec)))
+			}
+			render()
+			for {
+				select {
+				case <-stopTick:
+					return
+				case <-t.C:
+					render()
+				}
+			}
+		}()
 		abortCb := func() bool { return !p.cancelled.Load() }
 		progressCb := func(pct int) {
 			if pct > 100 {
 				pct = 100
 			}
-			if pct > lastPct {
-				lastPct = pct
-				p.setProgress(float64(pct) / 100.0 * 0.5)
-				etaStr := eta.update(pct)
-				if etaStr != "" {
-					p.setStatus(fmt.Sprintf("Transcribing... %d%%  ETA: %s", pct, etaStr))
-				} else {
-					p.setStatus(fmt.Sprintf("Transcribing... %d%%", pct))
-				}
-			}
+			smoother.report(pct)
 		}
-		if err := ctx.Process(samples, abortCb, nil, whisper.ProgressCallback(progressCb)); err != nil {
+		err = ctx.Process(samples, abortCb, nil, whisper.ProgressCallback(progressCb))
+		close(stopTick)
+		<-tickDone
+		if err != nil {
 			if p.cancelled.Load() {
 				return fmt.Errorf("cancelled")
 			}
