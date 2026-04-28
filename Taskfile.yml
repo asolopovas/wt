@@ -132,7 +132,7 @@ tasks:
           fi
           taskkill //F //IM {{.BINARY}}-gui.exe 2>/dev/null || true
           taskkill //F //IM {{.BINARY}}.exe 2>/dev/null || true
-          sleep 1
+          python -c "import time; time.sleep(1)"
           cp -f dist/bin/*.exe "$dest/"
           cp -f dist/bin/*.dll "$dest/" 2>/dev/null || true
           cp -f dist/bin/diarize.py "$dest/" 2>/dev/null || true
