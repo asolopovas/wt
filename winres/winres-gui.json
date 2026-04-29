@@ -18,7 +18,7 @@
           "name": "wt-gui",
           "version": "0.0.1.0"
         },
-        "description": "wt GUI",
+        "description": "WTranscribe",
         "minimum-os": "win10",
         "execution-level": "as invoker",
         "dpi-awareness": "per monitor v2",
@@ -36,12 +36,12 @@
         "info": {
           "0409": {
             "CompanyName": "Andrius Solopovas",
-            "FileDescription": "wt GUI",
+            "FileDescription": "WTranscribe",
             "FileVersion": "0.0.1",
             "InternalName": "wt-gui",
             "LegalCopyright": "Copyright (c) 2026 Andrius Solopovas",
             "OriginalFilename": "wt-gui.exe",
-            "ProductName": "wt",
+            "ProductName": "WTranscribe",
             "ProductVersion": "0.0.1"
           }
         }

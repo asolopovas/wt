@@ -54,11 +54,11 @@ Source: "..\THIRD-PARTY-LICENSES.txt"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
-Name: "{group}\{#MyAppName} GUI"; Filename: "{app}\wt-gui.exe"
+Name: "{group}\WTranscribe"; Filename: "{app}\wt-gui.exe"
 Name: "{group}\Uninstall {#MyAppName}"; Filename: "{uninstallexe}"
 
 [Run]
-Filename: "{app}\wt-gui.exe"; Description: "Launch wt GUI"; \
+Filename: "{app}\wt-gui.exe"; Description: "Launch WTranscribe"; \
     Flags: nowait postinstall skipifsilent
 
 [Registry]
