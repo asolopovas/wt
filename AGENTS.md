@@ -90,8 +90,8 @@ fake "undefined: C.xxx" errors across every cgo file. Leave gopls on the default
 build; android files just show a benign "No packages found" notice when opened.
 
 Lint runs only over `./cmd/... ./internal/...` (the Taskfile scopes it). Do not
-re-add `./...` — it picks up the cgo Go bindings under `dist/sherpa/third_party/`
-which can't compile without sherpa-onnx headers.
+re-add `./...` — it picks up the vendored cgo whisper.cpp bindings under
+`bindings/go/` which can't compile without the whisper.cpp build headers.
 
 Windows-specific: `_windows.go` suffix (auto-selected) with `_other.go` + `//go:build !windows` stubs.
 
