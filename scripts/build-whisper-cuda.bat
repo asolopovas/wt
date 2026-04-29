@@ -1,6 +1,11 @@
 @echo off
 setlocal
 
+:: Reset PATH to a minimal baseline before invoking vcvarsall.
+:: vcvarsall appends ~3KB; if the inherited PATH is already large we hit
+:: cmd.exe's 8KB command-line limit ("input line too long").
+set "PATH=%SystemRoot%\System32;%SystemRoot%;%SystemRoot%\System32\Wbem;%SystemRoot%\System32\WindowsPowerShell\v1.0"
+
 :: Find vcvarsall.bat
 set "VCVARS="
 for /f "delims=" %%i in ('dir /b /s "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvarsall.bat" 2^>nul') do set "VCVARS=%%i"

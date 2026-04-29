@@ -104,11 +104,16 @@ tasks:
         if: '[ "{{.ONLY}}" != "cli" ]'
       - cmd: |
           dlldir="{{.WHISPER_BUILD}}/bin"
-          cp "$dlldir"/whisper.dll "$dlldir"/ggml.dll "$dlldir"/ggml-base.dll dist/bin/
-          cp "$dlldir"/ggml-cpu-*.dll dist/bin/ 2>/dev/null || true
-          cp "$dlldir"/ggml-cuda.dll dist/bin/ 2>/dev/null || true
+          dest="{{.ROOT_DIR | toSlash}}/dist/bin"
+          mkdir -p "$dest"
+          for f in "$dlldir"/whisper.dll "$dlldir"/ggml.dll "$dlldir"/ggml-base.dll; do
+            cp "$f" "$dest/"
+          done
+          for f in "$dlldir"/ggml-cpu-*.dll "$dlldir"/ggml-cuda.dll; do
+            [ -f "$f" ] && cp "$f" "$dest/"
+          done
         if: '[ -n "{{.CUDA_DIR}}" ]'
-      - cp scripts/diarize.py dist/bin/
+      - cp scripts/diarize.py "{{.ROOT_DIR | toSlash}}/dist/bin/diarize.py"
       - cmd: |
           if [ -z "{{.ISCC_PATH}}" ]; then
             echo "ERROR: Inno Setup not found. Install via: winget install JRSoftware.InnoSetup"
