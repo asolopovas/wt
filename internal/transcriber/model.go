@@ -96,17 +96,8 @@ func ResolveModelPathWithProgress(modelSize, modelPath string, prog DownloadProg
 	}
 
 	url := modelURLBase + "/" + filename
-	if prog == nil {
-		pterm.Info.Printf("Downloading model '%s' from %s\n", modelSize, url)
-		pterm.FgDarkGray.Println("This may take a few minutes on first run.")
-	}
-
 	if err := shared.DownloadFile(path, url, wrapForCLI(prog, modelSize)); err != nil {
 		return "", fmt.Errorf("downloading model: %w", err)
-	}
-
-	if prog == nil {
-		ui.Done(fmt.Sprintf("Model saved to %s", path))
 	}
 	return path, nil
 }
