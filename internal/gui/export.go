@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"fyne.io/fyne/v2"
@@ -74,32 +75,75 @@ func (p *transcribePanel) openPreview(item exportItem, onClose func()) {
 	content := widget.NewRichText()
 	content.Wrapping = fyne.TextWrapWord
 
+	const initialBatch = 20
+	const batchSize = 30
+
+	buildSegment := func(u transcriber.Utterance) *widget.TextSegment {
+		return &widget.TextSegment{
+			Text: fmt.Sprintf("[%s] %s: %s\n",
+				formatAbsoluteTimestamp(u.Start, start),
+				p.displayName(u.Speaker),
+				strings.TrimSpace(u.Text)),
+			Style: widget.RichTextStyle{
+				ColorName: theme.ColorNamePrimary,
+				TextStyle: fyne.TextStyle{Monospace: true},
+			},
+		}
+	}
+
+	var renderToken atomic.Uint64
+
 	render := func() {
-		content.Segments = nil
+		token := renderToken.Add(1)
 		if len(tr.Utterances) == 0 {
-			content.Segments = append(content.Segments, &widget.TextSegment{
+			content.Segments = []widget.RichTextSegment{&widget.TextSegment{
 				Text: "(no utterances)",
 				Style: widget.RichTextStyle{
 					ColorName: theme.ColorNameForeground,
 					TextStyle: fyne.TextStyle{Monospace: true},
 				},
-			})
-		} else {
-			for _, u := range tr.Utterances {
-				line := fmt.Sprintf("[%s] %s: %s\n",
-					formatAbsoluteTimestamp(u.Start, start),
-					p.displayName(u.Speaker),
-					strings.TrimSpace(u.Text))
-				content.Segments = append(content.Segments, &widget.TextSegment{
-					Text: line,
-					Style: widget.RichTextStyle{
-						ColorName: theme.ColorNamePrimary,
-						TextStyle: fyne.TextStyle{Monospace: true},
-					},
+			}}
+			content.Refresh()
+			return
+		}
+
+		first := initialBatch
+		if first > len(tr.Utterances) {
+			first = len(tr.Utterances)
+		}
+		segs := make([]widget.RichTextSegment, 0, len(tr.Utterances))
+		for i := 0; i < first; i++ {
+			segs = append(segs, buildSegment(tr.Utterances[i]))
+		}
+		content.Segments = segs
+		content.Refresh()
+
+		if first >= len(tr.Utterances) {
+			return
+		}
+
+		go func(from int) {
+			for i := from; i < len(tr.Utterances); i += batchSize {
+				if renderToken.Load() != token {
+					return
+				}
+				end := i + batchSize
+				if end > len(tr.Utterances) {
+					end = len(tr.Utterances)
+				}
+				chunk := make([]widget.RichTextSegment, 0, end-i)
+				for j := i; j < end; j++ {
+					chunk = append(chunk, buildSegment(tr.Utterances[j]))
+				}
+				fyne.Do(func() {
+					if renderToken.Load() != token {
+						return
+					}
+					content.Segments = append(content.Segments, chunk...)
+					content.Refresh()
 				})
 			}
-		}
-		content.Refresh()
+		}(first)
 	}
 
 	speakerRows := make([]fyne.CanvasObject, 0, len(speakerOrder))
