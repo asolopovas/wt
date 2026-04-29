@@ -17,7 +17,7 @@ jobs:
           go-version: stable
 
       - name: Install build dependencies
-        run: sudo apt-get update && sudo apt-get install -y cmake gcc g++ ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y cmake gcc g++ ffmpeg libgl1-mesa-dev xorg-dev
 
       - name: Cache whisper.cpp build
         uses: actions/cache@v4
