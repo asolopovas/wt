@@ -23,7 +23,7 @@ func showTimePicker(parent fyne.Window, current time.Time, onSelect func(h, m, s
 	colon1 := widget.NewLabel(":")
 	row := container.NewHBox(hourSel, colon1, minSel)
 
-	d := dialog.NewCustomWithoutButtons("Pick time", row, parent)
+	d := dialog.NewCustomWithoutButtons("Pick time", dialogBordered(row), parent)
 
 	nowBtn := widget.NewButton("NOW", func() {
 		d.Hide()

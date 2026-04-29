@@ -8,7 +8,7 @@ import (
 )
 
 func showTranscriptPreview(_ string, body fyne.CanvasObject, parent fyne.Window, onClose func()) func() {
-	pop := widget.NewModalPopUp(body, parent.Canvas())
+	pop := widget.NewModalPopUp(dialogBordered(body), parent.Canvas())
 	if size, ok := previewDialogSize(); ok {
 		pop.Resize(size)
 	}

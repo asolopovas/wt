@@ -21,6 +21,7 @@ var (
 	colSecondary    = color.NRGBA{R: 255, G: 208, B: 135, A: 255}
 	colOutline      = color.NRGBA{R: 64, G: 72, B: 79, A: 255}
 	colGhostBorder  = color.NRGBA{R: 64, G: 72, B: 79, A: 77}
+	colDialogBorder = color.NRGBA{R: 168, G: 178, B: 188, A: 200}
 	colPrimaryGhost = color.NRGBA{R: 143, G: 205, B: 255, A: 77}
 	colPrimaryFaint = color.NRGBA{R: 143, G: 205, B: 255, A: 102}
 	colHover        = color.NRGBA{R: 143, G: 205, B: 255, A: 20}
@@ -46,7 +47,7 @@ func (t *whisperTheme) Color(name fyne.ThemeColorName, variant fyne.ThemeVariant
 	case theme.ColorNameInputBackground:
 		return colSurfHigh
 	case theme.ColorNameSeparator:
-		return colGhostBorder
+		return colDialogBorder
 	case theme.ColorNameDisabled:
 		return colSurfBright
 	case theme.ColorNameDisabledButton:

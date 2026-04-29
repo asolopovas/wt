@@ -17,7 +17,7 @@ func showDatePicker(parent fyne.Window, current time.Time, onSelect func(time.Ti
 		onSelect(t)
 	})
 
-	d = dialog.NewCustomWithoutButtons("Pick date", cal, parent)
+	d = dialog.NewCustomWithoutButtons("Pick date", dialogBordered(cal), parent)
 
 	nowBtn := widget.NewButton("NOW", func() {
 		d.Hide()

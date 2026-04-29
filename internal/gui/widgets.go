@@ -79,6 +79,13 @@ func (t *tappableArea) CreateRenderer() fyne.WidgetRenderer {
 	return widget.NewSimpleRenderer(bg)
 }
 
+func dialogBordered(content fyne.CanvasObject) fyne.CanvasObject {
+	frame := canvas.NewRectangle(transparent)
+	frame.StrokeColor = colDialogBorder
+	frame.StrokeWidth = 1
+	return container.NewStack(content, frame)
+}
+
 func borderedBtn(btn fyne.CanvasObject, borderCol color.Color) fyne.CanvasObject {
 	frame := canvas.NewRectangle(transparent)
 	frame.StrokeColor = borderCol

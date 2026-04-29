@@ -76,7 +76,7 @@ func (p *transcribePanel) chooseFilesAndTranscribe() {
 	body.SetMinSize(fyne.NewSize(280, 320))
 
 	dlg := dialog.NewCustomConfirm("Choose files to transcribe", "TRANSCRIBE", "CANCEL",
-		body, func(ok bool) {
+		dialogBordered(body), func(ok bool) {
 			if !ok {
 				return
 			}

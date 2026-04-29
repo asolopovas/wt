@@ -31,7 +31,7 @@ func (p *transcribePanel) openLibrary() {
 
 	body := container.NewBorder(btnRow, nil, nil, nil, p.history.container)
 
-	dlg := dialog.NewCustom("Library", "Close", body, p.window)
+	dlg := dialog.NewCustom("Library", "Close", dialogBordered(body), p.window)
 	dlg.Resize(libraryDialogSize(p.window))
 	dlg.Show()
 }
