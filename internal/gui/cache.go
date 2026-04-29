@@ -40,6 +40,29 @@ func loadRawSegments(key string) ([]diarizer.TranscriptSegment, bool) {
 	return segs, true
 }
 
+func rawCacheSafe(segs []diarizer.TranscriptSegment, audioDurSec float64, cancelled bool) (bool, string) {
+	if cancelled {
+		return false, "transcription cancelled"
+	}
+	if len(segs) == 0 {
+		return false, "no segments produced"
+	}
+	if audioDurSec <= 0 {
+		return true, ""
+	}
+	lastEnd := time.Duration(0)
+	for _, s := range segs {
+		if s.End > lastEnd {
+			lastEnd = s.End
+		}
+	}
+	coverage := lastEnd.Seconds() / audioDurSec
+	if coverage < 0.5 {
+		return false, fmt.Sprintf("coverage %.0f%% < 50%% (last_end=%.1fs, dur=%.1fs)", coverage*100, lastEnd.Seconds(), audioDurSec)
+	}
+	return true, ""
+}
+
 func saveRawSegments(key string, segs []diarizer.TranscriptSegment) error {
 	if err := os.MkdirAll(rawTranscriptDir(), 0o755); err != nil {
 		return err

@@ -365,8 +365,12 @@ func (p *transcribePanel) transcribeFile(model whisper.Model, path, modelSize, d
 			p.debugLog(fmt.Sprintf("dedup: removed %d repeated segments", dropped))
 		}
 		if rawKey != "" {
-			if err := saveRawSegments(rawKey, segs); err != nil {
-				p.debugLog(fmt.Sprintf("could not save raw transcript cache: %v", err))
+			if ok, reason := rawCacheSafe(segs, audioDurSec, p.cancelled.Load()); ok {
+				if err := saveRawSegments(rawKey, segs); err != nil {
+					p.debugLog(fmt.Sprintf("could not save raw transcript cache: %v", err))
+				}
+			} else {
+				p.debugLog(fmt.Sprintf("skipped raw cache save: %s", reason))
 			}
 		}
 	}
