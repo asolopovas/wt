@@ -291,6 +291,11 @@ tasks:
     cmds:
       - cmd: 'export PATH="{{.EXTRA_PATH}};$PATH" && go test -v -short ./...'
 
+  vet:
+    desc: Run go vet with the right CGo env
+    cmds:
+      - cmd: 'export PATH="{{.EXTRA_PATH}};$PATH" && go vet ./cmd/... ./internal/...'
+
   lint:
     desc: Run golangci-lint (falls back to go vet)
     cmds:

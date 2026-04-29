@@ -17,6 +17,7 @@ task clean               # dist/ + samples/*.json (DEEP=1 also clears whisper.cp
 task test                # go test -v ./...
 task test-unit           # -short, no CGo/model
 task lint                # golangci-lint (scoped to ./cmd/... ./internal/...)
+task vet                 # go vet with proper CGo env
 task fmt                 # gofumpt -w
 task clean-comments      # Strip non-directive comments
 task bump                # Auto-increment version, build, install, verify, commit
@@ -32,7 +33,7 @@ Requires Go 1.26+, GCC/MinGW, CMake, ffmpeg, [Task](https://taskfile.dev/). CGo 
 
 **Always:** run `task build ONLY=gui` for GUI compile checks; keep `Taskfile.yml VERSION` and `scripts/installer.iss MyAppVersion` in sync.
 
-**Before every commit:** run `task lint`, `task test`, and `go vet ./cmd/... ./internal/...`. If any fail, fix the failures first — never commit or push with red checks. No `--no-verify`, no skipping. This applies to every commit, not just user-facing changes.
+**Before every commit:** run `task lint`, `task test`, and `task vet`. Bare `go vet` outside the Task env fails on Windows with a `go-gl/gl` CGo constraint error; `task vet` sets the right PATH/CGo env. If any fail, fix the failures first — never commit or push with red checks. No `--no-verify`, no skipping. This applies to every commit, not just user-facing changes.
 
 **Ask first:** anything that mutates user state outside the repo (installs, registry, version bumps).
 

@@ -58,5 +58,8 @@ func saveRTF(model, device string, observed float64) {
 	if err != nil {
 		return
 	}
+	if err := os.MkdirAll(shared.Dir(), 0o755); err != nil {
+		return
+	}
 	_ = os.WriteFile(rtfPath(), data, 0o644)
 }
