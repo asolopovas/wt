@@ -36,6 +36,15 @@ func (p *transcribePanel) collectStats() string {
 	if gpuUtil >= 0 {
 		parts = append(parts, fmt.Sprintf("GPU %d%%", gpuUtil))
 	}
+	if freq := queryAndroidGPUFreqMHz(); freq > 0 {
+		parts = append(parts, fmt.Sprintf("%d MHz", freq))
+	}
+	if temp := queryAndroidGPUTempC(); temp > 0 {
+		parts = append(parts, fmt.Sprintf("%d°C", temp))
+	}
+	if gpuMem < 0 {
+		gpuMem = queryAndroidGPUMemMB()
+	}
 	if gpuMem >= 0 {
 		parts = append(parts, "VRAM "+formatMB(int64(gpuMem)))
 	}

@@ -61,8 +61,35 @@ type cacheEntry struct {
 	NoDiarize  bool      `json:"no_diarize"`
 	Utterances int       `json:"utterances"`
 	CreatedAt  time.Time `json:"created_at"`
+	RecordedAt time.Time `json:"recorded_at,omitempty"`
 	SizeBytes  int64     `json:"size_bytes"`
 	Pending    bool      `json:"pending,omitempty"`
+}
+
+func recordedAtOrFallback(e cacheEntry) time.Time {
+	if !e.RecordedAt.IsZero() {
+		return e.RecordedAt
+	}
+	if e.SourcePath != "" {
+		if info, err := os.Stat(e.SourcePath); err == nil {
+			return info.ModTime().Local()
+		}
+	}
+	return e.CreatedAt
+}
+
+func cacheSetRecordedAt(key string, t time.Time) error {
+	entries, err := loadManifest()
+	if err != nil {
+		return err
+	}
+	for i := range entries {
+		if entries[i].Key == key {
+			entries[i].RecordedAt = t
+			return saveManifest(entries)
+		}
+	}
+	return fmt.Errorf("entry %s not found", key)
 }
 
 type cacheKeyParams struct {
@@ -166,13 +193,23 @@ func cacheStore(entry cacheEntry, transcriptJSON []byte) (string, error) {
 	filtered := entries[:0]
 	for _, e := range entries {
 		if e.Key == entry.Key {
+			if entry.RecordedAt.IsZero() && !e.RecordedAt.IsZero() {
+				entry.RecordedAt = e.RecordedAt
+			}
 			continue
 		}
-		// Drop any pending placeholder for the same source — it's been transcribed now.
 		if e.Pending && e.SourcePath == entry.SourcePath {
+			if entry.RecordedAt.IsZero() && !e.RecordedAt.IsZero() {
+				entry.RecordedAt = e.RecordedAt
+			}
 			continue
 		}
 		filtered = append(filtered, e)
+	}
+	if entry.RecordedAt.IsZero() && entry.SourcePath != "" {
+		if info, err := os.Stat(entry.SourcePath); err == nil {
+			entry.RecordedAt = info.ModTime().Local()
+		}
 	}
 	filtered = append(filtered, entry)
 	if err := saveManifest(filtered); err != nil {
@@ -196,8 +233,10 @@ func cacheStorePending(sourcePath string) error {
 	}
 	info, statErr := os.Stat(abs)
 	var size int64
+	var recordedAt time.Time
 	if statErr == nil {
 		size = info.Size()
+		recordedAt = info.ModTime().Local()
 	}
 
 	key := pendingCacheKey(abs)
@@ -212,6 +251,7 @@ func cacheStorePending(sourcePath string) error {
 		SourcePath: abs,
 		SourceName: filepath.Base(abs),
 		CreatedAt:  time.Now(),
+		RecordedAt: recordedAt,
 		SizeBytes:  size,
 		Pending:    true,
 	})

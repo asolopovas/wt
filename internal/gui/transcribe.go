@@ -3,8 +3,6 @@
 package gui
 
 import (
-	"time"
-
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
@@ -52,23 +50,6 @@ func (p *transcribePanel) build() {
 	p.clearCacheBtn = newPointerButton("CLEAR CACHE", p.onClearCache)
 	p.transcribeBtn = newPointerButton("TRANSCRIBE", p.onTranscribe)
 	p.transcribeBtn.Importance = widget.HighImportance
-
-	now := time.Now()
-	p.dateEntry = widget.NewDateEntry()
-	p.dateEntry.SetDate(&now)
-	p.timeEntry = newTappableEntry(p.onStartTimeNow)
-	p.timeEntry.PlaceHolder = timeOnlyLayout
-	p.timeEntry.SetText(formatTimeOnly(now))
-
-	p.dateBtn = &widget.Button{Text: now.Format("2006-01-02"), Icon: theme.MenuExpandIcon(), OnTapped: p.onPickDate}
-	p.dateBtn.Importance = widget.LowImportance
-	p.dateBtn.IconPlacement = widget.ButtonIconTrailingText
-	p.dateBtn.ExtendBaseWidget(p.dateBtn)
-
-	p.timeBtn = &widget.Button{Text: formatTimeOnly(now), Icon: clockIconResource, OnTapped: p.onStartTimeNow}
-	p.timeBtn.Importance = widget.LowImportance
-	p.timeBtn.IconPlacement = widget.ButtonIconTrailingText
-	p.timeBtn.ExtendBaseWidget(p.timeBtn)
 
 	p.progress = newThinProgress()
 

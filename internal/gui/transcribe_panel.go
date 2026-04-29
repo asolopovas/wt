@@ -26,11 +26,6 @@ type transcribePanel struct {
 	clearCacheBtn *pointerButton
 	transcribeBtn *pointerButton
 
-	dateEntry *widget.DateEntry
-	timeEntry *tappableEntry
-	dateBtn   *widget.Button
-	timeBtn   *widget.Button
-
 	speakerRenames map[string]string
 
 	progress   *thinProgress

@@ -241,7 +241,7 @@ func (p *transcribePanel) transcribeFile(model whisper.Model, path, modelSize, d
 		cacheKey = computeCacheKey(params)
 		if hitPath, _, ok := cacheLookup(cacheKey); ok {
 			p.lastCSVPath = hitPath
-			p.results = append(p.results, exportItem{cachePath: hitPath, sourceName: sourceName})
+			p.results = append(p.results, exportItem{cachePath: hitPath, sourceName: sourceName, sourcePath: absPath})
 			p.appendLog(fmt.Sprintf("  Cached transcript reused for %s", sourceName))
 			p.setLocalProgress(1.0)
 			if p.history != nil {
@@ -447,7 +447,7 @@ func (p *transcribePanel) transcribeFile(model whisper.Model, path, modelSize, d
 	}
 
 	p.lastCSVPath = storedPath
-	p.results = append(p.results, exportItem{cachePath: storedPath, sourceName: sourceName})
+	p.results = append(p.results, exportItem{cachePath: storedPath, sourceName: sourceName, sourcePath: absPath})
 	p.setLocalProgress(1.0)
 	p.appendLog(fmt.Sprintf("  Transcript ready (%d segments)", len(transcript.Utterances)))
 

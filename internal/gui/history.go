@@ -132,7 +132,13 @@ func (h *historyPanel) buildRow(e cacheEntry) fyne.CanvasObject {
 	metaText.TextSize = 10
 	metaText.TextStyle = fyne.TextStyle{Monospace: true}
 
-	info := container.NewVBox(name, metaText)
+	recorded := recordedAtOrFallback(e)
+	stampBtn := newPointerButtonWithIcon(recorded.Format(startTimeLayout), theme.HistoryIcon(), func() {
+		h.editRecordedAt(e.Key, recorded)
+	})
+	stampBtn.Importance = widget.LowImportance
+
+	info := container.NewVBox(name, metaText, stampBtn)
 
 	deleteBtn := newPointerButtonWithIcon("", theme.DeleteIcon(), func() {
 		var msg string
@@ -163,6 +169,9 @@ func (h *historyPanel) buildRow(e cacheEntry) fyne.CanvasObject {
 			h.transcribe.openPreview(exportItem{
 				cachePath:  transcriptPathForKey(e.Key),
 				sourceName: e.SourceName,
+				sourcePath: e.SourcePath,
+				cacheKey:   e.Key,
+				recordedAt: recorded,
 			}, nil)
 		})
 		previewBtn.Importance = widget.LowImportance
@@ -171,6 +180,9 @@ func (h *historyPanel) buildRow(e cacheEntry) fyne.CanvasObject {
 			h.transcribe.exportTranscript([]exportItem{{
 				cachePath:  transcriptPathForKey(e.Key),
 				sourceName: e.SourceName,
+				sourcePath: e.SourcePath,
+				cacheKey:   e.Key,
+				recordedAt: recorded,
 			}})
 		})
 		exportBtn.Importance = widget.LowImportance
@@ -185,6 +197,19 @@ func (h *historyPanel) buildRow(e cacheEntry) fyne.CanvasObject {
 	rowBg.StrokeWidth = 1
 
 	return container.NewStack(rowBg, container.NewPadded(row))
+}
+
+func (h *historyPanel) editRecordedAt(key string, current time.Time) {
+	showDatePicker(h.window, current, func(d time.Time) {
+		showTimePicker(h.window, current, func(hh, mm, ss int) {
+			combined := time.Date(d.Year(), d.Month(), d.Day(), hh, mm, ss, 0, time.Local)
+			if err := cacheSetRecordedAt(key, combined); err != nil {
+				dialog.ShowError(err, h.window)
+				return
+			}
+			h.refresh()
+		})
+	})
 }
 
 func formatRelative(t time.Time) string {

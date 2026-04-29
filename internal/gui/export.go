@@ -37,6 +37,9 @@ var exportFormats = []exportFormat{
 type exportItem struct {
 	cachePath  string
 	sourceName string
+	sourcePath string
+	cacheKey   string
+	recordedAt time.Time
 }
 
 func (p *transcribePanel) openPreview(item exportItem, onClose func()) {
@@ -46,10 +49,13 @@ func (p *transcribePanel) openPreview(item exportItem, onClose func()) {
 		return
 	}
 
-	start, err := p.resolveStartTime()
-	if err != nil {
-		dialog.ShowError(err, p.window)
-		return
+	start := item.recordedAt
+	if start.IsZero() {
+		if t, ok := fileStartTime(item.sourcePath); ok {
+			start = t
+		} else {
+			start = time.Now()
+		}
 	}
 
 	speakerOrder := []string{}
@@ -163,9 +169,17 @@ func (p *transcribePanel) openPreview(item exportItem, onClose func()) {
 		borderedBtn(editBtn, colOutline),
 	)
 
-	var top fyne.CanvasObject
+	stampText := canvas.NewText(start.Format(startTimeLayout), colMuted)
+	stampText.TextSize = 11
+	stampText.TextStyle = fyne.TextStyle{Monospace: true, Bold: true}
+	stampLabel := canvas.NewText("RECORDED", colMuted)
+	stampLabel.TextSize = 10
+	stampLabel.TextStyle = fyne.TextStyle{Bold: true}
+	stampRow := container.NewHBox(stampLabel, stampText)
+
+	var top fyne.CanvasObject = stampRow
 	if speakerPanel != nil {
-		top = speakerPanel
+		top = container.NewVBox(stampRow, speakerPanel)
 	}
 
 	render()
@@ -193,6 +207,16 @@ func (p *transcribePanel) exportSinglePrompt(item exportItem, start time.Time) {
 			}
 		}
 	}, p.window)
+}
+
+func itemStartTime(item exportItem) time.Time {
+	if !item.recordedAt.IsZero() {
+		return item.recordedAt
+	}
+	if t, ok := fileStartTime(item.sourcePath); ok {
+		return t
+	}
+	return time.Now()
 }
 
 func (p *transcribePanel) renamedTranscript(tr *transcriber.Transcript) *transcriber.Transcript {
@@ -227,12 +251,6 @@ func (p *transcribePanel) exportTranscript(items []exportItem) {
 		}
 	}
 
-	start, err := p.resolveStartTime()
-	if err != nil {
-		dialog.ShowError(err, p.window)
-		return
-	}
-
 	labels := make([]string, len(exportFormats))
 	for i, f := range exportFormats {
 		labels[i] = f.label
@@ -247,9 +265,9 @@ func (p *transcribePanel) exportTranscript(items []exportItem) {
 		for _, f := range exportFormats {
 			if f.label == radio.Selected {
 				if len(items) == 1 {
-					p.exportSingleAs(f, items[0], start)
+					p.exportSingleAs(f, items[0], itemStartTime(items[0]))
 				} else {
-					p.exportBatchAs(f, items, start)
+					p.exportBatchAs(f, items)
 				}
 				return
 			}
@@ -282,7 +300,7 @@ func (p *transcribePanel) exportSingleAs(f exportFormat, item exportItem, start 
 	saveDialog.Show()
 }
 
-func (p *transcribePanel) exportBatchAs(f exportFormat, items []exportItem, start time.Time) {
+func (p *transcribePanel) exportBatchAs(f exportFormat, items []exportItem) {
 	folderDialog := dialog.NewFolderOpen(func(u fyne.ListableURI, err error) {
 		if err != nil || u == nil {
 			return
@@ -310,7 +328,7 @@ func (p *transcribePanel) exportBatchAs(f exportFormat, items []exportItem, star
 				failed++
 				continue
 			}
-			werr := writeExport(out, tr, f, start)
+			werr := writeExport(out, tr, f, itemStartTime(item))
 			_ = out.Close()
 			if werr != nil {
 				p.appendLog(fmt.Sprintf("Export failed for %s: %v", item.sourceName, werr))
@@ -449,4 +467,15 @@ func writeXLSX(w io.Writer, tr *transcriber.Transcript, start time.Time) error {
 
 func formatAbsoluteTimestamp(ms int64, start time.Time) string {
 	return start.Add(time.Duration(ms) * time.Millisecond).Format(startTimeLayout)
+}
+
+func fileStartTime(path string) (time.Time, bool) {
+	if path == "" {
+		return time.Time{}, false
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		return time.Time{}, false
+	}
+	return info.ModTime().Local(), true
 }
