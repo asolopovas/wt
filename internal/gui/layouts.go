@@ -92,19 +92,16 @@ func (r *responsiveColumns) Layout(objects []fyne.CanvasObject, size fyne.Size) 
 		return
 	}
 
-	if size.Width < collapseWidth {
-		h := (size.Height - r.gap) / 2
-		objects[0].Move(fyne.NewPos(0, 0))
-		objects[0].Resize(fyne.NewSize(size.Width, h))
-		objects[1].Move(fyne.NewPos(0, h+r.gap))
-		objects[1].Resize(fyne.NewSize(size.Width, h))
-	} else {
-		colW := (size.Width - r.gap) / 2
-		objects[0].Move(fyne.NewPos(0, 0))
-		objects[0].Resize(fyne.NewSize(colW, size.Height))
-		objects[1].Move(fyne.NewPos(colW+r.gap, 0))
-		objects[1].Resize(fyne.NewSize(colW, size.Height))
+	avail := size.Height - r.gap
+	if avail < 0 {
+		avail = 0
 	}
+	topH := avail * 0.25
+	bottomH := avail - topH
+	objects[0].Move(fyne.NewPos(0, 0))
+	objects[0].Resize(fyne.NewSize(size.Width, topH))
+	objects[1].Move(fyne.NewPos(0, topH+r.gap))
+	objects[1].Resize(fyne.NewSize(size.Width, bottomH))
 }
 
 type flowLayout struct {
