@@ -7,13 +7,13 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
-	"sync"
 	"time"
 
 	"fyne.io/fyne/v2/dialog"
 
 	shared "github.com/asolopovas/wt/internal"
 	"github.com/asolopovas/wt/internal/diarizer"
+	"github.com/asolopovas/wt/internal/progress"
 	"github.com/asolopovas/wt/internal/transcriber"
 	whisper "github.com/ggerganov/whisper.cpp/bindings/go/pkg/whisper"
 )
@@ -27,103 +27,6 @@ func formatETA(secs float64) string {
 	m := (total % 3600) / 60
 	s := total % 60
 	return fmt.Sprintf("%02d:%02d:%02d", h, m, s)
-}
-
-type progressSmoother struct {
-	mu          sync.Mutex
-	audioDurSec float64
-	rtf         float64
-	lastPct     int
-	lastTick    time.Time
-	startTime   time.Time
-	samples     int
-	emaETA      float64
-}
-
-func newProgressSmoother(audioDurSec, initialRTF float64) *progressSmoother {
-	if initialRTF <= 0 {
-		initialRTF = 1.0
-	}
-	if audioDurSec <= 0 {
-		audioDurSec = 1.0
-	}
-	now := time.Now()
-	return &progressSmoother{
-		audioDurSec: audioDurSec,
-		rtf:         initialRTF,
-		lastTick:    now,
-		startTime:   now,
-	}
-}
-
-func (s *progressSmoother) report(pct int) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if pct <= s.lastPct {
-		return
-	}
-	now := time.Now()
-	elapsed := now.Sub(s.lastTick).Seconds()
-	pctDelta := pct - s.lastPct
-	if elapsed > 0 && pctDelta > 0 {
-		audioProcessed := float64(pctDelta) / 100.0 * s.audioDurSec
-		observedRTF := audioProcessed / elapsed
-		s.samples++
-		switch {
-		case s.samples == 1:
-		case s.samples == 2:
-			s.rtf = observedRTF
-		default:
-			s.rtf = 0.6*s.rtf + 0.4*observedRTF
-		}
-	}
-	s.lastPct = pct
-	s.lastTick = now
-}
-
-func (s *progressSmoother) snapshot() (display float64, etaSec float64) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	elapsedSinceTick := time.Since(s.lastTick).Seconds()
-	rtf := s.rtf
-	if rtf <= 0 {
-		rtf = 1
-	}
-	secPerPct := s.audioDurSec / 100.0 / rtf
-	if secPerPct <= 0 {
-		secPerPct = 0.1
-	}
-
-	chunkPct := 30.0 / s.audioDurSec * 100
-	if chunkPct < 0.5 {
-		chunkPct = 0.5
-	}
-	if chunkPct > 50 {
-		chunkPct = 50
-	}
-	maxAdvance := 2.5 * chunkPct
-
-	predicted := elapsedSinceTick / secPerPct
-	if predicted > maxAdvance {
-		predicted = maxAdvance
-	}
-	display = float64(s.lastPct) + predicted
-	if display > 99 {
-		display = 99
-	}
-
-	remainingAudio := s.audioDurSec * (1 - display/100.0)
-	if remainingAudio < 0 {
-		remainingAudio = 0
-	}
-	rawETA := remainingAudio / rtf
-
-	if s.emaETA == 0 || rawETA < s.emaETA {
-		s.emaETA = rawETA
-	} else {
-		s.emaETA = 0.7*s.emaETA + 0.3*rawETA
-	}
-	return display, s.emaETA
 }
 
 func (p *transcribePanel) onTranscribe() {
@@ -351,7 +254,7 @@ func (p *transcribePanel) transcribeFile(model whisper.Model, path, modelSize, d
 		p.appendLog("  Transcribing...")
 		processStart := time.Now()
 		initialRTF := loadRTF(modelSize, deviceLabel)
-		smoother := newProgressSmoother(audioDurSec, initialRTF)
+		smoother := progress.NewSmoother(audioDurSec, initialRTF)
 		stopTick := make(chan struct{})
 		tickDone := make(chan struct{})
 		go func() {
@@ -359,7 +262,7 @@ func (p *transcribePanel) transcribeFile(model whisper.Model, path, modelSize, d
 			t := time.NewTicker(200 * time.Millisecond)
 			defer t.Stop()
 			render := func() {
-				disp, etaSec := smoother.snapshot()
+				disp, etaSec := smoother.Snapshot()
 				p.setLocalProgress(0.10 + disp/100.0*0.70)
 				p.setStatus(fmt.Sprintf("Transcribing... %.1f%%  ETA: %s", disp, formatETA(etaSec)))
 			}
@@ -378,7 +281,7 @@ func (p *transcribePanel) transcribeFile(model whisper.Model, path, modelSize, d
 			if pct > 100 {
 				pct = 100
 			}
-			smoother.report(pct)
+			smoother.Report(pct)
 		}
 		err = ctx.Process(samples, abortCb, nil, whisper.ProgressCallback(progressCb))
 		close(stopTick)
