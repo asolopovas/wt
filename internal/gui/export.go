@@ -242,7 +242,31 @@ func (p *transcribePanel) openPreview(item exportItem, onClose func()) {
 
 	render()
 
-	body := container.NewBorder(top, actionRow, nil, nil, scroll)
+	buildPlainText := func() string {
+		var sb strings.Builder
+		for _, u := range tr.Utterances {
+			fmt.Fprintf(&sb, "[%s] %s: %s\n",
+				formatAbsoluteTimestamp(u.Start, start),
+				p.displayName(u.Speaker),
+				strings.TrimSpace(u.Text))
+		}
+		return sb.String()
+	}
+
+	copyBtn := newPointerButtonWithIcon("", theme.ContentCopyIcon(), nil)
+	copyBtn.Importance = widget.HighImportance
+	copyBtn.OnTapped = func() {
+		fyne.CurrentApp().Clipboard().SetContent(buildPlainText())
+		copyBtn.SetIcon(theme.ConfirmIcon())
+		go func() {
+			time.Sleep(900 * time.Millisecond)
+			fyne.Do(func() { copyBtn.SetIcon(theme.ContentCopyIcon()) })
+		}()
+	}
+
+	floating := container.New(newTopRightFloater(12, 12), copyBtn)
+	bodyInner := container.NewBorder(top, actionRow, nil, nil, scroll)
+	body := container.NewStack(bodyInner, floating)
 	hidePreview = showTranscriptPreview(item.sourceName, body, p.window, onClose)
 }
 

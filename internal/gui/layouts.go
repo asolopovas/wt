@@ -72,6 +72,27 @@ func (s *sidebarLayout) Layout(objects []fyne.CanvasObject, size fyne.Size) {
 	side.Resize(fyne.NewSize(sbW, size.Height))
 }
 
+type topRightFloater struct {
+	insetX float32
+	insetY float32
+}
+
+func newTopRightFloater(insetX, insetY float32) *topRightFloater {
+	return &topRightFloater{insetX: insetX, insetY: insetY}
+}
+
+func (f *topRightFloater) MinSize(_ []fyne.CanvasObject) fyne.Size {
+	return fyne.NewSize(0, 0)
+}
+
+func (f *topRightFloater) Layout(objects []fyne.CanvasObject, size fyne.Size) {
+	for _, o := range objects {
+		m := o.MinSize()
+		o.Resize(m)
+		o.Move(fyne.NewPos(size.Width-m.Width-f.insetX, f.insetY))
+	}
+}
+
 type cappedGrid struct {
 	cols int
 	gap  float32
