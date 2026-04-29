@@ -33,6 +33,12 @@ func (p *transcribePanel) build() {
 	p.dropText.TextSize = 11
 	p.dropText.TextStyle = fyne.TextStyle{Monospace: true}
 
+	outerBg := canvas.NewRectangle(colSurfLowest)
+	outerBg.StrokeColor = colGhostBorder
+	outerBg.StrokeWidth = 1
+	p.libraryHost = container.NewStack()
+	p.dropArea = container.NewStack(outerBg, container.NewPadded(p.libraryHost))
+
 	p.clearBtn = newPointerButton("CLEAR ALL", p.onClear)
 	p.clearCacheBtn = newPointerButton("CLEAR CACHE", p.onClearCache)
 	p.transcribeBtn = newPointerButton("TRANSCRIBE", p.onTranscribe)
@@ -71,7 +77,7 @@ func (p *transcribePanel) build() {
 
 	logPanel := buildLogPanel(p.logScroll, p.statsLine, copyBtn, clearLogBtn, p.autoBtn)
 
-	p.container = logPanel
+	p.container = container.New(newResponsiveColumns(8), p.dropArea, logPanel)
 }
 
 func (p *transcribePanel) buildFilesTab() fyne.CanvasObject {

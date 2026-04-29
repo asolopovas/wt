@@ -28,6 +28,7 @@ func Run(version string) error {
 	transcribe := newTranscribePanel(w, settings)
 	history := newHistoryPanel(w, transcribe)
 	transcribe.history = history
+	transcribe.attachLibrary(history)
 	settings.onCacheCleared = history.refresh
 
 	if cacheGC(cfg.CacheExpiryDays) > 0 {
@@ -80,8 +81,8 @@ func wireShareIntake(tp *transcribePanel, tabs *container.AppTabs) {
 func buildTranscodeTabAndroid(tp *transcribePanel) fyne.CanvasObject {
 	tp.transcribeBtn.Importance = widget.HighImportance
 
-	libraryBtn := newPointerButton("LIBRARY", tp.openLibrary)
-	libraryBtn.Importance = widget.LowImportance
+	addBtn := newPointerButton("ADD FILES", tp.onBrowse)
+	addBtn.Importance = widget.LowImportance
 
 	settingsRow := container.NewGridWithColumns(3,
 		settingsField("MODEL", tp.settings.modelSelect),
@@ -89,9 +90,8 @@ func buildTranscodeTabAndroid(tp *transcribePanel) fyne.CanvasObject {
 		settingsField("SPEAKERS", tp.settings.speakersSelect),
 	)
 
-	actionRow := container.NewGridWithColumns(2,
-		borderedBtn(libraryBtn, colOutline),
-		borderedBtn(tp.transcribeBtn, colPrimary),
+	actionRow := container.NewGridWithColumns(1,
+		borderedBtn(addBtn, colOutline),
 	)
 
 	bottomGap := canvas.NewRectangle(transparent)

@@ -167,7 +167,7 @@ func (r *responsiveColumns) Layout(objects []fyne.CanvasObject, size fyne.Size) 
 	if avail < 0 {
 		avail = 0
 	}
-	topH := avail * 0.5
+	topH := avail * 0.7
 	bottomH := avail - topH
 	objects[0].Move(fyne.NewPos(0, 0))
 	objects[0].Resize(fyne.NewSize(size.Width, topH))
