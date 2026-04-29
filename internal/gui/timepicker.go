@@ -13,28 +13,24 @@ import (
 func showTimePicker(parent fyne.Window, current time.Time, onSelect func(h, m, s int)) {
 	hours := makeRange(0, 23, "%02d")
 	minutes := makeRange(0, 59, "%02d")
-	seconds := makeRange(0, 59, "%02d")
 
 	hourSel := widget.NewSelect(hours, nil)
 	minSel := widget.NewSelect(minutes, nil)
-	secSel := widget.NewSelect(seconds, nil)
 
 	hourSel.SetSelected(fmt.Sprintf("%02d", current.Hour()))
 	minSel.SetSelected(fmt.Sprintf("%02d", current.Minute()))
-	secSel.SetSelected(fmt.Sprintf("%02d", current.Second()))
 
 	colon1 := widget.NewLabel(":")
-	row := container.NewHBox(hourSel, colon1, minSel, secSel)
+	row := container.NewHBox(hourSel, colon1, minSel)
 
 	d := dialog.NewCustomConfirm("Pick time", "OK", "CANCEL", row, func(ok bool) {
 		if !ok {
 			return
 		}
-		var h, m, s int
+		var h, m int
 		_, _ = fmt.Sscanf(hourSel.Selected, "%d", &h)
 		_, _ = fmt.Sscanf(minSel.Selected, "%d", &m)
-		_, _ = fmt.Sscanf(secSel.Selected, "%d", &s)
-		onSelect(h, m, s)
+		onSelect(h, m, 0)
 	}, parent)
 	winSize := parent.Canvas().Size()
 	d.Resize(fyne.NewSize(winSize.Width*0.8, 0))
