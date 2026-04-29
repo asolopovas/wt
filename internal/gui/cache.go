@@ -376,5 +376,27 @@ func cacheEntriesByRecent() []cacheEntry {
 	sort.Slice(entries, func(i, j int) bool {
 		return entries[i].CreatedAt.After(entries[j].CreatedAt)
 	})
-	return entries
+
+	seenPath := make(map[string]int, len(entries))
+	deduped := make([]cacheEntry, 0, len(entries))
+	for _, e := range entries {
+		path := e.SourcePath
+		if path == "" {
+			deduped = append(deduped, e)
+			continue
+		}
+		if idx, ok := seenPath[path]; ok {
+			if !deduped[idx].Pending && e.Pending {
+				continue
+			}
+			if deduped[idx].Pending && !e.Pending {
+				deduped[idx] = e
+				continue
+			}
+			continue
+		}
+		seenPath[path] = len(deduped)
+		deduped = append(deduped, e)
+	}
+	return deduped
 }
