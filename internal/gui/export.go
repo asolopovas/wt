@@ -39,62 +39,6 @@ type exportItem struct {
 	sourceName string
 }
 
-func (p *transcribePanel) onPreview() {
-	entries := cacheEntriesByRecent()
-	if len(entries) == 0 {
-		dialog.ShowInformation("Preview", "No transcripts yet. Transcribe a file first.", p.window)
-		return
-	}
-	if len(entries) == 1 {
-		e := entries[0]
-		p.openPreview(exportItem{cachePath: transcriptPathForKey(e.Key), sourceName: e.SourceName}, nil)
-		return
-	}
-	p.showPreviewSelector(entries)
-}
-
-func (p *transcribePanel) showPreviewSelector(entries []cacheEntry) {
-	var dlg dialog.Dialog
-	rows := make([]fyne.CanvasObject, 0, len(entries))
-	for _, e := range entries {
-		entry := e
-		item := exportItem{cachePath: transcriptPathForKey(entry.Key), sourceName: entry.SourceName}
-
-		name := canvas.NewText(entry.SourceName, colForeground)
-		name.TextStyle = fyne.TextStyle{Bold: true}
-		name.TextSize = 12
-
-		lang := entry.Language
-		if lang == "" {
-			lang = "auto"
-		}
-		metaText := canvas.NewText(fmt.Sprintf("%s · %s · %d segments · %s",
-			entry.Model, lang, entry.Utterances, formatRelative(entry.CreatedAt)), colMuted)
-		metaText.TextSize = 10
-		metaText.TextStyle = fyne.TextStyle{Monospace: true}
-
-		info := container.NewVBox(name, metaText)
-
-		rowBg := canvas.NewRectangle(colSurfLow)
-		rowBg.StrokeColor = colGhostBorder
-		rowBg.StrokeWidth = 1
-
-		tap := newTappableArea(func() {
-			if dlg != nil {
-				dlg.Hide()
-			}
-			p.openPreview(item, func() { p.showPreviewSelector(entries) })
-		})
-		rows = append(rows, container.NewStack(rowBg, container.NewPadded(info), tap))
-	}
-
-	list := container.NewVBox(rows...)
-	scroll := container.NewVScroll(list)
-	scroll.SetMinSize(fyne.NewSize(420, 360))
-	dlg = dialog.NewCustom("Select transcript", "Cancel", scroll, p.window)
-	dlg.Show()
-}
-
 func (p *transcribePanel) openPreview(item exportItem, onClose func()) {
 	tr, err := loadTranscript(item.cachePath)
 	if err != nil {

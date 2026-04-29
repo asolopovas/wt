@@ -34,12 +34,10 @@ func Run(version string) error {
 
 	deviceInfo := detectDevice()
 
-	libraryTab := transcribe.buildLibraryTab(history)
 	transcodeTab := buildTranscodeTabAndroid(transcribe)
 	settingsTab := buildSettingsTab(settings, deviceInfo)
 
 	tabs := container.NewAppTabs(
-		container.NewTabItem("LIBRARY", libraryTab),
 		container.NewTabItem("TRANSCODE", transcodeTab),
 		container.NewTabItem("SETTINGS", settingsTab),
 	)
@@ -53,8 +51,8 @@ func Run(version string) error {
 func buildTranscodeTabAndroid(tp *transcribePanel) fyne.CanvasObject {
 	tp.transcribeBtn.Importance = widget.HighImportance
 
-	tp.previewBtn = newPointerButton("PREVIEW", tp.onPreview)
-	tp.previewBtn.Importance = widget.LowImportance
+	libraryBtn := newPointerButton("LIBRARY", tp.openLibrary)
+	libraryBtn.Importance = widget.LowImportance
 
 	settingsRow := container.NewGridWithColumns(3,
 		settingsField("MODEL", tp.settings.modelSelect),
@@ -63,7 +61,7 @@ func buildTranscodeTabAndroid(tp *transcribePanel) fyne.CanvasObject {
 	)
 
 	actionRow := container.NewGridWithColumns(2,
-		borderedBtn(tp.previewBtn, colOutline),
+		borderedBtn(libraryBtn, colOutline),
 		borderedBtn(tp.transcribeBtn, colPrimary),
 	)
 

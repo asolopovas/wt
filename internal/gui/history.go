@@ -13,6 +13,42 @@ import (
 	"fyne.io/fyne/v2/widget"
 )
 
+func (p *transcribePanel) openLibrary() {
+	addBtn := newPointerButton("ADD FILES", p.onBrowse)
+	addBtn.Importance = widget.HighImportance
+
+	clearBtn := newPointerButton("CLEAR ALL", func() {
+		p.files = nil
+		p.rebuildChips()
+		p.updateDropLabel()
+	})
+	clearBtn.Importance = widget.LowImportance
+
+	btnRow := container.NewGridWithColumns(2,
+		borderedBtn(addBtn, colPrimary),
+		borderedBtn(clearBtn, colOutline),
+	)
+
+	body := container.NewBorder(btnRow, nil, nil, nil, p.history.container)
+
+	dlg := dialog.NewCustom("Library", "Close", body, p.window)
+	dlg.Resize(libraryDialogSize(p.window))
+	dlg.Show()
+}
+
+func libraryDialogSize(w fyne.Window) fyne.Size {
+	cs := w.Canvas().Size()
+	width := cs.Width * 0.9
+	height := cs.Height * 0.85
+	if width < 360 {
+		width = 360
+	}
+	if height < 480 {
+		height = 480
+	}
+	return fyne.NewSize(width, height)
+}
+
 type historyPanel struct {
 	window     fyne.Window
 	transcribe *transcribePanel
@@ -93,6 +129,14 @@ func (h *historyPanel) buildRow(e cacheEntry) fyne.CanvasObject {
 
 	info := container.NewVBox(name, metaText)
 
+	previewBtn := newPointerButtonWithIcon("", theme.VisibilityIcon(), func() {
+		h.transcribe.openPreview(exportItem{
+			cachePath:  transcriptPathForKey(e.Key),
+			sourceName: e.SourceName,
+		}, nil)
+	})
+	previewBtn.Importance = widget.LowImportance
+
 	exportBtn := newPointerButtonWithIcon("", theme.DocumentSaveIcon(), func() {
 		h.transcribe.exportTranscript([]exportItem{{
 			cachePath:  transcriptPathForKey(e.Key),
@@ -117,7 +161,7 @@ func (h *historyPanel) buildRow(e cacheEntry) fyne.CanvasObject {
 	})
 	deleteBtn.Importance = widget.LowImportance
 
-	actions := container.NewHBox(exportBtn, deleteBtn)
+	actions := container.NewHBox(previewBtn, exportBtn, deleteBtn)
 
 	row := container.NewBorder(nil, nil, nil, actions, info)
 

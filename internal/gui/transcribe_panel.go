@@ -25,7 +25,6 @@ type transcribePanel struct {
 	clearBtn      *pointerButton
 	clearCacheBtn *pointerButton
 	transcribeBtn *pointerButton
-	previewBtn    *pointerButton
 
 	dateEntry *widget.DateEntry
 	timeEntry *tappableEntry
