@@ -60,7 +60,7 @@ jobs:
       - name: Lint
         uses: golangci/golangci-lint-action@v7
         with:
-          version: v2.1.6
+          version: latest
           args: ./cmd/... ./internal/...
 
       - name: Build

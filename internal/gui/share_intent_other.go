@@ -5,3 +5,8 @@ package gui
 func shareIntakeChan() <-chan string { return nil }
 
 func pollShareIntent() {}
+
+var (
+	_ = shareIntakeChan
+	_ = pollShareIntent
+)

@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	shared "github.com/asolopovas/wt/internal"
 )
@@ -293,7 +294,11 @@ func (d *sherpaDiarizer) Diarize(ctx context.Context, wavPath string, numSpeaker
 
 		"--min-duration-on=0.3",
 		"--min-duration-off=0.5",
-		"--clustering.cluster-threshold=0.75",
+	}
+	if numSpeakers > 0 {
+		args = append(args, fmt.Sprintf("--clustering.num-clusters=%d", numSpeakers))
+	} else {
+		args = append(args, "--clustering.cluster-threshold=0.75")
 	}
 	args = append(args, wavPath)
 
@@ -319,7 +324,25 @@ func (d *sherpaDiarizer) Diarize(ctx context.Context, wavPath string, numSpeaker
 		stderrLines []string
 		segments    []Segment
 		started     bool
+		lastPct     float64
 	)
+
+	report := func(p float64) {
+		if progress == nil {
+			return
+		}
+		if p > 99 {
+			p = 99
+		}
+		mu.Lock()
+		if p > lastPct {
+			lastPct = p
+			mu.Unlock()
+			progress(p)
+			return
+		}
+		mu.Unlock()
+	}
 
 	stderrDone := make(chan struct{})
 	go func() {
@@ -329,10 +352,8 @@ func (d *sherpaDiarizer) Diarize(ctx context.Context, wavPath string, numSpeaker
 		for scanner.Scan() {
 			line := scanner.Text()
 			if m := sherpaProgRE.FindStringSubmatch(line); m != nil {
-				if progress != nil {
-					if v, err := strconv.ParseFloat(m[1], 64); err == nil {
-						progress(v * 0.99)
-					}
+				if v, err := strconv.ParseFloat(m[1], 64); err == nil {
+					report(v)
 				}
 				continue
 			}
@@ -341,6 +362,34 @@ func (d *sherpaDiarizer) Diarize(ctx context.Context, wavPath string, numSpeaker
 			mu.Unlock()
 		}
 	}()
+
+	tickerDone := make(chan struct{})
+	if progress != nil {
+		go func() {
+			ticker := time.NewTicker(time.Second)
+			defer ticker.Stop()
+			lastChange := time.Now()
+			prev := 0.0
+			for {
+				select {
+				case <-tickerDone:
+					return
+				case now := <-ticker.C:
+					mu.Lock()
+					p := lastPct
+					mu.Unlock()
+					if p != prev {
+						prev = p
+						lastChange = now
+						continue
+					}
+					if now.Sub(lastChange) >= 3*time.Second && p < 99 {
+						report(p + 0.2)
+					}
+				}
+			}
+		}()
+	}
 
 	scanner := bufio.NewScanner(stdout)
 	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
@@ -367,6 +416,7 @@ func (d *sherpaDiarizer) Diarize(ctx context.Context, wavPath string, numSpeaker
 	}
 
 	<-stderrDone
+	close(tickerDone)
 	if err := cmd.Wait(); err != nil {
 		if ctx.Err() != nil {
 			return nil, fmt.Errorf("diarization cancelled")

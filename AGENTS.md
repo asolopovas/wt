@@ -95,7 +95,7 @@ Sherpa-onnx tuned params (do not change — winner of 11×8×3 sweep, mean DER 0
 --min-duration-off             = 0.5
 ```
 
-`--clustering.num-clusters=N` is never passed; `--speakers N` only hints backend selection.
+When the user passes `--speakers N` (N>0), sherpa is forced and `--clustering.num-clusters=N` is passed (replacing `--cluster-threshold`). Without `--speakers`, threshold-based auto clustering is used.
 
 ## Self-improvement
 
