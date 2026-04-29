@@ -11,3 +11,6 @@ func previewScrollMinSize() fyne.Size {
 func previewDialogSize() (fyne.Size, bool) {
 	return fyne.Size{}, false
 }
+
+func previewTopInset() float32    { return 36 }
+func previewBottomInset() float32 { return 56 }

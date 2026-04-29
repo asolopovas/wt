@@ -171,11 +171,14 @@ func (p *transcribePanel) openPreview(item exportItem, onClose func()) {
 	})
 	closeBtn.Importance = widget.LowImportance
 
-	actionRow := container.NewGridWithColumns(3,
+	buttons := container.NewGridWithColumns(3,
 		borderedBtn(closeBtn, colOutline),
 		borderedBtn(exportBtn, colOutline),
 		borderedBtn(editBtn, colOutline),
 	)
+	bottomGap := canvas.NewRectangle(transparent)
+	bottomGap.SetMinSize(fyne.NewSize(0, previewBottomInset()))
+	actionRow := container.NewVBox(buttons, bottomGap)
 
 	stampText := canvas.NewText(start.Format(startTimeLayout), colMuted)
 	stampText.TextSize = 11
@@ -185,9 +188,12 @@ func (p *transcribePanel) openPreview(item exportItem, onClose func()) {
 	stampLabel.TextStyle = fyne.TextStyle{Bold: true}
 	stampRow := container.NewHBox(stampLabel, stampText)
 
-	var top fyne.CanvasObject = stampRow
+	topGap := canvas.NewRectangle(transparent)
+	topGap.SetMinSize(fyne.NewSize(0, previewTopInset()))
+
+	var top fyne.CanvasObject = container.NewVBox(topGap, stampRow)
 	if speakerPanel != nil {
-		top = container.NewVBox(stampRow, speakerPanel)
+		top = container.NewVBox(topGap, stampRow, speakerPanel)
 	}
 
 	render()
