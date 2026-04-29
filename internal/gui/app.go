@@ -77,10 +77,7 @@ func buildSidebar(tp *transcribePanel, libraryBtn *pointerButton) fyne.CanvasObj
 
 	actionsBlock := container.NewVBox(
 		sidebarHeader("ACTIONS"),
-		container.NewGridWithColumns(2,
-			borderedBtn(libraryBtn, colOutline),
-			borderedBtn(tp.transcribeBtn, colPrimary),
-		),
+		container.NewGridWithColumns(2, libraryBtn, tp.transcribeBtn),
 	)
 
 	logBlock := container.NewVBox(

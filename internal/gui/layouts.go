@@ -10,8 +10,8 @@ const (
 	panelHeight    = 240
 
 	sidebarMaxWidth   = 300
-	sidebarMinWidth   = 220
-	sidebarStackBelow = 760
+	sidebarMinWidth   = 280
+	sidebarStackBelow = 820
 )
 
 type sidebarLayout struct {
