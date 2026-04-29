@@ -20,3 +20,10 @@ var transcribeIconResource = &fyne.StaticResource{
 	StaticName:    "icon_transcribe.svg",
 	StaticContent: transcribeIconData,
 }
+
+//go:embed icon_expand.svg
+var expandIconData []byte
+var expandIconResource = &fyne.StaticResource{
+	StaticName:    "icon_expand.svg",
+	StaticContent: expandIconData,
+}

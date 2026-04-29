@@ -75,7 +75,10 @@ func (p *transcribePanel) build() {
 	p.autoBtn.Importance = widget.HighImportance
 	p.autoBtn.OnTapped = p.toggleAutoScroll
 
-	logPanel := buildLogPanel(p.logScroll, nil, copyBtn, clearLogBtn, p.autoBtn)
+	expandBtn := newPointerButtonWithIcon("", expandIconResource, p.openLogDialog)
+	expandBtn.Importance = widget.LowImportance
+
+	logPanel := buildLogPanel(p.logScroll, nil, copyBtn, clearLogBtn, p.autoBtn, expandBtn)
 
 	p.container = container.New(newResponsiveColumns(8), p.dropArea, logPanel)
 }
