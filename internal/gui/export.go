@@ -169,7 +169,8 @@ func (p *transcribePanel) onPreview() {
 	}
 
 	editing := false
-	editBtn := widget.NewButton("RENAME", nil)
+	editBtn := newPointerButton("RENAME", nil)
+	editBtn.Importance = widget.LowImportance
 	editBtn.OnTapped = func() {
 		editing = !editing
 		if editing {
@@ -184,23 +185,63 @@ func (p *transcribePanel) onPreview() {
 			editBtn.SetText("RENAME")
 		}
 	}
-	openBtn := widget.NewButton("OPEN", p.onOpen)
+
+	var closePreview func()
+	openBtn := newPointerButton("OPEN", func() {
+		tr := transcripts[currentItem.cachePath]
+		if tr == nil {
+			return
+		}
+		txtPath, err := writeTranscriptTxt(p.renamedTranscript(tr), currentItem.sourceName, start)
+		if err != nil {
+			dialog.ShowError(err, p.window)
+			return
+		}
+		if closePreview != nil {
+			closePreview()
+		}
+		openExternal(p, txtPath)
+	})
+	openBtn.Importance = widget.LowImportance
+
+	actionRow := container.NewGridWithColumns(2,
+		borderedBtn(openBtn, colOutline),
+		borderedBtn(editBtn, colOutline),
+	)
 
 	topItems := []fyne.CanvasObject{}
 	if picker != nil {
 		topItems = append(topItems, picker)
 	}
-	topItems = append(topItems, container.NewBorder(nil, nil, nil,
-		container.NewHBox(openBtn, editBtn), widget.NewLabel("")))
 	if speakerPanel != nil {
 		topItems = append(topItems, speakerPanel)
 	}
-	top := container.NewVBox(topItems...)
+	var top fyne.CanvasObject
+	if len(topItems) > 0 {
+		top = container.NewVBox(topItems...)
+	}
 
 	render()
 
-	body := container.NewBorder(top, nil, nil, nil, scroll)
-	showTranscriptPreview("Transcript preview", body, p.window)
+	body := container.NewBorder(top, actionRow, nil, nil, scroll)
+	closePreview = showTranscriptPreview("Transcript preview", body, p.window)
+}
+
+func writeTranscriptTxt(tr *transcriber.Transcript, sourceName string, start time.Time) (string, error) {
+	dir, err := os.MkdirTemp("", "wt-preview-")
+	if err != nil {
+		return "", fmt.Errorf("creating temp dir: %w", err)
+	}
+	path := filepath.Join(dir, exportBaseName(sourceName)+".txt")
+	f, err := os.Create(path)
+	if err != nil {
+		return "", fmt.Errorf("creating txt: %w", err)
+	}
+	defer func() { _ = f.Close() }()
+	if err := writeText(f, tr, start); err != nil {
+		return "", err
+	}
+	return path, nil
 }
 
 func (p *transcribePanel) renamedTranscript(tr *transcriber.Transcript) *transcriber.Transcript {

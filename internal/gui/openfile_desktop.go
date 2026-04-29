@@ -32,3 +32,14 @@ func (p *transcribePanel) onOpen() {
 		p.appendLog(fmt.Sprintf("Open failed: %v", err))
 	}
 }
+
+func openExternal(p *transcribePanel, path string) {
+	u, err := url.Parse(storage.NewFileURI(path).String())
+	if err != nil {
+		p.appendLog(fmt.Sprintf("Open failed: %v", err))
+		return
+	}
+	if err := fyne.CurrentApp().OpenURL(u); err != nil {
+		p.appendLog(fmt.Sprintf("Open failed: %v", err))
+	}
+}
