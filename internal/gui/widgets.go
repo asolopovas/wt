@@ -83,7 +83,18 @@ func dialogBordered(content fyne.CanvasObject) fyne.CanvasObject {
 	frame := canvas.NewRectangle(transparent)
 	frame.StrokeColor = colDialogBorder
 	frame.StrokeWidth = 1
-	return container.NewStack(content, frame)
+
+	top := canvas.NewRectangle(transparent)
+	top.SetMinSize(fyne.NewSize(0, 12))
+	bottom := canvas.NewRectangle(transparent)
+	bottom.SetMinSize(fyne.NewSize(0, 12))
+	left := canvas.NewRectangle(transparent)
+	left.SetMinSize(fyne.NewSize(12, 0))
+	right := canvas.NewRectangle(transparent)
+	right.SetMinSize(fyne.NewSize(12, 0))
+
+	inner := container.NewBorder(top, bottom, left, right, content)
+	return container.NewStack(frame, inner)
 }
 
 func borderedBtn(btn fyne.CanvasObject, borderCol color.Color) fyne.CanvasObject {

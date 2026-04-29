@@ -14,24 +14,22 @@ import (
 )
 
 func (p *transcribePanel) openLibrary() {
-	addBtn := newPointerButton("ADD FILES", p.onBrowse)
-	addBtn.Importance = widget.HighImportance
+	var dlg *dialog.CustomDialog
 
-	clearBtn := newPointerButton("CLEAR ALL", func() {
+	addBtn := widget.NewButton("ADD FILES", p.onBrowse)
+	clearBtn := widget.NewButton("CLEAR ALL", func() {
 		p.files = nil
 		p.rebuildChips()
 		p.updateDropLabel()
 	})
-	clearBtn.Importance = widget.LowImportance
+	closeBtn := widget.NewButton("Close", func() {
+		if dlg != nil {
+			dlg.Hide()
+		}
+	})
 
-	btnRow := container.NewGridWithColumns(2,
-		borderedBtn(addBtn, colPrimary),
-		borderedBtn(clearBtn, colOutline),
-	)
-
-	body := container.NewBorder(btnRow, nil, nil, nil, p.history.container)
-
-	dlg := dialog.NewCustom("Library", "Close", dialogBordered(body), p.window)
+	dlg = dialog.NewCustomWithoutButtons("Library", dialogBordered(p.history.container), p.window)
+	dlg.SetButtons([]fyne.CanvasObject{addBtn, clearBtn, closeBtn})
 	dlg.Resize(libraryDialogSize(p.window))
 	dlg.Show()
 }
