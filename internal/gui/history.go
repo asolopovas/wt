@@ -58,7 +58,7 @@ func (h *historyPanel) build() {
 
 	scroll := container.NewVScroll(h.list)
 
-	header := canvas.NewText("RECENT TRANSCRIPTIONS", colMuted)
+	header := canvas.NewText("RECENT", colMuted)
 	header.TextSize = 10
 	header.TextStyle = fyne.TextStyle{Bold: true}
 
@@ -101,7 +101,7 @@ func (h *historyPanel) buildRow(e cacheEntry) fyne.CanvasObject {
 
 	var meta string
 	if e.Pending {
-		meta = "fresh · not transcribed yet · added " + formatRelative(e.CreatedAt)
+		meta = "fresh · added " + formatRelative(e.CreatedAt)
 	} else {
 		lang := e.Language
 		if lang == "" {
