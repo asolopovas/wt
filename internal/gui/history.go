@@ -115,13 +115,13 @@ func (h *historyPanel) buildRow(e cacheEntry) fyne.CanvasObject {
 	metaText.TextStyle = fyne.TextStyle{Monospace: true}
 
 	recorded := recordedAtOrFallback(e)
-	stampBtn := newPointerButtonWithIcon(recorded.Format(startTimeLayout), theme.HistoryIcon(), func() {
-		h.editRecordedAt(e.Key, recorded)
-	})
-	stampBtn.Importance = widget.LowImportance
-	stampRow := container.NewHBox(stampBtn, layout.NewSpacer())
+	stampText := canvas.NewText(recorded.Format(startTimeLayout), colMuted)
+	stampText.TextSize = 10
+	stampText.TextStyle = fyne.TextStyle{Monospace: true}
+	stampText.Alignment = fyne.TextAlignTrailing
 
-	info := container.NewVBox(name, metaText, stampRow)
+	titleRow := container.NewBorder(nil, nil, nil, stampText, name)
+	info := container.NewVBox(titleRow, metaText)
 
 	deleteBtn := newPointerButtonWithIcon("", theme.DeleteIcon(), func() {
 		var msg string
@@ -153,9 +153,14 @@ func (h *historyPanel) buildRow(e cacheEntry) fyne.CanvasObject {
 	})
 	transcribeBtn.Importance = widget.LowImportance
 
+	editStampBtn := newPointerButtonWithIcon("", theme.HistoryIcon(), func() {
+		h.editRecordedAt(e.Key, recorded)
+	})
+	editStampBtn.Importance = widget.LowImportance
+
 	var actions *fyne.Container
 	if e.Pending {
-		actions = container.NewHBox(transcribeBtn, deleteBtn)
+		actions = container.NewHBox(transcribeBtn, editStampBtn, deleteBtn)
 	} else {
 		previewBtn := newPointerButtonWithIcon("", theme.VisibilityIcon(), func() {
 			h.transcribe.openPreview(exportItem{
@@ -179,10 +184,11 @@ func (h *historyPanel) buildRow(e cacheEntry) fyne.CanvasObject {
 		})
 		exportBtn.Importance = widget.LowImportance
 
-		actions = container.NewHBox(transcribeBtn, previewBtn, exportBtn, deleteBtn)
+		actions = container.NewHBox(transcribeBtn, editStampBtn, previewBtn, exportBtn, deleteBtn)
 	}
 
-	row := container.NewBorder(nil, nil, nil, actions, info)
+	actionRow := container.NewHBox(layout.NewSpacer(), actions)
+	row := container.NewVBox(info, actionRow)
 
 	rowBg := canvas.NewRectangle(colSurfLow)
 	rowBg.StrokeColor = colGhostBorder
