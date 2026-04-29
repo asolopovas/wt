@@ -8,7 +8,69 @@ const (
 	collapseWidth  = 600
 	minWindowWidth = 320
 	panelHeight    = 240
+
+	sidebarMaxWidth   = 300
+	sidebarMinWidth   = 220
+	sidebarStackBelow = 760
 )
+
+type sidebarLayout struct {
+	gap float32
+}
+
+func newSidebarLayout(gap float32) *sidebarLayout {
+	return &sidebarLayout{gap: gap}
+}
+
+func (s *sidebarLayout) MinSize(objects []fyne.CanvasObject) fyne.Size {
+	if len(objects) < 2 {
+		return fyne.NewSize(0, 0)
+	}
+	mainMin := objects[0].MinSize()
+	sideMin := objects[1].MinSize()
+	w := mainMin.Width
+	if sideMin.Width > w {
+		w = sideMin.Width
+	}
+	return fyne.NewSize(w, mainMin.Height)
+}
+
+func (s *sidebarLayout) Layout(objects []fyne.CanvasObject, size fyne.Size) {
+	if len(objects) < 2 {
+		return
+	}
+	main, side := objects[0], objects[1]
+
+	if size.Width < sidebarStackBelow {
+		sideMin := side.MinSize()
+		sideH := sideMin.Height
+		if sideH > size.Height*0.55 {
+			sideH = size.Height * 0.55
+		}
+		mainH := size.Height - sideH - s.gap
+		if mainH < 0 {
+			mainH = 0
+		}
+		main.Move(fyne.NewPos(0, 0))
+		main.Resize(fyne.NewSize(size.Width, mainH))
+		side.Move(fyne.NewPos(0, mainH+s.gap))
+		side.Resize(fyne.NewSize(size.Width, sideH))
+		return
+	}
+
+	sbW := size.Width * 0.28
+	if sbW > sidebarMaxWidth {
+		sbW = sidebarMaxWidth
+	}
+	if sbW < sidebarMinWidth {
+		sbW = sidebarMinWidth
+	}
+	mainW := size.Width - sbW - s.gap
+	main.Move(fyne.NewPos(0, 0))
+	main.Resize(fyne.NewSize(mainW, size.Height))
+	side.Move(fyne.NewPos(mainW+s.gap, 0))
+	side.Resize(fyne.NewSize(sbW, size.Height))
+}
 
 type responsiveColumns struct {
 	gap float32

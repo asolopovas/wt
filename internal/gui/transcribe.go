@@ -71,18 +71,18 @@ func (p *transcribePanel) build() {
 
 	p.logScroll = container.NewVScroll(p.logText)
 
-	copyBtn := newPointerButtonWithIcon("", theme.ContentCopyIcon(), p.onCopyLog)
-	copyBtn.Importance = widget.LowImportance
+	p.copyLogBtn = newPointerButtonWithIcon("", theme.ContentCopyIcon(), p.onCopyLog)
+	p.copyLogBtn.Importance = widget.LowImportance
 
-	clearLogBtn := newPointerButtonWithIcon("", theme.HistoryIcon(), p.onClearLog)
-	clearLogBtn.Importance = widget.LowImportance
+	p.clearLogBtn = newPointerButtonWithIcon("", theme.HistoryIcon(), p.onClearLog)
+	p.clearLogBtn.Importance = widget.LowImportance
 
 	p.autoScroll.Store(true)
 	p.autoBtn = newPointerButtonWithIcon("", theme.MoveDownIcon(), nil)
 	p.autoBtn.Importance = widget.HighImportance
 	p.autoBtn.OnTapped = p.toggleAutoScroll
 
-	logPanel := buildLogPanel(p.logScroll, p.statsLine, copyBtn, clearLogBtn, p.autoBtn)
+	logPanel := buildLogPanel(p.logScroll, p.statsLine, nil, nil)
 
 	p.container = container.New(newResponsiveColumns(8), p.dropArea, logPanel)
 }

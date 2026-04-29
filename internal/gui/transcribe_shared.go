@@ -64,9 +64,17 @@ func buildLogPanel(scroll *container.Scroll, leftHeader fyne.CanvasObject, copyB
 	headerBg := canvas.NewRectangle(colSurfLow)
 	headerObjs := []fyne.CanvasObject{leftHeader, layout.NewSpacer()}
 	for _, b := range extraBtns {
+		if b == nil {
+			continue
+		}
 		headerObjs = append(headerObjs, b)
 	}
-	headerObjs = append(headerObjs, copyBtn, clearLogBtn)
+	if copyBtn != nil {
+		headerObjs = append(headerObjs, copyBtn)
+	}
+	if clearLogBtn != nil {
+		headerObjs = append(headerObjs, clearLogBtn)
+	}
 	headerContent := container.NewHBox(headerObjs...)
 	header := container.NewStack(headerBg, container.NewPadded(headerContent))
 

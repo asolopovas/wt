@@ -22,7 +22,7 @@ func Run(version string) error {
 
 	w := a.NewWindow("wt " + version)
 	w.SetIcon(appIcon)
-	w.Resize(fyne.NewSize(780, 720))
+	w.Resize(fyne.NewSize(1040, 720))
 
 	settings := newSettingsPanel(cfg, w)
 	transcribe := newTranscribePanel(w, settings)
@@ -56,32 +56,73 @@ func buildTranscodeTab(tp *transcribePanel) fyne.CanvasObject {
 	libraryBtn := newPointerButton("LIBRARY", tp.openLibrary)
 	libraryBtn.Importance = widget.LowImportance
 
-	actionRow := container.NewGridWithColumns(2,
-		borderedBtn(libraryBtn, colOutline),
-		borderedBtn(tp.transcribeBtn, colPrimary),
-	)
+	sidebar := buildSidebar(tp, libraryBtn)
 
-	optionsRow := container.NewGridWithColumns(3,
+	return container.New(newSidebarLayout(8), tp.container, sidebar)
+}
+
+func buildSidebar(tp *transcribePanel, libraryBtn *pointerButton) fyne.CanvasObject {
+	bg := canvas.NewRectangle(colSurfLowest)
+	bg.StrokeColor = colGhostBorder
+	bg.StrokeWidth = 1
+
+	optionsBlock := container.NewVBox(
+		sidebarHeader("OPTIONS"),
 		settingsField("MODEL", tp.settings.modelSelect),
 		settingsField("LANGUAGE", tp.settings.langSelect),
 		settingsField("SPEAKERS", tp.settings.speakersSelect),
 	)
 
-	btnSpacer := canvas.NewRectangle(transparent)
-	btnSpacer.SetMinSize(fyne.NewSize(0, 4))
+	actionsBlock := container.NewVBox(
+		sidebarHeader("ACTIONS"),
+		container.NewGridWithColumns(1,
+			borderedBtn(libraryBtn, colOutline),
+			borderedBtn(tp.transcribeBtn, colPrimary),
+		),
+	)
 
-	bottomBar := container.NewVBox(
+	logBlock := container.NewVBox(
+		sidebarHeader("LOG"),
+		container.NewGridWithColumns(3, tp.autoBtn, tp.copyLogBtn, tp.clearLogBtn),
+	)
+
+	statusRow := container.NewBorder(nil, nil, tp.statusText, tp.timerText)
+	statusBlock := container.NewVBox(
+		sidebarHeader("STATUS"),
 		tp.progress,
-		container.NewBorder(nil, nil, tp.statusText, tp.timerText),
-		optionsRow,
-		actionRow,
-		btnSpacer,
+		statusRow,
 	)
 
-	return container.NewBorder(
-		nil, bottomBar, nil, nil,
-		tp.container,
+	content := container.NewVBox(
+		optionsBlock,
+		sidebarDivider(),
+		actionsBlock,
+		sidebarDivider(),
+		logBlock,
+		sidebarDivider(),
+		statusBlock,
 	)
+
+	scroll := container.NewVScroll(content)
+
+	return container.NewStack(bg, container.NewPadded(scroll))
+}
+
+func sidebarHeader(label string) fyne.CanvasObject {
+	t := canvas.NewText(label, colMuted)
+	t.TextSize = 10
+	t.TextStyle = fyne.TextStyle{Monospace: true, Bold: true}
+	gap := canvas.NewRectangle(transparent)
+	gap.SetMinSize(fyne.NewSize(0, 2))
+	return container.NewVBox(t, gap)
+}
+
+func sidebarDivider() fyne.CanvasObject {
+	line := canvas.NewRectangle(colGhostBorder)
+	line.SetMinSize(fyne.NewSize(0, 1))
+	pad := canvas.NewRectangle(transparent)
+	pad.SetMinSize(fyne.NewSize(0, 6))
+	return container.NewVBox(pad, line, pad)
 }
 
 func buildSettingsTab(sp *settingsPanel, deviceInfo string) fyne.CanvasObject {

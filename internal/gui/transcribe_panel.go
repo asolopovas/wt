@@ -40,6 +40,8 @@ type transcribePanel struct {
 	logScroll   *container.Scroll
 	autoScroll  atomic.Bool
 	autoBtn     *pointerButton
+	copyLogBtn  *pointerButton
+	clearLogBtn *pointerButton
 
 	lastCSVPath string
 	results     []exportItem
