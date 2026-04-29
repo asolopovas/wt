@@ -91,12 +91,9 @@ func (h *historyPanel) build() {
 	header.TextSize = 10
 	header.TextStyle = fyne.TextStyle{Bold: true}
 
-	refreshBtn := newPointerButtonWithIcon("", theme.ViewRefreshIcon(), h.refresh)
-	refreshBtn.Importance = widget.LowImportance
-
 	headerBar := container.NewStack(
 		canvas.NewRectangle(colSurfLow),
-		container.NewPadded(container.NewHBox(header, layout.NewSpacer(), refreshBtn)),
+		container.NewPadded(container.NewHBox(header)),
 	)
 
 	bg := canvas.NewRectangle(colSurfLowest)
