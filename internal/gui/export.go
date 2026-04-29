@@ -445,10 +445,6 @@ func writeXLSX(w io.Writer, tr *transcriber.Transcript, start time.Time) error {
 	return f.Write(w)
 }
 
-func formatTimestamp(ms int64) string {
-	return transcriber.FormatHMS(time.Duration(ms) * time.Millisecond)
-}
-
 func formatAbsoluteTimestamp(ms int64, start time.Time) string {
 	return start.Add(time.Duration(ms) * time.Millisecond).Format(startTimeLayout)
 }

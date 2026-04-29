@@ -27,11 +27,7 @@ func DownloadFile(dst, url string, prog DownloadProgress) error {
 	readAttempt := 0
 	dialAttempt := 0
 
-	for {
-		if readAttempt >= maxReadAttempts || dialAttempt >= maxDialAttempts {
-			break
-		}
-
+	for readAttempt < maxReadAttempts && dialAttempt < maxDialAttempts {
 		var offset int64
 		if st, err := os.Stat(tmp); err == nil {
 			offset = st.Size()
@@ -52,10 +48,7 @@ func DownloadFile(dst, url string, prog DownloadProgress) error {
 			if prog != nil {
 				prog(-int64(dialAttempt), 0)
 			}
-			sleep := time.Duration(dialAttempt) * 2 * time.Second
-			if sleep > 15*time.Second {
-				sleep = 15 * time.Second
-			}
+			sleep := min(time.Duration(dialAttempt)*2*time.Second, 15*time.Second)
 			time.Sleep(sleep)
 			continue
 		}
@@ -113,11 +106,7 @@ func DownloadFile(dst, url string, prog DownloadProgress) error {
 		if prog != nil {
 			prog(-int64(readAttempt), totalSize)
 		}
-		sleep := time.Duration(readAttempt) * 2 * time.Second
-		if sleep > 15*time.Second {
-			sleep = 15 * time.Second
-		}
-		time.Sleep(sleep)
+		time.Sleep(min(time.Duration(readAttempt)*2*time.Second, 15*time.Second))
 	}
 
 	partSize := int64(0)

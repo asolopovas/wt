@@ -41,9 +41,9 @@ func showTimePicker(parent fyne.Window, current time.Time, onSelect func(h, m, s
 			return
 		}
 		var h, m, s int
-		fmt.Sscanf(hourSel.Selected, "%d", &h)
-		fmt.Sscanf(minSel.Selected, "%d", &m)
-		fmt.Sscanf(secSel.Selected, "%d", &s)
+		_, _ = fmt.Sscanf(hourSel.Selected, "%d", &h)
+		_, _ = fmt.Sscanf(minSel.Selected, "%d", &m)
+		_, _ = fmt.Sscanf(secSel.Selected, "%d", &s)
 		onSelect(h, m, s)
 	}, parent)
 }

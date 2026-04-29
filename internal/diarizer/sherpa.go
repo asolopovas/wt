@@ -172,7 +172,7 @@ func androidNativeLibDirs() []string {
 	}
 	for _, env := range []string{"LD_LIBRARY_PATH", "LIB_DIR"} {
 		v := os.Getenv(env)
-		for _, p := range strings.Split(v, ":") {
+		for p := range strings.SplitSeq(v, ":") {
 			if p != "" {
 				dirs = append(dirs, p)
 			}
@@ -181,7 +181,7 @@ func androidNativeLibDirs() []string {
 
 	if data, err := os.ReadFile("/proc/self/maps"); err == nil {
 		seen := map[string]bool{}
-		for _, line := range strings.Split(string(data), "\n") {
+		for line := range strings.SplitSeq(string(data), "\n") {
 			idx := strings.Index(line, "/data/app/")
 			if idx < 0 {
 				continue
@@ -219,7 +219,7 @@ func installSherpaModelsFromAssets(dest string) error {
 	if err != nil {
 		return err
 	}
-	defer zr.Close()
+	defer func() { _ = zr.Close() }()
 
 	want := map[string]string{
 		"assets/sherpa-models/seg.onnx": filepath.Join(dest, "seg.onnx"),
@@ -262,19 +262,19 @@ func extractZipEntry(f *zip.File, dst string) error {
 	if err != nil {
 		return err
 	}
-	defer rc.Close()
+	defer func() { _ = rc.Close() }()
 	tmp := dst + ".tmp"
 	w, err := os.Create(tmp)
 	if err != nil {
 		return err
 	}
 	if _, err := io.Copy(w, rc); err != nil {
-		w.Close()
-		os.Remove(tmp)
+		_ = w.Close()
+		_ = os.Remove(tmp)
 		return err
 	}
 	if err := w.Close(); err != nil {
-		os.Remove(tmp)
+		_ = os.Remove(tmp)
 		return err
 	}
 	return os.Rename(tmp, dst)
