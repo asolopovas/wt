@@ -4,14 +4,19 @@ package gui
 
 import (
 	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/dialog"
+	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/widget"
 )
 
 func showTranscriptPreview(title string, body fyne.CanvasObject, parent fyne.Window) func() {
-	dlg := dialog.NewCustom(title, "Close", body, parent)
+	var pop *widget.PopUp
+	closeBtn := widget.NewButton("Close", func() { pop.Hide() })
+	header := container.NewBorder(nil, nil, nil, closeBtn, widget.NewLabel(title))
+	content := container.NewBorder(header, nil, nil, nil, body)
+	pop = widget.NewModalPopUp(content, parent.Canvas())
 	if size, ok := previewDialogSize(); ok {
-		dlg.Resize(size)
+		pop.Resize(size)
 	}
-	dlg.Show()
-	return dlg.Hide
+	pop.Show()
+	return pop.Hide
 }
