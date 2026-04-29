@@ -52,8 +52,6 @@ func Run(version string) error {
 }
 
 func buildTranscodeTab(tp *transcribePanel) fyne.CanvasObject {
-	tp.transcribeBtn.Importance = widget.HighImportance
-
 	addBtn := newPointerButton("ADD FILES", tp.onBrowse)
 	addBtn.Importance = widget.LowImportance
 
@@ -78,9 +76,8 @@ func buildSidebar(tp *transcribePanel, addBtn *pointerButton) fyne.CanvasObject 
 
 	actionsBlock := container.NewVBox(
 		sidebarHeader("ACTIONS"),
-		container.New(newCappedGrid(2, 8, 36),
+		container.New(newCappedGrid(1, 8, 36),
 			borderedBtn(addBtn, colDialogBorder),
-			borderedBtn(tp.transcribeBtn, colDialogBorder),
 		),
 	)
 
