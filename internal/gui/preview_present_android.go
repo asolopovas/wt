@@ -9,7 +9,7 @@ import (
 )
 
 func showTranscriptPreview(title string, body fyne.CanvasObject, parent fyne.Window) func() {
-	w := fyne.CurrentApp().NewWindow(title)
+	w := fyne.CurrentApp().NewWindow("")
 	closeBtn := widget.NewButton("CLOSE", func() {
 		w.Close()
 	})

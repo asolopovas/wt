@@ -53,11 +53,8 @@ func Run(version string) error {
 func buildTranscodeTabAndroid(tp *transcribePanel) fyne.CanvasObject {
 	tp.transcribeBtn.Importance = widget.HighImportance
 
-	tp.exportBtn = newPointerButton("EXPORT", tp.onExport)
-	tp.exportBtn.Importance = widget.LowImportance
 	tp.previewBtn = newPointerButton("PREVIEW", tp.onPreview)
 	tp.previewBtn.Importance = widget.LowImportance
-	tp.previewBtn.Disable()
 
 	settingsRow := container.NewGridWithColumns(3,
 		settingsField("MODEL", tp.settings.modelSelect),
@@ -65,9 +62,8 @@ func buildTranscodeTabAndroid(tp *transcribePanel) fyne.CanvasObject {
 		settingsField("SPEAKERS", tp.settings.speakersSelect),
 	)
 
-	actionRow := container.NewGridWithColumns(3,
+	actionRow := container.NewGridWithColumns(2,
 		borderedBtn(tp.previewBtn, colOutline),
-		borderedBtn(tp.exportBtn, colOutline),
 		borderedBtn(tp.transcribeBtn, colPrimary),
 	)
 

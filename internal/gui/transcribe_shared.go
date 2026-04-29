@@ -280,20 +280,6 @@ func (p *transcribePanel) onClear() {
 	p.progress.Hide()
 	p.results = nil
 	p.resetSpeakerRenames()
-	p.updatePreviewAvailability()
-}
-
-func (p *transcribePanel) updatePreviewAvailability() {
-	if p.previewBtn == nil {
-		return
-	}
-	fyne.Do(func() {
-		if len(p.results) == 0 {
-			p.previewBtn.Disable()
-		} else {
-			p.previewBtn.Enable()
-		}
-	})
 }
 
 func (p *transcribePanel) onClearCache() {

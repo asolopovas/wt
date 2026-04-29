@@ -39,13 +39,66 @@ type exportItem struct {
 	sourceName string
 }
 
-func (p *transcribePanel) onExport() {
-	p.exportTranscript(p.results)
+func (p *transcribePanel) onPreview() {
+	entries := cacheEntriesByRecent()
+	if len(entries) == 0 {
+		dialog.ShowInformation("Preview", "No transcripts yet. Transcribe a file first.", p.window)
+		return
+	}
+	if len(entries) == 1 {
+		e := entries[0]
+		p.openPreview(exportItem{cachePath: transcriptPathForKey(e.Key), sourceName: e.SourceName})
+		return
+	}
+	p.showPreviewSelector(entries)
 }
 
-func (p *transcribePanel) onPreview() {
-	if len(p.results) == 0 {
-		dialog.ShowInformation("Preview", "No output yet. Transcribe a file first.", p.window)
+func (p *transcribePanel) showPreviewSelector(entries []cacheEntry) {
+	var dlg dialog.Dialog
+	rows := make([]fyne.CanvasObject, 0, len(entries))
+	for _, e := range entries {
+		entry := e
+		item := exportItem{cachePath: transcriptPathForKey(entry.Key), sourceName: entry.SourceName}
+
+		name := canvas.NewText(entry.SourceName, colForeground)
+		name.TextStyle = fyne.TextStyle{Bold: true}
+		name.TextSize = 12
+
+		lang := entry.Language
+		if lang == "" {
+			lang = "auto"
+		}
+		metaText := canvas.NewText(fmt.Sprintf("%s · %s · %d segments · %s",
+			entry.Model, lang, entry.Utterances, formatRelative(entry.CreatedAt)), colMuted)
+		metaText.TextSize = 10
+		metaText.TextStyle = fyne.TextStyle{Monospace: true}
+
+		info := container.NewVBox(name, metaText)
+
+		rowBg := canvas.NewRectangle(colSurfLow)
+		rowBg.StrokeColor = colGhostBorder
+		rowBg.StrokeWidth = 1
+
+		tap := newTappableArea(func() {
+			if dlg != nil {
+				dlg.Hide()
+			}
+			p.openPreview(item)
+		})
+		rows = append(rows, container.NewStack(rowBg, container.NewPadded(info), tap))
+	}
+
+	list := container.NewVBox(rows...)
+	scroll := container.NewVScroll(list)
+	scroll.SetMinSize(fyne.NewSize(420, 360))
+	dlg = dialog.NewCustom("Select transcript", "Cancel", scroll, p.window)
+	dlg.Show()
+}
+
+func (p *transcribePanel) openPreview(item exportItem) {
+	tr, err := loadTranscript(item.cachePath)
+	if err != nil {
+		dialog.ShowError(fmt.Errorf("loading %s: %w", item.sourceName, err), p.window)
 		return
 	}
 
@@ -55,21 +108,12 @@ func (p *transcribePanel) onPreview() {
 		return
 	}
 
-	transcripts := make(map[string]*transcriber.Transcript, len(p.results))
 	speakerOrder := []string{}
 	speakerSeen := map[string]bool{}
-	for _, it := range p.results {
-		tr, err := loadTranscript(it.cachePath)
-		if err != nil {
-			dialog.ShowError(fmt.Errorf("loading %s: %w", it.sourceName, err), p.window)
-			return
-		}
-		transcripts[it.cachePath] = tr
-		for _, u := range tr.Utterances {
-			if !speakerSeen[u.Speaker] {
-				speakerSeen[u.Speaker] = true
-				speakerOrder = append(speakerOrder, u.Speaker)
-			}
+	for _, u := range tr.Utterances {
+		if !speakerSeen[u.Speaker] {
+			speakerSeen[u.Speaker] = true
+			speakerOrder = append(speakerOrder, u.Speaker)
 		}
 	}
 
@@ -80,14 +124,8 @@ func (p *transcribePanel) onPreview() {
 	content := widget.NewRichText()
 	content.Wrapping = fyne.TextWrapWord
 
-	var currentItem exportItem
 	render := func() {
-		tr := transcripts[currentItem.cachePath]
 		content.Segments = nil
-		if tr == nil {
-			content.Refresh()
-			return
-		}
 		if len(tr.Utterances) == 0 {
 			content.Segments = append(content.Segments, &widget.TextSegment{
 				Text: "(no utterances)",
@@ -149,25 +187,6 @@ func (p *transcribePanel) onPreview() {
 	scroll := container.NewScroll(content)
 	scroll.SetMinSize(previewScrollMinSize())
 
-	currentItem = p.results[0]
-	var picker *widget.Select
-	if len(p.results) > 1 {
-		names := make([]string, len(p.results))
-		for i, it := range p.results {
-			names[i] = it.sourceName
-		}
-		picker = widget.NewSelect(names, func(sel string) {
-			for _, it := range p.results {
-				if it.sourceName == sel {
-					currentItem = it
-					render()
-					return
-				}
-			}
-		})
-		picker.SetSelected(names[0])
-	}
-
 	editing := false
 	editBtn := newPointerButton("RENAME", nil)
 	editBtn.Importance = widget.LowImportance
@@ -186,62 +205,46 @@ func (p *transcribePanel) onPreview() {
 		}
 	}
 
-	var closePreview func()
-	openBtn := newPointerButton("OPEN", func() {
-		tr := transcripts[currentItem.cachePath]
-		if tr == nil {
-			return
-		}
-		txtPath, err := writeTranscriptTxt(p.renamedTranscript(tr), currentItem.sourceName, start)
-		if err != nil {
-			dialog.ShowError(err, p.window)
-			return
-		}
-		if closePreview != nil {
-			closePreview()
-		}
-		openExternal(p, txtPath)
+	exportBtn := newPointerButton("EXPORT", func() {
+		p.exportSinglePrompt(item, start)
 	})
-	openBtn.Importance = widget.LowImportance
+	exportBtn.Importance = widget.LowImportance
 
 	actionRow := container.NewGridWithColumns(2,
-		borderedBtn(openBtn, colOutline),
+		borderedBtn(exportBtn, colOutline),
 		borderedBtn(editBtn, colOutline),
 	)
 
-	topItems := []fyne.CanvasObject{}
-	if picker != nil {
-		topItems = append(topItems, picker)
-	}
-	if speakerPanel != nil {
-		topItems = append(topItems, speakerPanel)
-	}
 	var top fyne.CanvasObject
-	if len(topItems) > 0 {
-		top = container.NewVBox(topItems...)
+	if speakerPanel != nil {
+		top = speakerPanel
 	}
 
 	render()
 
 	body := container.NewBorder(top, actionRow, nil, nil, scroll)
-	closePreview = showTranscriptPreview("Transcript preview", body, p.window)
+	showTranscriptPreview(item.sourceName, body, p.window)
 }
 
-func writeTranscriptTxt(tr *transcriber.Transcript, sourceName string, start time.Time) (string, error) {
-	dir, err := os.MkdirTemp("", "wt-preview-")
-	if err != nil {
-		return "", fmt.Errorf("creating temp dir: %w", err)
+func (p *transcribePanel) exportSinglePrompt(item exportItem, start time.Time) {
+	labels := make([]string, len(exportFormats))
+	for i, f := range exportFormats {
+		labels[i] = f.label
 	}
-	path := filepath.Join(dir, exportBaseName(sourceName, tr.Model)+".txt")
-	f, err := os.Create(path)
-	if err != nil {
-		return "", fmt.Errorf("creating txt: %w", err)
-	}
-	defer func() { _ = f.Close() }()
-	if err := writeText(f, tr, start); err != nil {
-		return "", err
-	}
-	return path, nil
+	radio := widget.NewRadioGroup(labels, nil)
+	radio.SetSelected(exportFormats[0].label)
+
+	dialog.ShowCustomConfirm("Export format", "Export", "Cancel", radio, func(ok bool) {
+		if !ok {
+			return
+		}
+		for _, f := range exportFormats {
+			if f.label == radio.Selected {
+				p.exportSingleAs(f, item, start)
+				return
+			}
+		}
+	}, p.window)
 }
 
 func (p *transcribePanel) renamedTranscript(tr *transcriber.Transcript) *transcriber.Transcript {

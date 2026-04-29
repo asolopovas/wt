@@ -97,9 +97,6 @@ func (p *transcribePanel) setRunning(running bool) {
 			p.transcribeBtn.Importance = widget.DangerImportance
 			p.clearBtn.Disable()
 			p.clearCacheBtn.Disable()
-			if p.previewBtn != nil {
-				p.previewBtn.Disable()
-			}
 			p.progress.Show()
 			p.progress.SetValue(0)
 		} else {
@@ -107,9 +104,6 @@ func (p *transcribePanel) setRunning(running bool) {
 			p.transcribeBtn.Importance = widget.HighImportance
 			p.clearBtn.Enable()
 			p.clearCacheBtn.Enable()
-			if p.previewBtn != nil && len(p.results) > 0 {
-				p.previewBtn.Enable()
-			}
 		}
 	})
 }
