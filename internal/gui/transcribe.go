@@ -26,8 +26,7 @@ func (p *transcribePanel) build() {
 
 	p.libraryHost = container.NewStack()
 
-	dropContent := container.NewBorder(p.fileChips, nil, nil, nil, p.libraryHost)
-	p.dropArea = container.NewStack(outerBg, container.NewPadded(dropContent))
+	p.dropArea = container.NewStack(outerBg, container.NewPadded(p.libraryHost))
 
 	p.clearBtn = newPointerButton("CLEAR ALL", p.onClear)
 	p.clearCacheBtn = newPointerButton("CLEAR CACHE", p.onClearCache)
