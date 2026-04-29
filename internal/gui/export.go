@@ -336,7 +336,6 @@ func (p *transcribePanel) exportBatchAs(f exportFormat, items []exportItem, star
 		if err != nil || u == nil {
 			return
 		}
-		dir := u.Path()
 		var done, failed int
 		for _, item := range items {
 			tr, err := loadTranscript(item.cachePath)
@@ -347,8 +346,14 @@ func (p *transcribePanel) exportBatchAs(f exportFormat, items []exportItem, star
 			}
 			model := tr.Model
 			tr = p.renamedTranscript(tr)
-			outPath := filepath.Join(dir, exportBaseName(item.sourceName, model)+"."+f.ext)
-			out, err := os.Create(outPath)
+			name := exportBaseName(item.sourceName, model) + "." + f.ext
+			childURI, err := storage.Child(u, name)
+			if err != nil {
+				p.appendLog(fmt.Sprintf("Export failed for %s: %v", item.sourceName, err))
+				failed++
+				continue
+			}
+			out, err := storage.Writer(childURI)
 			if err != nil {
 				p.appendLog(fmt.Sprintf("Export failed for %s: %v", item.sourceName, err))
 				failed++
@@ -361,7 +366,7 @@ func (p *transcribePanel) exportBatchAs(f exportFormat, items []exportItem, star
 				failed++
 				continue
 			}
-			p.appendLog("Exported: " + outPath)
+			p.appendLog("Exported: " + childURI.Path())
 			done++
 		}
 		if failed > 0 {
@@ -369,7 +374,7 @@ func (p *transcribePanel) exportBatchAs(f exportFormat, items []exportItem, star
 				fmt.Sprintf("Exported %d of %d. %d failed.", done, done+failed, failed), p.window)
 		} else {
 			dialog.ShowInformation("Export",
-				fmt.Sprintf("Exported %d file(s) to %s", done, dir), p.window)
+				fmt.Sprintf("Exported %d file(s) to %s", done, u.Path()), p.window)
 		}
 	}, p.window)
 	folderDialog.Show()
