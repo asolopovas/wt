@@ -68,14 +68,16 @@ func buildSidebar(tp *transcribePanel, libraryBtn *pointerButton) fyne.CanvasObj
 
 	optionsBlock := container.NewVBox(
 		sidebarHeader("OPTIONS"),
-		settingsField("MODEL", tp.settings.modelSelect),
-		settingsField("LANGUAGE", tp.settings.langSelect),
-		settingsField("SPEAKERS", tp.settings.speakersSelect),
+		container.NewGridWithColumns(3,
+			settingsField("MODEL", tp.settings.modelSelect),
+			settingsField("LANGUAGE", tp.settings.langSelect),
+			settingsField("SPEAKERS", tp.settings.speakersSelect),
+		),
 	)
 
 	actionsBlock := container.NewVBox(
 		sidebarHeader("ACTIONS"),
-		container.NewGridWithColumns(1,
+		container.NewGridWithColumns(2,
 			borderedBtn(libraryBtn, colOutline),
 			borderedBtn(tp.transcribeBtn, colPrimary),
 		),
