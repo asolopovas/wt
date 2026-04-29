@@ -9,7 +9,10 @@ import (
 	"strings"
 	"time"
 
+	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
+	"fyne.io/fyne/v2/widget"
 
 	shared "github.com/asolopovas/wt/internal"
 	"github.com/asolopovas/wt/internal/diarizer"
@@ -43,14 +46,60 @@ func (p *transcribePanel) onTranscribe() {
 		return
 	}
 
+	if len(p.files) == 1 {
+		p.startTranscription(append([]string(nil), p.files...))
+		return
+	}
+
+	p.chooseFilesAndTranscribe()
+}
+
+func (p *transcribePanel) startTranscription(files []string) {
+	if len(files) == 0 {
+		return
+	}
 	p.logText.Segments = nil
 	p.logText.Refresh()
 	p.cancelled.Store(false)
-
-	go p.runTranscription()
+	go p.runTranscription(files)
 }
 
-func (p *transcribePanel) runTranscription() {
+func (p *transcribePanel) chooseFilesAndTranscribe() {
+	options := make([]string, len(p.files))
+	for i, f := range p.files {
+		options[i] = filepath.Base(f)
+	}
+	group := widget.NewCheckGroup(options, nil)
+	group.Selected = append([]string(nil), options...)
+
+	body := container.NewVScroll(group)
+	body.SetMinSize(fyne.NewSize(280, 320))
+
+	dlg := dialog.NewCustomConfirm("Choose files to transcribe", "TRANSCRIBE", "CANCEL",
+		body, func(ok bool) {
+			if !ok {
+				return
+			}
+			selectedSet := make(map[string]bool, len(group.Selected))
+			for _, s := range group.Selected {
+				selectedSet[s] = true
+			}
+			files := make([]string, 0, len(p.files))
+			for i, f := range p.files {
+				if selectedSet[options[i]] {
+					files = append(files, f)
+				}
+			}
+			if len(files) == 0 {
+				return
+			}
+			p.startTranscription(files)
+		}, p.window)
+	dlg.Resize(libraryDialogSize(p.window))
+	dlg.Show()
+}
+
+func (p *transcribePanel) runTranscription(files []string) {
 	p.setRunning(true)
 	defer p.setRunning(false)
 
@@ -95,7 +144,7 @@ func (p *transcribePanel) runTranscription() {
 	}
 	p.debugLog(fmt.Sprintf("system: %d cores, %s", runtime.NumCPU(), runtime.GOARCH))
 
-	total := len(p.files)
+	total := len(files)
 	errCount := 0
 
 	deviceLabel := "cpu"
@@ -106,7 +155,7 @@ func (p *transcribePanel) runTranscription() {
 		}
 	}
 
-	for i, path := range p.files {
+	for i, path := range files {
 		if p.cancelled.Load() {
 			p.appendLog("Cancelled by user.")
 			p.setStatus("Cancelled.")
