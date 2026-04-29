@@ -3,6 +3,8 @@
 package gui
 
 import (
+	"time"
+
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/canvas"
@@ -44,8 +46,35 @@ func Run(version string) error {
 	tabs.SetTabLocation(container.TabLocationBottom)
 
 	w.SetContent(tabs)
+	wireShareIntake(transcribe, tabs)
 	w.ShowAndRun()
 	return nil
+}
+
+func wireShareIntake(tp *transcribePanel, tabs *container.AppTabs) {
+	go func() {
+		for path := range shareIntakeChan() {
+			path := path
+			fyne.Do(func() {
+				if tp.addLocalFile(path) {
+					tp.rebuildChips()
+					tp.updateDropLabel()
+					tp.appendLog("Imported shared file: " + path)
+					if tabs != nil {
+						tabs.SelectIndex(0)
+					}
+				}
+			})
+		}
+	}()
+	pollShareIntent()
+	go func() {
+		ticker := time.NewTicker(750 * time.Millisecond)
+		defer ticker.Stop()
+		for range ticker.C {
+			pollShareIntent()
+		}
+	}()
 }
 
 func buildTranscodeTabAndroid(tp *transcribePanel) fyne.CanvasObject {

@@ -236,8 +236,7 @@ func (p *transcribePanel) addDroppedFiles(uris []fyne.URI) {
 	fyne.Do(func() {
 		added := 0
 		for _, path := range accepted {
-			if !p.hasFile(path) {
-				p.files = append(p.files, path)
+			if p.addLocalFile(path) {
 				added++
 			}
 		}
@@ -250,6 +249,23 @@ func (p *transcribePanel) addDroppedFiles(uris []fyne.URI) {
 	if len(rejected) > 0 {
 		p.appendLog("Ignored (unsupported format): " + strings.Join(rejected, ", "))
 	}
+}
+
+// addLocalFile appends path to the chip list (deduped) and records it as a pending
+// (not-yet-transcribed) manifest entry so it shows in the history list. Caller is
+// responsible for being on the Fyne goroutine when this updates UI state.
+func (p *transcribePanel) addLocalFile(path string) bool {
+	if p.hasFile(path) {
+		return false
+	}
+	p.files = append(p.files, path)
+	if err := cacheStorePending(path); err != nil {
+		p.appendLog("warn: could not record pending entry: " + err.Error())
+	}
+	if p.history != nil {
+		p.history.refresh()
+	}
+	return true
 }
 
 func (p *transcribePanel) hasFile(path string) bool {

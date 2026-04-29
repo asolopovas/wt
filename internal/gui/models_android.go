@@ -3,5 +3,5 @@
 package gui
 
 var validModels = []string{
-	"tiny", "base", "small", "turbo",
+	"tiny", "base", "small", "medium", "turbo",
 }

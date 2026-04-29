@@ -117,37 +117,31 @@ func (h *historyPanel) buildRow(e cacheEntry) fyne.CanvasObject {
 	name.TextStyle = fyne.TextStyle{Bold: true}
 	name.TextSize = 12
 
-	lang := e.Language
-	if lang == "" {
-		lang = "auto"
+	var meta string
+	if e.Pending {
+		meta = "fresh · not transcribed yet · added " + formatRelative(e.CreatedAt)
+	} else {
+		lang := e.Language
+		if lang == "" {
+			lang = "auto"
+		}
+		meta = fmt.Sprintf("%s · %s · %d segments · %s",
+			e.Model, lang, e.Utterances, formatRelative(e.CreatedAt))
 	}
-	meta := fmt.Sprintf("%s · %s · %d segments · %s",
-		e.Model, lang, e.Utterances, formatRelative(e.CreatedAt))
 	metaText := canvas.NewText(meta, colMuted)
 	metaText.TextSize = 10
 	metaText.TextStyle = fyne.TextStyle{Monospace: true}
 
 	info := container.NewVBox(name, metaText)
 
-	previewBtn := newPointerButtonWithIcon("", theme.VisibilityIcon(), func() {
-		h.transcribe.openPreview(exportItem{
-			cachePath:  transcriptPathForKey(e.Key),
-			sourceName: e.SourceName,
-		}, nil)
-	})
-	previewBtn.Importance = widget.LowImportance
-
-	exportBtn := newPointerButtonWithIcon("", theme.DocumentSaveIcon(), func() {
-		h.transcribe.exportTranscript([]exportItem{{
-			cachePath:  transcriptPathForKey(e.Key),
-			sourceName: e.SourceName,
-		}})
-	})
-	exportBtn.Importance = widget.LowImportance
-
 	deleteBtn := newPointerButtonWithIcon("", theme.DeleteIcon(), func() {
-		dialog.ShowConfirm("Delete",
-			fmt.Sprintf("Remove cached transcript for %s?", e.SourceName),
+		var msg string
+		if e.Pending {
+			msg = fmt.Sprintf("Remove %s from the list?", e.SourceName)
+		} else {
+			msg = fmt.Sprintf("Remove cached transcript for %s?", e.SourceName)
+		}
+		dialog.ShowConfirm("Delete", msg,
 			func(ok bool) {
 				if !ok {
 					return
@@ -161,7 +155,28 @@ func (h *historyPanel) buildRow(e cacheEntry) fyne.CanvasObject {
 	})
 	deleteBtn.Importance = widget.LowImportance
 
-	actions := container.NewHBox(previewBtn, exportBtn, deleteBtn)
+	var actions *fyne.Container
+	if e.Pending {
+		actions = container.NewHBox(deleteBtn)
+	} else {
+		previewBtn := newPointerButtonWithIcon("", theme.VisibilityIcon(), func() {
+			h.transcribe.openPreview(exportItem{
+				cachePath:  transcriptPathForKey(e.Key),
+				sourceName: e.SourceName,
+			}, nil)
+		})
+		previewBtn.Importance = widget.LowImportance
+
+		exportBtn := newPointerButtonWithIcon("", theme.DocumentSaveIcon(), func() {
+			h.transcribe.exportTranscript([]exportItem{{
+				cachePath:  transcriptPathForKey(e.Key),
+				sourceName: e.SourceName,
+			}})
+		})
+		exportBtn.Importance = widget.LowImportance
+
+		actions = container.NewHBox(previewBtn, exportBtn, deleteBtn)
+	}
 
 	row := container.NewBorder(nil, nil, nil, actions, info)
 

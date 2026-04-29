@@ -432,6 +432,26 @@ tasks:
         sh: echo "$LOCALAPPDATA/Android/Sdk/build-tools/36.1.0"
     cmds:
       - cmd: |
+          set -e
+          # Materialize cmd/wt-gui/AndroidManifest.xml from .in template so Fyne
+          # picks it up (build_androidapp.go reads AndroidManifest.xml from the
+          # main-package dir verbatim and skips the generated default).
+          python -c "
+          import sys
+          ver = '{{.VERSION}}'
+          parts = (ver.split('.') + ['0','0','0'])[:3]
+          maj, mn, pat = (int(x) if x.isdigit() else 0 for x in parts)
+          code = maj * 10000 + mn * 100 + pat
+          with open('cmd/wt-gui/AndroidManifest.xml.in', 'r', encoding='utf-8') as f:
+              data = f.read()
+          data = data.replace('@@VERSION_NAME@@', ver) \
+                     .replace('@@VERSION_CODE@@', str(code)) \
+                     .replace('@@DEBUG@@', 'true')
+          with open('cmd/wt-gui/AndroidManifest.xml', 'w', encoding='utf-8') as f:
+              f.write(data)
+          "
+      - defer: rm -f cmd/wt-gui/AndroidManifest.xml
+      - cmd: |
           export ANDROID_HOME="$LOCALAPPDATA/Android/Sdk"
           export ANDROID_NDK_HOME="{{.NDK_ROOT}}"
           unset CGO_CFLAGS CGO_LDFLAGS CGO_LDFLAGS_ALLOW CC

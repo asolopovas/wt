@@ -62,6 +62,7 @@ type cacheEntry struct {
 	Utterances int       `json:"utterances"`
 	CreatedAt  time.Time `json:"created_at"`
 	SizeBytes  int64     `json:"size_bytes"`
+	Pending    bool      `json:"pending,omitempty"`
 }
 
 type cacheKeyParams struct {
@@ -164,15 +165,57 @@ func cacheStore(entry cacheEntry, transcriptJSON []byte) (string, error) {
 	entries, _ := loadManifest()
 	filtered := entries[:0]
 	for _, e := range entries {
-		if e.Key != entry.Key {
-			filtered = append(filtered, e)
+		if e.Key == entry.Key {
+			continue
 		}
+		// Drop any pending placeholder for the same source — it's been transcribed now.
+		if e.Pending && e.SourcePath == entry.SourcePath {
+			continue
+		}
+		filtered = append(filtered, e)
 	}
 	filtered = append(filtered, entry)
 	if err := saveManifest(filtered); err != nil {
 		return dst, err
 	}
 	return dst, nil
+}
+
+func pendingCacheKey(absPath string) string {
+	sum := sha256.Sum256([]byte(absPath + "\x00pending"))
+	return hex.EncodeToString(sum[:])[:32]
+}
+
+// cacheStorePending records sourcePath as a not-yet-transcribed entry in the manifest
+// so it appears in the history list marked as fresh. Idempotent — re-adding the same
+// path keeps the original CreatedAt.
+func cacheStorePending(sourcePath string) error {
+	abs, err := filepath.Abs(sourcePath)
+	if err != nil {
+		return err
+	}
+	info, statErr := os.Stat(abs)
+	var size int64
+	if statErr == nil {
+		size = info.Size()
+	}
+
+	key := pendingCacheKey(abs)
+	entries, _ := loadManifest()
+	for _, e := range entries {
+		if e.Key == key {
+			return nil
+		}
+	}
+	entries = append(entries, cacheEntry{
+		Key:        key,
+		SourcePath: abs,
+		SourceName: filepath.Base(abs),
+		CreatedAt:  time.Now(),
+		SizeBytes:  size,
+		Pending:    true,
+	})
+	return saveManifest(entries)
 }
 
 func cacheGC(expiryDays int) int {

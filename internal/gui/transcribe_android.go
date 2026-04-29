@@ -143,8 +143,7 @@ func (p *transcribePanel) onBrowse() {
 			return
 		}
 
-		if !p.hasFile(localPath) {
-			p.files = append(p.files, localPath)
+		if p.addLocalFile(localPath) {
 			p.rebuildChips()
 			p.updateDropLabel()
 		}

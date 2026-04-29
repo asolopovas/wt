@@ -14,6 +14,8 @@ third_party/
 *.apk
 *.apk.idsig
 *.so
+# Generated from AndroidManifest.xml.in by the android-apk task
+cmd/wt-gui/AndroidManifest.xml
 
 # Vulkan shader build artifacts
 ggml-vulkan-shaders.hpp

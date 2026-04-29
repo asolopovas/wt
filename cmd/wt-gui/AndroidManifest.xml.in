@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest
+	xmlns:android="http://schemas.android.com/apk/res/android"
+	package="com.asolopovas.wtranscribe"
+	android:versionCode="@@VERSION_CODE@@"
+	android:versionName="@@VERSION_NAME@@">
+
+	<uses-permission android:name="android.permission.INTERNET" />
+
+	<application android:label="wt" android:debuggable="@@DEBUG@@">
+		<activity android:name="org.golang.app.GoNativeActivity"
+			android:label="wt"
+			android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden|uiMode"
+			android:exported="true"
+			android:launchMode="singleTask"
+			android:theme="@android:style/Theme"
+			android:windowSoftInputMode="adjustResize">
+			<meta-data android:name="android.app.lib_name" android:value="wt" />
+			<intent-filter>
+				<action android:name="android.intent.action.MAIN" />
+				<category android:name="android.intent.category.LAUNCHER" />
+			</intent-filter>
+			<intent-filter>
+				<action android:name="android.intent.action.SEND" />
+				<category android:name="android.intent.category.DEFAULT" />
+				<data android:mimeType="audio/*" />
+			</intent-filter>
+			<intent-filter>
+				<action android:name="android.intent.action.SEND_MULTIPLE" />
+				<category android:name="android.intent.category.DEFAULT" />
+				<data android:mimeType="audio/*" />
+			</intent-filter>
+			<intent-filter>
+				<action android:name="android.intent.action.VIEW" />
+				<category android:name="android.intent.category.DEFAULT" />
+				<category android:name="android.intent.category.BROWSABLE" />
+				<data android:scheme="content" />
+				<data android:scheme="file" />
+				<data android:mimeType="audio/*" />
+			</intent-filter>
+		</activity>
+	</application>
+</manifest>

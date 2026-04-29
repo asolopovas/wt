@@ -19,8 +19,7 @@ func (p *transcribePanel) onBrowse() {
 			_ = reader.Close()
 		}()
 		path := reader.URI().Path()
-		if !p.hasFile(path) {
-			p.files = append(p.files, path)
+		if p.addLocalFile(path) {
 			p.rebuildChips()
 			p.updateDropLabel()
 		}
