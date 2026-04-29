@@ -68,9 +68,7 @@ func (p *transcribePanel) openPreview(item exportItem, onClose func()) {
 		}
 	}
 
-	if p.speakerRenames == nil {
-		p.speakerRenames = map[string]string{}
-	}
+	p.speakerRenames = map[string]string{}
 	for k, v := range loadSpeakerRenames(item.cacheKey) {
 		p.speakerRenames[k] = v
 	}
