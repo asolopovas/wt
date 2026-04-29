@@ -23,13 +23,11 @@ func formatETA(secs float64) string {
 	if secs < 0 {
 		secs = 0
 	}
-	if secs < 60 {
-		return fmt.Sprintf("%.0fs", secs)
-	}
-	if secs < 3600 {
-		return fmt.Sprintf("%dm%02ds", int(secs)/60, int(secs)%60)
-	}
-	return fmt.Sprintf("%dh%02dm", int(secs)/3600, (int(secs)%3600)/60)
+	total := int(secs)
+	h := total / 3600
+	m := (total % 3600) / 60
+	s := total % 60
+	return fmt.Sprintf("%02d:%02d:%02d", h, m, s)
 }
 
 type progressSmoother struct {

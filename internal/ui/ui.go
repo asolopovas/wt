@@ -153,12 +153,11 @@ func formatETA(elapsedSec, pct float64) string {
 	if remaining < 0 {
 		remaining = 0
 	}
-	if remaining < 60 {
-		return fmt.Sprintf("~%.0fs", remaining)
-	}
-	mins := int(remaining) / 60
-	secs := int(remaining) % 60
-	return fmt.Sprintf("~%dm%02ds", mins, secs)
+	total := int(remaining)
+	h := total / 3600
+	m := (total % 3600) / 60
+	s := total % 60
+	return fmt.Sprintf("~%02d:%02d:%02d", h, m, s)
 }
 
 func ProgressLine(pct int, elapsedSec float64) {
