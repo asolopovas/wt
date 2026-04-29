@@ -6,8 +6,6 @@ vars:
   WHISPER_ROOT: '{{.ROOT_DIR | toSlash}}/third_party/whisper.cpp'
   WHISPER_BUILD: '{{.WHISPER_ROOT}}/build'
 
-  HOST_OS:
-    sh: uname -s 2>/dev/null | tr '[:upper:]' '[:lower:]' | sed 's/.*mingw.*/windows/;s/.*msys.*/windows/;s/.*cygwin.*/windows/'
   IS_LINUX:
     sh: |
       case "$(uname -s 2>/dev/null)" in Linux) echo 1;; *) echo "";; esac
