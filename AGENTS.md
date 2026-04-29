@@ -1,124 +1,92 @@
 # AGENTS.md — wt
 
-Go CLI + GUI wrapping [whisper.cpp](https://github.com/ggml-org/whisper.cpp) for audio transcription with speaker diarization. Desktop default runs the bundled NeMo sortformer pipeline via `scripts/diarize.py`; sherpa-onnx (pyannote-3.0 segmentation + NeMo TitaNet-Large embedding, cluster-threshold=0.75) is the fallback and is also used on Android via `libsherpa-diar.so` (no bundled CPython).
+Go CLI + GUI wrapping whisper.cpp for audio transcription with speaker diarization.
+Desktop default: NeMo sortformer (`scripts/diarize.py`). Fallback / Android / GUI: sherpa-onnx
+(pyannote-3.0 + NeMo TitaNet-Large, threshold 0.75).
 
-## Versioning
-
-**Never bump the version unless the user types "bump".**
-Version lives in both `Taskfile.yml` (`VERSION:`) and `scripts/installer.iss` (`#define MyAppVersion`). Keep them in sync. Use `task bump` (it auto-increments, builds, installs, verifies, commits). Scheme: `1.0.0 → 1.0.9 → 1.1.0`.
-
-## Layout
-
-```
-cmd/wt/         CLI (urfave/cli)
-cmd/wt-gui/     GUI (Fyne)
-cmd/wt-test/    Android test CLI
-internal/               Shared: config, window-hiding
-internal/gui/           Fyne GUI (drag-drop, settings, theme)
-internal/transcriber/   Audio, model, CSV, live mode
-internal/diarizer/      NeMo Python subprocess + sherpa-onnx (Android)
-internal/ui/            Terminal spinners/progress (CLI only)
-bindings/go/            Vendored whisper.cpp CGo bindings
-scripts/                Build helpers, Inno Setup, diarize.py
-third_party/whisper.cpp Cloned at build time (gitignored)
-```
-
-## Build & Run
-
-Requires: Go 1.26+, GCC/MinGW, CMake, ffmpeg, [Task](https://taskfile.dev/). CGo env (`CGO_ENABLED`, `CC`, `CFLAGS`, `LDFLAGS`) is set by the Taskfile.
+## Commands
 
 ```bash
-task build               # Both binaries + DLLs into dist/bin (clones whisper.cpp first run)
-task build ONLY=cli      # CLI only
-task build ONLY=gui      # GUI only (does NOT launch)
-task install             # Replace binaries at %LOCALAPPDATA%\wt (skips full installer)
-task setup               # Full silent install via installer + launch GUI
-task install-android     # Build APK, install on device, launch
+task build               # Both binaries + DLLs → dist/bin
+task build ONLY=cli|gui  # Single binary (compile-only, never launches)
+task install             # Replace binaries at %LOCALAPPDATA%\wt
+task setup               # Full silent install + launch GUI (user-initiated only)
+task install-android     # Build APK, install, launch
 task check               # Verify toolchain
 task clean               # dist/ + samples/*.json (DEEP=1 also clears whisper.cpp build)
+task test                # go test -v ./...
+task test-unit           # -short, no CGo/model
+task lint                # golangci-lint (scoped to ./cmd/... ./internal/...)
+task fmt                 # gofumpt -w
+task clean-comments      # Strip non-directive comments
+task bump                # Auto-increment version, build, install, verify, commit
 ```
 
-**Agent rule — never launch the GUI.**
-No `task` target launches the GUI automatically anymore (`task build` is compile-only; `task setup` launches on purpose). For compile-only verification of GUI changes, use `task build ONLY=gui` or build directly:
+Compile-check GUI without `task`:
 
 ```bash
 PATH="C:/Users/asolo/src/wt/third_party/whisper.cpp/build/bin:/c/msys64/mingw64/bin:$PATH" \
   go build -o /dev/null ./cmd/wt-gui
 ```
 
-If you ever launch the GUI, kill it with `taskkill /F /IM wt-gui.exe` before moving on.
+Requires Go 1.26+, GCC/MinGW, CMake, ffmpeg, [Task](https://taskfile.dev/). CGo env is set by Taskfile.
+
+## Boundaries
+
+**Always:** run `task build ONLY=gui` for GUI compile checks; keep `Taskfile.yml VERSION` and `scripts/installer.iss MyAppVersion` in sync.
+
+**Ask first:** anything that mutates user state outside the repo (installs, registry, version bumps).
+
+**Never:**
+- Bump the version unless the user types "bump" (use `task bump`, scheme `1.0.0 → 1.0.9 → 1.1.0`).
+- Launch the GUI. If you do by accident, `taskkill /F /IM wt-gui.exe` immediately.
+- Commit unless explicitly instructed.
+- Re-add `-tags=android` to `.vscode/settings.json` gopls flags (NDK headers cascade fake `C.xxx` errors on Windows).
+- Re-scope lint to `./...` (picks up vendored cgo bindings that won't compile standalone).
+- Re-run `scripts/diar_sweep.py` to retune diarization (slow; winning params already chosen — see below).
+- Add skip-on-missing-model tests.
+- Write Go comments other than directives (`//go:build`, `//go:embed`, `//go:generate`, `//export`, `//line`, `// +build`, `// Code generated ... DO NOT EDIT.`, cgo preamble).
+
+## Layout
+
+```
+cmd/wt/                  CLI (urfave/cli)
+cmd/wt-gui/              GUI (Fyne)
+cmd/wt-test/             Android test CLI
+internal/gui/            Fyne GUI
+internal/transcriber/    Audio, model, CSV, live mode
+internal/diarizer/       NeMo subprocess + sherpa-onnx
+internal/ui/             Terminal spinners (CLI only)
+bindings/go/             Vendored whisper.cpp CGo bindings (own go.mod)
+scripts/                 Build helpers, Inno Setup, diarize.py, diar_sweep.py
+third_party/whisper.cpp  Cloned at build time (gitignored)
+```
+
+Module: `github.com/asolopovas/wt` (Go 1.26). Key deps: `fyne.io/fyne/v2`, `pterm`, `urfave/cli/v3`, `yaml.v3`.
+
+## Platform splits
+
+`//go:build android` / `//go:build !android` pairs:
+`config_*`, `app_*`, `transcribe_*`, `audio_*`. Windows uses `_windows.go` / `_other.go` (with `//go:build !windows`).
 
 ## Testing
 
-```bash
-task test           # go test -v ./...
-task test-unit      # go test -v -short ./... (no CGo/model)
-go test -v -run TestName ./internal/pkg/
-```
-
-Framework: stdlib `testing` only. Tests named `Test<Function>_<Scenario>`; prefer table-driven. Use `t.TempDir()` + `t.Setenv("HOME", ...)` for config tests. No skip-on-missing-model tests — if a test can't run without external resources, don't add it.
-
-## Lint & Format
-
-```bash
-task lint           # golangci-lint (falls back to go vet)
-task fmt            # gofumpt -w (falls back to gofmt)
-```
-
-CI runs `go vet` only.
-
-## Code Style
-- No comments unless explicitly requested. The only comments allowed in
-  Go sources are compiler/runtime directives: `//go:build`, `//go:embed`,
-  `//go:generate`, `//export ...`, `//line ...`, `// +build`, the
-  `// Code generated ... DO NOT EDIT.` marker, and the cgo `/* ... */`
-  preamble immediately preceding `import "C"`. Run
-  `task clean-comments` to strip everything else.
-- No commits unless explicitly instructed.
-
-## Platform Build Tags
-
-Split platform-specific code with `//go:build android` / `//go:build !android`:
-- `config_android.go` / `config_default.go`
-- `app_android.go` / `app.go`
-- `transcribe_android.go` / `transcribe.go`
-- `audio_android.go` / `audio.go`
-
-Don't put `-tags=android` in `.vscode/settings.json` gopls flags on Windows: NDK
-cgo headers (`<media/Ndk*.h>`) can't resolve on the host and gopls cascades into
-fake "undefined: C.xxx" errors across every cgo file. Leave gopls on the default
-build; android files just show a benign "No packages found" notice when opened.
-
-Lint runs only over `./cmd/... ./internal/...` (the Taskfile scopes it). Do not
-re-add `./...` — it picks up the vendored cgo whisper.cpp bindings under
-`bindings/go/` which can't compile without the whisper.cpp build headers.
-
-Windows-specific: `_windows.go` suffix (auto-selected) with `_other.go` + `//go:build !windows` stubs.
-
-## Module
-
-Main module `github.com/asolopovas/wt` (Go 1.26). Vendored bindings have their own `go.mod` with:
-
-```
-replace github.com/ggerganov/whisper.cpp/bindings/go => ./bindings/go
-```
-
-Key deps: `fyne.io/fyne/v2` (GUI), `github.com/pterm/pterm` (CLI UI), `github.com/urfave/cli/v3` (CLI flags), `gopkg.in/yaml.v3` (config).
+stdlib `testing` only. Names: `Test<Function>_<Scenario>`, prefer table-driven.
+Config tests: `t.TempDir()` + `t.Setenv("HOME", ...)`. CI runs `go vet` only.
 
 ## Diarization
 
-Two backends, selected by `internal/diarizer/New(numSpeakers)` /
-`NewWithPreference(numSpeakers, preferSherpa)`:
+Backend selection via `internal/diarizer/New(numSpeakers)` / `NewWithPreference(numSpeakers, preferSherpa)`:
 
-- **NeMo Sortformer** (`scripts/diarize.py`, NVIDIA `diar_sortformer_4spk-v1`,
-  GPU when available). Capped at 4 speakers; auto-detects count; ignores
-  `--num-speakers`. Fast and accurate when speaker count is small and
-  speakers don't overlap; under-counts on quick interjections.
-- **sherpa-onnx** (`sherpa-onnx-offline-speaker-diarization`, pyannote-3.0
-  segmentation + speaker embedding clustering, CPU). Sole backend on
-  Android; fallback / quality-preferred path on desktop.
+| Caller              | Default        | Override                              |
+|---------------------|----------------|---------------------------------------|
+| CLI (`wt`)          | NeMo           | `--speakers N` (any N>0) → sherpa     |
+| GUI (Windows)       | sherpa+titanet | always sherpa                         |
+| GUI / CLI (Android) | sherpa+titanet | only backend (no bundled CPython)     |
 
-### Tuned sherpa-onnx settings (do not change without re-running the sweep)
+NeMo (`diar_sortformer_4spk-v1`, GPU): capped at 4 speakers, auto-detects count, ignores `--num-speakers`. Under-counts on quick interjections.
+
+Sherpa-onnx tuned params (do not change — winner of 11×8×3 sweep, mean DER 0.137):
 
 ```
 --segmentation.pyannote-model = pyannote-3.0
@@ -128,30 +96,15 @@ Two backends, selected by `internal/diarizer/New(numSpeakers)` /
 --min-duration-off             = 0.5
 ```
 
-These were chosen by sweeping 11 embedding models × 8 thresholds × 3 min-on
-values across three reference clips (`2_speakers_russian.m4a`,
-`3_speakers_english.m4a`, `3 speakers sample 2.mp4`) with frame-level DER +
-speaker-count penalty as the objective. Winner: titanet_large + thr 0.75 +
-min-on 0.3 (mean DER 0.137, 0/0/0 speaker-count error). The previous default
-embedding (`3dspeaker_eres2net_zh-cn`) was Chinese-trained and badly mismatched
-English audio.
+`--clustering.num-clusters=N` is never passed; `--speakers N` only hints backend selection.
 
-`--clustering.num-clusters=N` is **never** passed: in the sweep, threshold
-mode beat forced-count mode on every clip, so the `--speakers N` flag now
-only acts as a hint to select the sherpa backend.
+## Self-improvement
 
-### Backend selection rules
+When you discover a non-obvious gotcha, footgun, or workflow rule that future sessions would benefit from, propose an AGENTS.md edit before ending the turn. Triggers:
 
-| Caller         | Default backend  | Override                         |
-|----------------|------------------|----------------------------------|
-| CLI (`wt`)     | NeMo             | `--speakers N` (any N>0) → sherpa|
-| GUI (Windows)  | sherpa+titanet   | (always sherpa via `NewWithPreference(_, true)`) |
-| GUI / CLI (Android) | sherpa+titanet | (only backend; CPython unavailable) |
+- The user corrects an approach you took ("don't do X", "stop Xing").
+- A build/test/tooling failure has a non-obvious fix not documented here.
+- You re-derive the same project fact you've derived before.
+- A command in this file is wrong or outdated.
 
-The sweep harness lives at `scripts/diar_sweep.py` for future reference; the
-parameters above are the chosen winner — no need to re-run it unless the test
-set or backend changes.
-
-## CI
-
-GitHub Actions on push/PR to `master`: build whisper.cpp → `go vet` → `go build` → `go test`. Release workflow on `v*` tags.
+Keep additions terse and rule-shaped (Always / Ask / Never), not narrative. Do not add training-data-level advice. Do not commit the change unless instructed.
