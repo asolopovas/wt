@@ -22,7 +22,7 @@ func Run(version string) error {
 
 	w := a.NewWindow("wt " + version)
 	w.SetIcon(appIcon)
-	w.Resize(fyne.NewSize(1040, 720))
+	w.Resize(fyne.NewSize(1180, 720))
 
 	settings := newSettingsPanel(cfg, w)
 	transcribe := newTranscribePanel(w, settings)

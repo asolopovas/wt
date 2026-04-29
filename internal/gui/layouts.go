@@ -9,9 +9,9 @@ const (
 	minWindowWidth = 320
 	panelHeight    = 240
 
-	sidebarMaxWidth   = 300
-	sidebarMinWidth   = 280
-	sidebarStackBelow = 820
+	sidebarMaxWidth   = 420
+	sidebarMinWidth   = 360
+	sidebarStackBelow = 900
 )
 
 type sidebarLayout struct {
@@ -58,7 +58,7 @@ func (s *sidebarLayout) Layout(objects []fyne.CanvasObject, size fyne.Size) {
 		return
 	}
 
-	sbW := size.Width * 0.28
+	sbW := size.Width * 0.32
 	if sbW > sidebarMaxWidth {
 		sbW = sidebarMaxWidth
 	}
