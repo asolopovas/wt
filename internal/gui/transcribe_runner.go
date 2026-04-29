@@ -91,15 +91,23 @@ func (s *progressSmoother) snapshot() (display float64, etaSec float64) {
 	}
 	secPerPct := s.audioDurSec / 100.0 / rtf
 	if secPerPct <= 0 {
-		secPerPct = 1
+		secPerPct = 0.1
 	}
 
-	interp := elapsedSinceTick / secPerPct
-	if interp > 1 {
-		excess := interp - 1
-		interp = 1 - 0.5/(1+excess)
+	chunkPct := 30.0 / s.audioDurSec * 100
+	if chunkPct < 0.5 {
+		chunkPct = 0.5
 	}
-	display = float64(s.lastPct) + interp
+	if chunkPct > 50 {
+		chunkPct = 50
+	}
+	maxAdvance := 2.5 * chunkPct
+
+	predicted := elapsedSinceTick / secPerPct
+	if predicted > maxAdvance {
+		predicted = maxAdvance
+	}
+	display = float64(s.lastPct) + predicted
 	if display > 99 {
 		display = 99
 	}
