@@ -32,9 +32,9 @@ func showTimePicker(parent fyne.Window, current time.Time, onSelect func(h, m, s
 		_, _ = fmt.Sscanf(minSel.Selected, "%d", &m)
 		onSelect(h, m, 0)
 	}, parent)
-	winSize := parent.Canvas().Size()
-	d.Resize(fyne.NewSize(winSize.Width*0.8, 0))
 	d.Show()
+	winSize := parent.Canvas().Size()
+	d.Resize(fyne.NewSize(winSize.Width*0.8, d.MinSize().Height))
 }
 
 func makeRange(lo, hi int, format string) []string {
