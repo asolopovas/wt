@@ -49,7 +49,7 @@ func (p *transcribePanel) runDiarization(wavPath string, speakers int, audioDurS
 		}
 		lastPct = pct
 		p.setStatus(fmt.Sprintf("Diarizing... %.0f%%", pct))
-		p.setProgress(0.5 + pct/100.0*0.5)
+		p.setLocalProgress(0.80 + pct/100.0*0.20)
 	}
 
 	diarSegs, err := dia.Diarize(ctx, wavPath, speakers, audioDurSec, progress)

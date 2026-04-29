@@ -3,7 +3,6 @@ package gui
 import (
 	"encoding/json"
 	"fmt"
-	"math"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -31,21 +30,29 @@ func formatETA(secs float64) string {
 }
 
 type progressSmoother struct {
-	mu        sync.Mutex
-	lastPct   int
-	lastTick  time.Time
-	secPerPct float64
-	seeded    bool
+	mu          sync.Mutex
+	audioDurSec float64
+	rtf         float64
+	lastPct     int
+	lastTick    time.Time
+	startTime   time.Time
+	samples     int
+	emaETA      float64
 }
 
-func newProgressSmoother(audioDurSec float64) *progressSmoother {
-	initial := audioDurSec * 0.4 / 100.0
-	if initial < 0.3 {
-		initial = 0.3
+func newProgressSmoother(audioDurSec, initialRTF float64) *progressSmoother {
+	if initialRTF <= 0 {
+		initialRTF = 1.0
 	}
+	if audioDurSec <= 0 {
+		audioDurSec = 1.0
+	}
+	now := time.Now()
 	return &progressSmoother{
-		lastTick:  time.Now(),
-		secPerPct: initial,
+		audioDurSec: audioDurSec,
+		rtf:         initialRTF,
+		lastTick:    now,
+		startTime:   now,
 	}
 }
 
@@ -59,13 +66,15 @@ func (s *progressSmoother) report(pct int) {
 	elapsed := now.Sub(s.lastTick).Seconds()
 	pctDelta := pct - s.lastPct
 	if elapsed > 0 && pctDelta > 0 {
-		observed := elapsed / float64(pctDelta)
-		if !s.seeded {
-
-			s.secPerPct = observed
-			s.seeded = true
-		} else {
-			s.secPerPct = 0.6*s.secPerPct + 0.4*observed
+		audioProcessed := float64(pctDelta) / 100.0 * s.audioDurSec
+		observedRTF := audioProcessed / elapsed
+		s.samples++
+		switch {
+		case s.samples == 1:
+		case s.samples == 2:
+			s.rtf = observedRTF
+		default:
+			s.rtf = 0.6*s.rtf + 0.4*observedRTF
 		}
 	}
 	s.lastPct = pct
@@ -75,30 +84,38 @@ func (s *progressSmoother) report(pct int) {
 func (s *progressSmoother) snapshot() (display float64, etaSec float64) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	elapsed := time.Since(s.lastTick).Seconds()
-	rate := s.secPerPct
-	if rate <= 0 {
-		rate = 1
+	elapsedSinceTick := time.Since(s.lastTick).Seconds()
+	rtf := s.rtf
+	if rtf <= 0 {
+		rtf = 1
+	}
+	secPerPct := s.audioDurSec / 100.0 / rtf
+	if secPerPct <= 0 {
+		secPerPct = 1
 	}
 
-	const softCap = 4.0
-	raw := elapsed / rate
-	interp := softCap * math.Tanh(raw/softCap)
+	interp := elapsedSinceTick / secPerPct
+	if interp > 1 {
+		excess := interp - 1
+		interp = 1 - 0.5/(1+excess)
+	}
 	display = float64(s.lastPct) + interp
 	if display > 99 {
 		display = 99
 	}
 
-	effRate := rate
-	if elapsed > 2*rate {
-		effRate = elapsed / 2.0
+	remainingAudio := s.audioDurSec * (1 - display/100.0)
+	if remainingAudio < 0 {
+		remainingAudio = 0
 	}
-	remaining := 100 - display
-	if remaining < 0 {
-		remaining = 0
+	rawETA := remainingAudio / rtf
+
+	if s.emaETA == 0 || rawETA < s.emaETA {
+		s.emaETA = rawETA
+	} else {
+		s.emaETA = 0.7*s.emaETA + 0.3*rawETA
 	}
-	etaSec = remaining * effRate
-	return
+	return display, s.emaETA
 }
 
 func (p *transcribePanel) onTranscribe() {
@@ -170,6 +187,14 @@ func (p *transcribePanel) runTranscription() {
 	total := len(p.files)
 	errCount := 0
 
+	deviceLabel := "cpu"
+	for _, dev := range whisper.BackendDevices() {
+		if dev.Type == "GPU" || dev.Type == "iGPU" {
+			deviceLabel = dev.Description
+			break
+		}
+	}
+
 	for i, path := range p.files {
 		if p.cancelled.Load() {
 			p.appendLog("Cancelled by user.")
@@ -177,12 +202,15 @@ func (p *transcribePanel) runTranscription() {
 			return
 		}
 
+		p.progBase = float64(i) / float64(total)
+		p.progSlice = 1.0 / float64(total)
+
 		filename := filepath.Base(path)
 		p.setStatus(fmt.Sprintf("[%d/%d] %s", i+1, total, filename))
-		p.setProgress(float64(i) / float64(total))
+		p.setLocalProgress(0)
 		p.appendLog(fmt.Sprintf("[%d/%d] %s", i+1, total, filename))
 
-		if err := p.transcribeFile(model, path, modelSize, language, threads, speakers, noDiarize); err != nil {
+		if err := p.transcribeFile(model, path, modelSize, deviceLabel, language, threads, speakers, noDiarize); err != nil {
 			if p.cancelled.Load() {
 				p.appendLog("Cancelled by user.")
 				p.setStatus("Cancelled.")
@@ -235,7 +263,7 @@ func (p *transcribePanel) loadModel(modelSize string) (whisper.Model, error) {
 	return m, nil
 }
 
-func (p *transcribePanel) transcribeFile(model whisper.Model, path, modelSize, language string, threads, speakers int, noDiarize bool) error {
+func (p *transcribePanel) transcribeFile(model whisper.Model, path, modelSize, deviceLabel, language string, threads, speakers int, noDiarize bool) error {
 	absPath, err := filepath.Abs(path)
 	if err != nil {
 		return fmt.Errorf("resolving path: %w", err)
@@ -255,7 +283,7 @@ func (p *transcribePanel) transcribeFile(model whisper.Model, path, modelSize, l
 			p.lastCSVPath = hitPath
 			p.results = append(p.results, exportItem{cachePath: hitPath, sourceName: sourceName})
 			p.appendLog(fmt.Sprintf("  Cached transcript reused for %s", sourceName))
-			p.setProgress(1.0)
+			p.setLocalProgress(1.0)
 			if p.history != nil {
 				p.history.refresh()
 			}
@@ -263,6 +291,7 @@ func (p *transcribePanel) transcribeFile(model whisper.Model, path, modelSize, l
 		}
 	}
 
+	p.setStatus("Loading audio...")
 	p.appendLog("  Loading audio...")
 	loadStart := time.Now()
 	samples, err := transcriber.LoadAudioSamples(absPath)
@@ -272,6 +301,7 @@ func (p *transcribePanel) transcribeFile(model whisper.Model, path, modelSize, l
 
 	audioDurSec := float64(len(samples)) / transcriber.WhisperSampleRate
 	durStr := transcriber.FormatHMS(time.Duration(audioDurSec * float64(time.Second)))
+	p.setLocalProgress(0.10)
 	p.appendLog(fmt.Sprintf("  Audio loaded (%s, %.1fs)", durStr, time.Since(loadStart).Seconds()))
 	p.debugLog(fmt.Sprintf("samples=%d sampleRate=%d duration=%.1fs", len(samples), transcriber.WhisperSampleRate, audioDurSec))
 
@@ -292,7 +322,7 @@ func (p *transcribePanel) transcribeFile(model whisper.Model, path, modelSize, l
 			rawHit = true
 			detected = language
 			p.appendLog(fmt.Sprintf("  Raw transcript reused (%d segments)", len(cached)))
-			p.setProgress(0.5)
+			p.setLocalProgress(0.80)
 		}
 	}
 
@@ -312,17 +342,18 @@ func (p *transcribePanel) transcribeFile(model whisper.Model, path, modelSize, l
 
 		p.appendLog("  Transcribing...")
 		processStart := time.Now()
-		smoother := newProgressSmoother(audioDurSec)
+		initialRTF := loadRTF(modelSize, deviceLabel)
+		smoother := newProgressSmoother(audioDurSec, initialRTF)
 		stopTick := make(chan struct{})
 		tickDone := make(chan struct{})
 		go func() {
 			defer close(tickDone)
-			t := time.NewTicker(400 * time.Millisecond)
+			t := time.NewTicker(200 * time.Millisecond)
 			defer t.Stop()
 			render := func() {
 				disp, etaSec := smoother.snapshot()
-				p.setProgress(disp / 100.0 * 0.5)
-				p.setStatus(fmt.Sprintf("Transcribing... %.0f%%  ETA: %s", disp, formatETA(etaSec)))
+				p.setLocalProgress(0.10 + disp/100.0*0.70)
+				p.setStatus(fmt.Sprintf("Transcribing... %.1f%%  ETA: %s", disp, formatETA(etaSec)))
 			}
 			render()
 			for {
@@ -352,7 +383,15 @@ func (p *transcribePanel) transcribeFile(model whisper.Model, path, modelSize, l
 		}
 		transcribeElapsed := time.Since(processStart).Seconds()
 		p.appendLog(fmt.Sprintf("  Transcribed (%.0fs)", transcribeElapsed))
-		p.debugLog(fmt.Sprintf("RTF=%.2f (%.1fs audio / %.1fs processing)", audioDurSec/transcribeElapsed, audioDurSec, transcribeElapsed))
+		observedRTF := 0.0
+		if transcribeElapsed > 0 {
+			observedRTF = audioDurSec / transcribeElapsed
+		}
+		p.debugLog(fmt.Sprintf("RTF=%.2f (%.1fs audio / %.1fs processing)", observedRTF, audioDurSec, transcribeElapsed))
+		if observedRTF > 0 {
+			saveRTF(modelSize, deviceLabel, observedRTF)
+		}
+		p.setLocalProgress(0.80)
 
 		detected = ctx.DetectedLanguage()
 		if detected != "" {
@@ -405,21 +444,13 @@ func (p *transcribePanel) transcribeFile(model whisper.Model, path, modelSize, l
 		diarName = "sherpa-onnx-pyannote"
 	}
 
-	device := "cpu"
-	for _, dev := range whisper.BackendDevices() {
-		if dev.Type == "GPU" || dev.Type == "iGPU" {
-			device = dev.Description
-			break
-		}
-	}
-
 	audioDurMs := int64(audioDurSec * 1000)
 	transcript := transcriber.BuildTranscript(segs, diarSegs, diarOK, transcriber.TranscriptMeta{
 		Model:      modelSize,
 		Language:   detected,
 		DurationMs: audioDurMs,
 		Diarizer:   diarName,
-		Device:     device,
+		Device:     deviceLabel,
 	})
 
 	data, err := json.MarshalIndent(transcript, "", "  ")
@@ -457,6 +488,7 @@ func (p *transcribePanel) transcribeFile(model whisper.Model, path, modelSize, l
 
 	p.lastCSVPath = storedPath
 	p.results = append(p.results, exportItem{cachePath: storedPath, sourceName: sourceName})
+	p.setLocalProgress(1.0)
 	p.appendLog(fmt.Sprintf("  Transcript ready (%d segments)", len(transcript.Utterances)))
 
 	if p.history != nil {

@@ -56,6 +56,23 @@ type transcribePanel struct {
 	statusTarget   atomic.Pointer[string]
 	smoothStop     chan struct{}
 	smoothMu       sync.Mutex
+
+	progBase  float64
+	progSlice float64
+}
+
+func (p *transcribePanel) setLocalProgress(local float64) {
+	if local < 0 {
+		local = 0
+	}
+	if local > 1 {
+		local = 1
+	}
+	slice := p.progSlice
+	if slice <= 0 {
+		slice = 1
+	}
+	p.setProgress(p.progBase + local*slice)
 }
 
 func (p *transcribePanel) startSmoothUpdates() {
