@@ -1,5 +1,7 @@
 # WTranscribe
 
+[![CI](https://github.com/asolopovas/wt/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/asolopovas/wt/actions/workflows/ci.yml)
+
 Audio transcription for Windows, powered by [whisper.cpp](https://github.com/ggml-org/whisper.cpp) with speaker diarization from [NVIDIA NeMo Sortformer](https://huggingface.co/nvidia/diar_sortformer_4spk-v1).
 
 Models download automatically on first run.

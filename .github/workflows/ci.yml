@@ -2,12 +2,12 @@ name: CI
 
 on:
   push:
-    branches: [master]
+    branches: [main]
   pull_request:
-    branches: [master]
+    branches: [main]
 
 jobs:
-  build-and-test:
+  quality:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -38,7 +38,6 @@ jobs:
               -DWHISPER_BUILD_EXAMPLES=OFF \
               -DWHISPER_BUILD_TESTS=OFF
             cmake --build build -j$(nproc)
-            # Create lib symlinks if needed (some cmake versions produce ggml.a instead of libggml.a)
             for lib in ggml ggml-base ggml-cpu; do
               src="build/ggml/src/${lib}.a"
               dst="build/ggml/src/lib${lib}.a"
@@ -56,10 +55,16 @@ jobs:
           echo "CGO_LDFLAGS=-L${WHISPER_ROOT}/build/src -L${WHISPER_ROOT}/build/ggml/src -lwhisper -lggml -lggml-base -lggml-cpu -lm -lstdc++ -fopenmp" >> $GITHUB_ENV
 
       - name: Vet
-        run: go vet ./...
+        run: go vet ./cmd/... ./internal/...
+
+      - name: Lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+          args: ./cmd/... ./internal/...
 
       - name: Build
         run: go build -o wt ./cmd/wt
 
       - name: Test
-        run: go test -v -count=1 ./...
+        run: go test -v -count=1 ./cmd/... ./internal/...
