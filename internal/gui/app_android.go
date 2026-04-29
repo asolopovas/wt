@@ -7,6 +7,7 @@ import (
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/widget"
 
 	shared "github.com/asolopovas/wt/internal"
@@ -83,10 +84,11 @@ func buildTranscodeTabAndroid(tp *transcribePanel) fyne.CanvasObject {
 	bottomGap := canvas.NewRectangle(transparent)
 	bottomGap.SetMinSize(fyne.NewSize(0, 6))
 
+	statusRow := container.NewHBox(tp.statusText, layout.NewSpacer(), tp.statsLine)
+
 	bottomBar := container.NewVBox(
 		tp.progress,
-		tp.statusText,
-		tp.statsLine,
+		statusRow,
 		startTimeRow,
 		settingsRow,
 		actionRow,
