@@ -127,11 +127,24 @@ func (p *transcribePanel) startSmoothUpdates() {
 
 func (p *transcribePanel) stopSmoothUpdates() {
 	p.smoothMu.Lock()
-	defer p.smoothMu.Unlock()
 	if p.smoothStop != nil {
 		close(p.smoothStop)
 		p.smoothStop = nil
 	}
+	p.smoothMu.Unlock()
+
+	finalProgress := math.Float64frombits(p.progressTarget.Load())
+	var finalStatus string
+	if sp := p.statusTarget.Load(); sp != nil {
+		finalStatus = *sp
+	}
+	fyne.Do(func() {
+		p.progress.SetValue(finalProgress)
+		if finalStatus != "" {
+			p.statusText.Text = finalStatus
+			p.statusText.Refresh()
+		}
+	})
 }
 
 func newTranscribePanel(window fyne.Window, settings *settingsPanel) *transcribePanel {
