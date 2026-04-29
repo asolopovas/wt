@@ -144,16 +144,17 @@ func (h *historyPanel) buildRow(e cacheEntry) fyne.CanvasObject {
 	})
 	deleteBtn.Importance = widget.LowImportance
 
+	transcribeBtn := newPointerButtonWithIcon("", transcribeIconResource, func() {
+		if e.SourcePath == "" {
+			dialog.ShowError(fmt.Errorf("source file path missing"), h.window)
+			return
+		}
+		h.transcribe.startTranscription([]string{e.SourcePath})
+	})
+	transcribeBtn.Importance = widget.LowImportance
+
 	var actions *fyne.Container
 	if e.Pending {
-		transcribeBtn := newPointerButtonWithIcon("", theme.NewThemedResource(transcribeIconResource), func() {
-			if e.SourcePath == "" {
-				dialog.ShowError(fmt.Errorf("source file path missing"), h.window)
-				return
-			}
-			h.transcribe.startTranscription([]string{e.SourcePath})
-		})
-		transcribeBtn.Importance = widget.LowImportance
 		actions = container.NewHBox(transcribeBtn, deleteBtn)
 	} else {
 		previewBtn := newPointerButtonWithIcon("", theme.VisibilityIcon(), func() {
@@ -178,7 +179,7 @@ func (h *historyPanel) buildRow(e cacheEntry) fyne.CanvasObject {
 		})
 		exportBtn.Importance = widget.LowImportance
 
-		actions = container.NewHBox(previewBtn, exportBtn, deleteBtn)
+		actions = container.NewHBox(transcribeBtn, previewBtn, exportBtn, deleteBtn)
 	}
 
 	row := container.NewBorder(nil, nil, nil, actions, info)
