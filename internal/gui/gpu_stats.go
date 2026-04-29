@@ -3,7 +3,6 @@ package gui
 import (
 	"fmt"
 	"os/exec"
-	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -25,7 +24,11 @@ func (p *transcribePanel) startStats() {
 func (p *transcribePanel) collectStats() string {
 	var parts []string
 
-	if cpu := queryCPUUsage(); cpu >= 0 {
+	cpu := queryProcessCPU()
+	if cpu < 0 {
+		cpu = queryCPUUsage()
+	}
+	if cpu >= 0 {
 		parts = append(parts, fmt.Sprintf("CPU %d%%", cpu))
 	}
 
@@ -37,9 +40,9 @@ func (p *transcribePanel) collectStats() string {
 		parts = append(parts, "VRAM "+formatMB(int64(gpuMem)))
 	}
 
-	var memStats runtime.MemStats
-	runtime.ReadMemStats(&memStats)
-	parts = append(parts, "APP RAM "+formatMB(int64(memStats.Sys/1024/1024)))
+	if rss := queryProcessRSSMB(); rss >= 0 {
+		parts = append(parts, "RAM "+formatMB(int64(rss)))
+	}
 
 	return strings.Join(parts, "  •  ")
 }
@@ -54,6 +57,11 @@ func formatMB(mb int64) string {
 func queryGpuStats() (utilPct int, memMB int) {
 	utilPct = -1
 	memMB = -1
+
+	if u := queryAndroidGPU(); u >= 0 {
+		utilPct = u
+		return
+	}
 
 	cmd := exec.Command("nvidia-smi",
 		"--query-gpu=utilization.gpu,memory.used",

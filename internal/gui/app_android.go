@@ -35,8 +35,8 @@ func Run(version string) error {
 	deviceInfo := detectDevice()
 
 	libraryTab := transcribe.buildLibraryTab(history)
-	transcodeTab := buildTranscodeTabAndroid(transcribe, deviceInfo)
-	settingsTab := buildSettingsTab(settings)
+	transcodeTab := buildTranscodeTabAndroid(transcribe)
+	settingsTab := buildSettingsTab(settings, deviceInfo)
 
 	tabs := container.NewAppTabs(
 		container.NewTabItem("LIBRARY", libraryTab),
@@ -50,11 +50,7 @@ func Run(version string) error {
 	return nil
 }
 
-func buildTranscodeTabAndroid(tp *transcribePanel, deviceInfo string) fyne.CanvasObject {
-	deviceLabel := canvas.NewText(deviceInfo, colSecondary)
-	deviceLabel.TextSize = 10
-	deviceLabel.TextStyle = fyne.TextStyle{Monospace: true}
-
+func buildTranscodeTabAndroid(tp *transcribePanel) fyne.CanvasObject {
 	tp.transcribeBtn.Importance = widget.HighImportance
 
 	tp.exportBtn = newPointerButton("EXPORT", tp.onExport)
@@ -98,7 +94,6 @@ func buildTranscodeTabAndroid(tp *transcribePanel, deviceInfo string) fyne.Canva
 		tp.progress,
 		tp.statusText,
 		tp.statsLine,
-		deviceLabel,
 		startTimeRow,
 		settingsRow,
 		actionRow1,
@@ -113,7 +108,7 @@ func buildTranscodeTabAndroid(tp *transcribePanel, deviceInfo string) fyne.Canva
 	)
 }
 
-func buildSettingsTab(sp *settingsPanel) fyne.CanvasObject {
+func buildSettingsTab(sp *settingsPanel, deviceInfo string) fyne.CanvasObject {
 	settingsGrid := container.NewGridWithColumns(2,
 		settingsField("DEVICE", sp.deviceSelect),
 		settingsField("THREADS", sp.threadsSelect),
@@ -131,11 +126,21 @@ func buildSettingsTab(sp *settingsPanel) fyne.CanvasObject {
 	header.TextStyle = fyne.TextStyle{Bold: true}
 	header.Alignment = fyne.TextAlignCenter
 
+	deviceHeader := canvas.NewText("DEVICE", colMuted)
+	deviceHeader.TextSize = 10
+	deviceHeader.TextStyle = fyne.TextStyle{Monospace: true, Bold: true}
+	deviceLabel := canvas.NewText(deviceInfo, colSecondary)
+	deviceLabel.TextSize = 11
+	deviceLabel.TextStyle = fyne.TextStyle{Monospace: true}
+
 	topSection := container.NewVBox(
 		gap(12),
 		header,
 		gap(16),
 		settingsGrid,
+		gap(12),
+		deviceHeader,
+		deviceLabel,
 	)
 
 	toggleRow := container.NewGridWithColumns(2,

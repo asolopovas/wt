@@ -36,8 +36,8 @@ func Run(version string) error {
 
 	deviceInfo := detectDevice()
 
-	transcodeTab := buildTranscodeTab(transcribe, deviceInfo)
-	settingsTab := buildSettingsTab(settings)
+	transcodeTab := buildTranscodeTab(transcribe)
+	settingsTab := buildSettingsTab(settings, deviceInfo)
 
 	tabs := container.NewAppTabs(
 		container.NewTabItemWithIcon("TRANSCODE", theme.MediaRecordIcon(), transcodeTab),
@@ -51,11 +51,7 @@ func Run(version string) error {
 	return nil
 }
 
-func buildTranscodeTab(tp *transcribePanel, deviceInfo string) fyne.CanvasObject {
-	deviceLabel := canvas.NewText(deviceInfo, colSecondary)
-	deviceLabel.TextSize = 10
-	deviceLabel.TextStyle = fyne.TextStyle{Monospace: true}
-
+func buildTranscodeTab(tp *transcribePanel) fyne.CanvasObject {
 	tp.transcribeBtn.Importance = widget.HighImportance
 
 	tp.exportBtn = newPointerButton("EXPORT", tp.onExport)
@@ -97,7 +93,6 @@ func buildTranscodeTab(tp *transcribePanel, deviceInfo string) fyne.CanvasObject
 		tp.progress,
 		tp.statusText,
 		tp.statsLine,
-		deviceLabel,
 		optionsRow,
 		startTimeRow,
 		actionRow,
@@ -111,6 +106,21 @@ func buildTranscodeTab(tp *transcribePanel, deviceInfo string) fyne.CanvasObject
 	)
 }
 
-func buildSettingsTab(sp *settingsPanel) fyne.CanvasObject {
-	return sp.container
+func buildSettingsTab(sp *settingsPanel, deviceInfo string) fyne.CanvasObject {
+	deviceHeader := canvas.NewText("DEVICE", colMuted)
+	deviceHeader.TextSize = 10
+	deviceHeader.TextStyle = fyne.TextStyle{Monospace: true, Bold: true}
+	deviceLabel := canvas.NewText(deviceInfo, colSecondary)
+	deviceLabel.TextSize = 11
+	deviceLabel.TextStyle = fyne.TextStyle{Monospace: true}
+
+	gap := canvas.NewRectangle(transparent)
+	gap.SetMinSize(fyne.NewSize(0, 12))
+
+	return container.NewBorder(
+		nil,
+		container.NewVBox(gap, deviceHeader, deviceLabel),
+		nil, nil,
+		sp.container,
+	)
 }
