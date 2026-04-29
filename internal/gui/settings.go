@@ -57,7 +57,9 @@ func newSettingsPanel(cfg shared.Config, window fyne.Window) *settingsPanel {
 }
 
 func (p *settingsPanel) build() {
-	p.modelSelect = newPointerSelect(validModels, nil)
+	persist := func(string) { p.persist() }
+
+	p.modelSelect = newPointerSelect(validModels, persist)
 	p.modelSelect.Selected = p.cfg.Model
 	if !slices.Contains(validModels, p.modelSelect.Selected) {
 		p.modelSelect.Selected = validModels[0]
@@ -67,10 +69,10 @@ func (p *settingsPanel) build() {
 	if p.cfg.Language != "" {
 		langLabel = p.cfg.Language
 	}
-	p.langSelect = newLimitSelect(languages, 300, nil)
+	p.langSelect = newLimitSelect(languages, 300, persist)
 	p.langSelect.inner.Selected = langLabel
 
-	p.deviceSelect = newPointerSelect([]string{"auto", "cuda", "cpu"}, nil)
+	p.deviceSelect = newPointerSelect([]string{"auto", "cuda", "cpu"}, persist)
 	p.deviceSelect.Selected = p.cfg.Device
 
 	maxThreads := runtime.NumCPU()
@@ -78,17 +80,17 @@ func (p *settingsPanel) build() {
 	for i := range maxThreads {
 		threadOpts[i] = strconv.Itoa(i + 1)
 	}
-	p.threadsSelect = newLimitSelect(threadOpts, 300, nil)
+	p.threadsSelect = newLimitSelect(threadOpts, 300, persist)
 	p.threadsSelect.inner.Selected = strconv.Itoa(p.cfg.Threads)
 
-	p.speakersSelect = newPointerSelect(speakerOptions, nil)
+	p.speakersSelect = newPointerSelect(speakerOptions, persist)
 	spkSel := "auto"
 	if p.cfg.Speakers > 0 {
 		spkSel = strconv.Itoa(p.cfg.Speakers)
 	}
 	p.speakersSelect.Selected = spkSel
 
-	p.expirySelect = newPointerSelect(cacheExpiryOptions, nil)
+	p.expirySelect = newPointerSelect(cacheExpiryOptions, persist)
 	if p.cfg.CacheExpiryDays <= 0 {
 		p.expirySelect.Selected = "never"
 	} else {
@@ -154,6 +156,7 @@ func settingsField(label string, w fyne.CanvasObject) *fyne.Container {
 func (p *settingsPanel) onToggleDiarize() {
 	p.noDiarizeState = !p.noDiarizeState
 	p.updateDiarizeLabel()
+	p.persist()
 }
 
 func (p *settingsPanel) updateDiarizeLabel() {
@@ -221,10 +224,23 @@ func (p *settingsPanel) cacheExpiryDays() int {
 }
 
 func (p *settingsPanel) onSave() {
+	if err := p.writeConfig(); err != nil {
+		dialog.ShowError(err, p.window)
+		return
+	}
+	dialog.ShowInformation("Settings", "Settings saved.", p.window)
+}
+
+func (p *settingsPanel) persist() {
+	if err := p.writeConfig(); err != nil {
+		fyne.LogError("auto-saving settings", err)
+	}
+}
+
+func (p *settingsPanel) writeConfig() error {
 	cfg, err := shared.Load()
 	if err != nil {
-		dialog.ShowError(fmt.Errorf("loading config: %w", err), p.window)
-		return
+		return fmt.Errorf("loading config: %w", err)
 	}
 
 	cfg.Model = p.modelSelect.Selected
@@ -236,10 +252,10 @@ func (p *settingsPanel) onSave() {
 	cfg.CacheExpiryDays = p.cacheExpiryDays()
 
 	if err := shared.Save(cfg); err != nil {
-		dialog.ShowError(fmt.Errorf("saving settings: %w", err), p.window)
-		return
+		return fmt.Errorf("saving settings: %w", err)
 	}
-	dialog.ShowInformation("Settings", "Settings saved.", p.window)
+	p.cfg = cfg
+	return nil
 }
 
 func (p *settingsPanel) modelSize() string {
