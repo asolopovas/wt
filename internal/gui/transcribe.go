@@ -76,6 +76,11 @@ func (p *transcribePanel) build() {
 	p.statusText.TextSize = 11
 	p.statusText.TextStyle = fyne.TextStyle{Monospace: true, Bold: true}
 
+	p.timerText = canvas.NewText("", colMuted)
+	p.timerText.TextSize = 11
+	p.timerText.TextStyle = fyne.TextStyle{Monospace: true, Bold: true}
+	p.timerText.Alignment = fyne.TextAlignTrailing
+
 	p.statsLine = widget.NewLabel("")
 	p.statsLine.TextStyle = fyne.TextStyle{Monospace: true}
 

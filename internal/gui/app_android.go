@@ -85,7 +85,7 @@ func buildTranscodeTabAndroid(tp *transcribePanel) fyne.CanvasObject {
 
 	bottomBar := container.NewVBox(
 		tp.progress,
-		tp.statusText,
+		container.NewBorder(nil, nil, tp.statusText, tp.timerText),
 		startTimeRow,
 		settingsRow,
 		actionRow,

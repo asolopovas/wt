@@ -232,7 +232,7 @@ func writeTranscriptTxt(tr *transcriber.Transcript, sourceName string, start tim
 	if err != nil {
 		return "", fmt.Errorf("creating temp dir: %w", err)
 	}
-	path := filepath.Join(dir, exportBaseName(sourceName)+".txt")
+	path := filepath.Join(dir, exportBaseName(sourceName, tr.Model)+".txt")
 	f, err := os.Create(path)
 	if err != nil {
 		return "", fmt.Errorf("creating txt: %w", err)
@@ -326,7 +326,7 @@ func (p *transcribePanel) exportSingleAs(f exportFormat, item exportItem, start 
 		p.appendLog("Exported: " + w.URI().Path())
 	}, p.window)
 
-	saveDialog.SetFileName(exportBaseName(item.sourceName) + "." + f.ext)
+	saveDialog.SetFileName(exportBaseName(item.sourceName, tr.Model) + "." + f.ext)
 	saveDialog.SetFilter(storage.NewExtensionFileFilter([]string{"." + f.ext}))
 	saveDialog.Show()
 }
@@ -345,8 +345,9 @@ func (p *transcribePanel) exportBatchAs(f exportFormat, items []exportItem, star
 				failed++
 				continue
 			}
+			model := tr.Model
 			tr = p.renamedTranscript(tr)
-			outPath := filepath.Join(dir, exportBaseName(item.sourceName)+"."+f.ext)
+			outPath := filepath.Join(dir, exportBaseName(item.sourceName, model)+"."+f.ext)
 			out, err := os.Create(outPath)
 			if err != nil {
 				p.appendLog(fmt.Sprintf("Export failed for %s: %v", item.sourceName, err))
@@ -386,8 +387,12 @@ func loadTranscript(path string) (*transcriber.Transcript, error) {
 	return &tr, nil
 }
 
-func exportBaseName(sourceName string) string {
-	return strings.TrimSuffix(filepath.Base(sourceName), filepath.Ext(sourceName))
+func exportBaseName(sourceName, model string) string {
+	base := strings.TrimSuffix(filepath.Base(sourceName), filepath.Ext(sourceName))
+	if model = strings.TrimSpace(model); model != "" {
+		base += "-" + model
+	}
+	return base
 }
 
 func writeExport(w io.Writer, tr *transcriber.Transcript, f exportFormat, start time.Time) error {

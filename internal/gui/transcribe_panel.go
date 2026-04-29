@@ -37,7 +37,12 @@ type transcribePanel struct {
 
 	progress   *thinProgress
 	statusText *canvas.Text
+	timerText  *canvas.Text
 	statsLine  *widget.Label
+
+	runStart    time.Time
+	timerStop   chan struct{}
+	timerStopMu sync.Mutex
 	logText    *widget.RichText
 	logScroll  *container.Scroll
 	autoScroll atomic.Bool
