@@ -26,7 +26,7 @@ func showTimePicker(parent fyne.Window, current time.Time, onSelect func(h, m, s
 	colon1 := widget.NewLabel(":")
 	row := container.NewHBox(hourSel, colon1, minSel, secSel)
 
-	dialog.ShowCustomConfirm("Pick time", "OK", "CANCEL", row, func(ok bool) {
+	d := dialog.NewCustomConfirm("Pick time", "OK", "CANCEL", row, func(ok bool) {
 		if !ok {
 			return
 		}
@@ -36,6 +36,9 @@ func showTimePicker(parent fyne.Window, current time.Time, onSelect func(h, m, s
 		_, _ = fmt.Sscanf(secSel.Selected, "%d", &s)
 		onSelect(h, m, s)
 	}, parent)
+	winSize := parent.Canvas().Size()
+	d.Resize(fyne.NewSize(winSize.Width*0.8, 0))
+	d.Show()
 }
 
 func makeRange(lo, hi int, format string) []string {
