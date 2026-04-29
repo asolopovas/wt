@@ -316,12 +316,8 @@ var (
 	shareOnce  sync.Mutex
 )
 
-// shareIntakeChan exposes paths persisted from share/view intents to the GUI layer.
 func shareIntakeChan() <-chan string { return shareInbox }
 
-// pollShareIntent inspects the current Activity's Intent and, for SEND/SEND_MULTIPLE/VIEW
-// with audio URIs, copies streams into the import cache and pushes paths onto shareInbox.
-// Safe to call repeatedly (e.g., on resume); re-entry is a no-op once an intent is consumed.
 func pollShareIntent() {
 	shareOnce.Lock()
 	defer shareOnce.Unlock()
@@ -358,7 +354,7 @@ func pollShareIntent() {
 		select {
 		case shareInbox <- path:
 		default:
-			// Inbox full — drop oldest by draining one slot, then push.
+
 			select {
 			case <-shareInbox:
 			default:

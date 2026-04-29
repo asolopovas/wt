@@ -36,10 +36,10 @@ type transcribePanel struct {
 	runStart    time.Time
 	timerStop   chan struct{}
 	timerStopMu sync.Mutex
-	logText    *widget.RichText
-	logScroll  *container.Scroll
-	autoScroll atomic.Bool
-	autoBtn    *pointerButton
+	logText     *widget.RichText
+	logScroll   *container.Scroll
+	autoScroll  atomic.Bool
+	autoBtn     *pointerButton
 
 	lastCSVPath string
 	results     []exportItem

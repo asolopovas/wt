@@ -223,9 +223,6 @@ func pendingCacheKey(absPath string) string {
 	return hex.EncodeToString(sum[:])[:32]
 }
 
-// cacheStorePending records sourcePath as a not-yet-transcribed entry in the manifest
-// so it appears in the history list marked as fresh. Idempotent — re-adding the same
-// path keeps the original CreatedAt.
 func cacheStorePending(sourcePath string) error {
 	abs, err := filepath.Abs(sourcePath)
 	if err != nil {

@@ -163,9 +163,6 @@ func (p *transcribePanel) addDroppedFiles(uris []fyne.URI) {
 	}
 }
 
-// addLocalFile appends path to the chip list (deduped) and records it as a pending
-// (not-yet-transcribed) manifest entry so it shows in the history list. Caller is
-// responsible for being on the Fyne goroutine when this updates UI state.
 func (p *transcribePanel) addLocalFile(path string) bool {
 	if p.hasFile(path) {
 		return false
