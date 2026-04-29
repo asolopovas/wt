@@ -27,7 +27,7 @@ func (p *transcribePanel) runDiarization(wavPath string, speakers int, audioDurS
 		return nil, false
 	}
 
-	dia, err := diarizer.New()
+	dia, err := diarizer.NewWithPreference(speakers, true)
 	if err != nil {
 		p.appendLog(fmt.Sprintf("  Diarization unavailable: %v", err))
 		return nil, false

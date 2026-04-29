@@ -1,6 +1,6 @@
 # AGENTS.md — wt
 
-Go CLI + GUI wrapping [whisper.cpp](https://github.com/ggml-org/whisper.cpp) for audio transcription with speaker diarization. Desktop runs the bundled NeMo sortformer pipeline via `scripts/diarize.py` (better English speaker separation); Android uses sherpa-onnx pyannote-3.0 + 3dspeaker via `libsherpa-diar.so` (no bundled CPython).
+Go CLI + GUI wrapping [whisper.cpp](https://github.com/ggml-org/whisper.cpp) for audio transcription with speaker diarization. Desktop default runs the bundled NeMo sortformer pipeline via `scripts/diarize.py`; sherpa-onnx (pyannote-3.0 segmentation + NeMo TitaNet-Large embedding, cluster-threshold=0.75) is the fallback and is also used on Android via `libsherpa-diar.so` (no bundled CPython).
 
 ## Versioning
 
@@ -95,6 +95,53 @@ replace github.com/ggerganov/whisper.cpp/bindings/go => ./bindings/go
 ```
 
 Key deps: `fyne.io/fyne/v2` (GUI), `github.com/pterm/pterm` (CLI UI), `github.com/urfave/cli/v3` (CLI flags), `gopkg.in/yaml.v3` (config).
+
+## Diarization
+
+Two backends, selected by `internal/diarizer/New(numSpeakers)` /
+`NewWithPreference(numSpeakers, preferSherpa)`:
+
+- **NeMo Sortformer** (`scripts/diarize.py`, NVIDIA `diar_sortformer_4spk-v1`,
+  GPU when available). Capped at 4 speakers; auto-detects count; ignores
+  `--num-speakers`. Fast and accurate when speaker count is small and
+  speakers don't overlap; under-counts on quick interjections.
+- **sherpa-onnx** (`sherpa-onnx-offline-speaker-diarization`, pyannote-3.0
+  segmentation + speaker embedding clustering, CPU). Sole backend on
+  Android; fallback / quality-preferred path on desktop.
+
+### Tuned sherpa-onnx settings (do not change without re-running the sweep)
+
+```
+--segmentation.pyannote-model = pyannote-3.0
+--embedding.model             = nemo_en_titanet_large.onnx   (~96 MB)
+--clustering.cluster-threshold = 0.75
+--min-duration-on              = 0.3
+--min-duration-off             = 0.5
+```
+
+These were chosen by sweeping 11 embedding models × 8 thresholds × 3 min-on
+values across three reference clips (`2_speakers_russian.m4a`,
+`3_speakers_english.m4a`, `3 speakers sample 2.mp4`) with frame-level DER +
+speaker-count penalty as the objective. Winner: titanet_large + thr 0.75 +
+min-on 0.3 (mean DER 0.137, 0/0/0 speaker-count error). The previous default
+embedding (`3dspeaker_eres2net_zh-cn`) was Chinese-trained and badly mismatched
+English audio.
+
+`--clustering.num-clusters=N` is **never** passed: in the sweep, threshold
+mode beat forced-count mode on every clip, so the `--speakers N` flag now
+only acts as a hint to select the sherpa backend.
+
+### Backend selection rules
+
+| Caller         | Default backend  | Override                         |
+|----------------|------------------|----------------------------------|
+| CLI (`wt`)     | NeMo             | `--speakers N` (any N>0) → sherpa|
+| GUI (Windows)  | sherpa+titanet   | (always sherpa via `NewWithPreference(_, true)`) |
+| GUI / CLI (Android) | sherpa+titanet | (only backend; CPython unavailable) |
+
+The sweep harness lives at `scripts/diar_sweep.py` for future reference; the
+parameters above are the chosen winner — no need to re-run it unless the test
+set or backend changes.
 
 ## CI
 

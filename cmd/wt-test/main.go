@@ -153,7 +153,7 @@ func runDiarizeOnly(audioPath string, speakers int) {
 
 	fmt.Printf("\n--- Initializing diarizer ---\n")
 	t0 := time.Now()
-	backend, err := diarizer.New()
+	backend, err := diarizer.New(speakers)
 	if err != nil {
 		fatal("init diarizer: %v", err)
 	}

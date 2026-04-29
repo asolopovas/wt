@@ -50,7 +50,7 @@ func newSherpaDiarizer() (Backend, error) {
 
 const (
 	sherpaSegURL = "https://huggingface.co/csukuangfj/sherpa-onnx-pyannote-segmentation-3-0/resolve/main/model.onnx"
-	sherpaEmbURL = "https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-recongition-models/3dspeaker_speech_eres2net_base_sv_zh-cn_3dspeaker_16k.onnx"
+	sherpaEmbURL = "https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-recongition-models/nemo_en_titanet_large.onnx"
 )
 
 func SherpaModelPaths() (string, string) {
@@ -59,7 +59,7 @@ func SherpaModelPaths() (string, string) {
 		return filepath.Join(root, "seg.onnx"), filepath.Join(root, "emb.onnx")
 	}
 	return filepath.Join(root, "sherpa-onnx-pyannote-segmentation-3-0", "model.onnx"),
-		filepath.Join(root, "3dspeaker.onnx")
+		filepath.Join(root, "titanet_large.onnx")
 }
 
 func EnsureSherpaModels(progress func(name string, downloaded, total int64)) error {
@@ -291,12 +291,9 @@ func (d *sherpaDiarizer) Diarize(ctx context.Context, wavPath string, numSpeaker
 		"--segmentation.pyannote-model=" + d.segModel,
 		"--embedding.model=" + d.embModel,
 
-		"--min-duration-on=0.0",
-	}
-	if numSpeakers > 0 {
-		args = append(args, fmt.Sprintf("--clustering.num-clusters=%d", numSpeakers))
-	} else {
-		args = append(args, "--clustering.cluster-threshold=0.85")
+		"--min-duration-on=0.3",
+		"--min-duration-off=0.5",
+		"--clustering.cluster-threshold=0.75",
 	}
 	args = append(args, wavPath)
 

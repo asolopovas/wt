@@ -24,13 +24,23 @@ type Backend interface {
 	Diarize(ctx context.Context, wavPath string, numSpeakers int, audioDurSec float64, progress ProgressFunc) ([]Segment, error)
 }
 
-func New() (Backend, error) {
+func New(numSpeakers int) (Backend, error) {
+	return NewWithPreference(numSpeakers, false)
+}
+
+func NewWithPreference(numSpeakers int, preferSherpa bool) (Backend, error) {
 	if runtime.GOOS == "android" {
 		b, err := newSherpaDiarizer()
 		if err != nil {
 			return nil, fmt.Errorf("sherpa-onnx diarizer unavailable: %w", err)
 		}
 		return b, nil
+	}
+
+	if preferSherpa || numSpeakers > 0 {
+		if b, err := newSherpaDiarizer(); err == nil {
+			return b, nil
+		}
 	}
 
 	if b, err := newNemoDiarizer(); err == nil {

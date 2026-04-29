@@ -443,7 +443,7 @@ tasks:
           ndk_libomp="{{.NDK_ROOT}}/toolchains/llvm/prebuilt/windows-x86_64/lib/clang/18/lib/linux/aarch64/libomp.so"
           sherpa_bin="dist/sherpa/sherpa-diar-android"
           sherpa_seg="dist/sherpa/models/sherpa-onnx-pyannote-segmentation-3-0/model.onnx"
-          sherpa_emb="dist/sherpa/models/3dspeaker.onnx"
+          sherpa_emb="dist/sherpa/models/titanet_large.onnx"
           mkdir -p dist
           libcxx_fwd="${ndk_libcxx//\\//}"
           libomp_fwd="${ndk_libomp//\\//}"

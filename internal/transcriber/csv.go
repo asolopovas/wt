@@ -43,7 +43,7 @@ func TranscribeToJSON(model *Model, path, outputFilename, modelSize, language st
 	}
 	usedTDRZ := UseTDRZ(tdrz, diarOK, noDiarize)
 
-	ctx, err := configureContext(model, threads, language, tdrz, diarOK, noDiarize)
+	ctx, err := configureContext(model, threads, language, tdrz, diarOK, noDiarize, diarName)
 	if err != nil {
 		return err
 	}
@@ -109,7 +109,7 @@ func loadAndReport(absPath string) ([]float32, error) {
 }
 
 func runDiarization(wavPath string, speakers int, audioDurSec float64) ([]diarizer.Segment, string, bool) {
-	dia, diarErr := diarizer.New()
+	dia, diarErr := diarizer.New(speakers)
 	if diarErr != nil {
 		ui.Crossf("Diarization unavailable: %v", diarErr)
 		ui.Debug("Diarization", "TDRZ fallback")
@@ -145,7 +145,7 @@ func runDiarization(wavPath string, speakers int, audioDurSec float64) ([]diariz
 	return diarSegs, dia.Name(), true
 }
 
-func configureContext(model *Model, threads int, language string, tdrz, diarOK, noDiarize bool) (whisper.Context, error) {
+func configureContext(model *Model, threads int, language string, tdrz, diarOK, noDiarize bool, diarName string) (whisper.Context, error) {
 	ctx, err := model.NewContext()
 	if err != nil {
 		return nil, fmt.Errorf("creating context: %w", err)
@@ -171,7 +171,7 @@ func configureContext(model *Model, threads int, language string, tdrz, diarOK, 
 	} else if UseTDRZ(tdrz, diarOK, noDiarize) {
 		ui.Debug("Diarization", "TDRZ fallback")
 	} else {
-		ui.Debug("Diarization", "NeMo Sortformer")
+		ui.Debug("Diarization", diarName)
 	}
 
 	return ctx, nil
