@@ -51,34 +51,6 @@ func (s *pointerSelect) Cursor() desktop.Cursor {
 	return desktop.PointerCursor
 }
 
-type tappableArea struct {
-	widget.BaseWidget
-	onTap func()
-}
-
-func newTappableArea(onTap func()) *tappableArea {
-	t := &tappableArea{onTap: onTap}
-	t.ExtendBaseWidget(t)
-	return t
-}
-
-func (t *tappableArea) Tapped(_ *fyne.PointEvent) {
-	if t.onTap != nil {
-		t.onTap()
-	}
-}
-
-func (t *tappableArea) TappedSecondary(_ *fyne.PointEvent) {}
-
-func (t *tappableArea) Cursor() desktop.Cursor {
-	return desktop.PointerCursor
-}
-
-func (t *tappableArea) CreateRenderer() fyne.WidgetRenderer {
-	bg := canvas.NewRectangle(transparent)
-	return widget.NewSimpleRenderer(bg)
-}
-
 func dialogBordered(content fyne.CanvasObject) fyne.CanvasObject {
 	frame := canvas.NewRectangle(transparent)
 	frame.StrokeColor = colDialogBorder

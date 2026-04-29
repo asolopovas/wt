@@ -21,6 +21,7 @@ type transcribePanel struct {
 	dropArea      *fyne.Container
 	dropText      *canvas.Text
 	fileChips     *fyne.Container
+	libraryHost   *fyne.Container
 	files         []string
 	clearBtn      *pointerButton
 	clearCacheBtn *pointerButton

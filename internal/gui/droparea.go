@@ -30,6 +30,9 @@ func (p *transcribePanel) onBrowse() {
 }
 
 func (p *transcribePanel) updateDropLabel() {
+	if p.dropText == nil {
+		return
+	}
 	if len(p.files) > 0 {
 		p.dropText.Text = fmt.Sprintf("%d file(s) added — drop more or click to browse", len(p.files))
 	} else {

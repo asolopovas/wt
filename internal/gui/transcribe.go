@@ -16,25 +16,6 @@ var (
 )
 
 func (p *transcribePanel) build() {
-	uploadIcon := canvas.NewText("⬆", colPrimary)
-	uploadIcon.TextSize = 24
-	uploadIcon.Alignment = fyne.TextAlignCenter
-
-	p.dropText = canvas.NewText("DROP AUDIO FILES HERE OR CLICK TO BROWSE", colMuted)
-	p.dropText.Alignment = fyne.TextAlignCenter
-	p.dropText.TextSize = 11
-
-	innerDash := canvas.NewRectangle(colSurfMid)
-	innerDash.StrokeColor = colPrimaryGhost
-	innerDash.StrokeWidth = 1
-
-	dropTap := newTappableArea(p.onBrowse)
-	innerContent := container.NewVBox(
-		container.NewCenter(uploadIcon),
-		container.NewCenter(p.dropText),
-	)
-	innerZone := container.NewStack(innerDash, container.NewPadded(innerContent), dropTap)
-
 	chipsFlow := newFlowLayout(8)
 	p.fileChips = container.New(chipsFlow)
 	chipsFlow.setParent(p.fileChips)
@@ -43,7 +24,9 @@ func (p *transcribePanel) build() {
 	outerBg.StrokeColor = colGhostBorder
 	outerBg.StrokeWidth = 1
 
-	dropContent := container.NewVBox(innerZone, p.fileChips)
+	p.libraryHost = container.NewStack()
+
+	dropContent := container.NewBorder(p.fileChips, nil, nil, nil, p.libraryHost)
 	p.dropArea = container.NewStack(outerBg, container.NewPadded(dropContent))
 
 	p.clearBtn = newPointerButton("CLEAR ALL", p.onClear)

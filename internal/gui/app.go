@@ -28,6 +28,7 @@ func Run(version string) error {
 	transcribe := newTranscribePanel(w, settings)
 	history := newHistoryPanel(w, transcribe)
 	transcribe.history = history
+	transcribe.attachLibrary(history)
 	settings.onCacheCleared = history.refresh
 
 	if cacheGC(cfg.CacheExpiryDays) > 0 {
@@ -53,15 +54,15 @@ func Run(version string) error {
 func buildTranscodeTab(tp *transcribePanel) fyne.CanvasObject {
 	tp.transcribeBtn.Importance = widget.HighImportance
 
-	libraryBtn := newPointerButton("LIBRARY", tp.openLibrary)
-	libraryBtn.Importance = widget.LowImportance
+	addBtn := newPointerButton("ADD FILES", tp.onBrowse)
+	addBtn.Importance = widget.LowImportance
 
-	sidebar := buildSidebar(tp, libraryBtn)
+	sidebar := buildSidebar(tp, addBtn)
 
 	return container.New(newSidebarLayout(8), tp.container, sidebar)
 }
 
-func buildSidebar(tp *transcribePanel, libraryBtn *pointerButton) fyne.CanvasObject {
+func buildSidebar(tp *transcribePanel, addBtn *pointerButton) fyne.CanvasObject {
 	bg := canvas.NewRectangle(colSurfLowest)
 	bg.StrokeColor = colGhostBorder
 	bg.StrokeWidth = 1
@@ -78,7 +79,7 @@ func buildSidebar(tp *transcribePanel, libraryBtn *pointerButton) fyne.CanvasObj
 	actionsBlock := container.NewVBox(
 		sidebarHeader("ACTIONS"),
 		container.New(newCappedGrid(2, 8, 36),
-			borderedBtn(libraryBtn, colDialogBorder),
+			borderedBtn(addBtn, colDialogBorder),
 			borderedBtn(tp.transcribeBtn, colDialogBorder),
 		),
 	)
