@@ -205,7 +205,11 @@ func (p *transcribePanel) openPreview(item exportItem, onClose func()) {
 		}
 	}
 
+	var hidePreview func()
 	exportBtn := newPointerButton("EXPORT", func() {
+		if hidePreview != nil {
+			hidePreview()
+		}
 		p.exportSinglePrompt(item, start)
 	})
 	exportBtn.Importance = widget.LowImportance
@@ -223,7 +227,7 @@ func (p *transcribePanel) openPreview(item exportItem, onClose func()) {
 	render()
 
 	body := container.NewBorder(top, actionRow, nil, nil, scroll)
-	showTranscriptPreview(item.sourceName, body, p.window, onClose)
+	hidePreview = showTranscriptPreview(item.sourceName, body, p.window, onClose)
 }
 
 func (p *transcribePanel) exportSinglePrompt(item exportItem, start time.Time) {
