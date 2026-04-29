@@ -96,7 +96,7 @@ func (p *transcribePanel) build() {
 	p.autoBtn.Importance = widget.HighImportance
 	p.autoBtn.OnTapped = p.toggleAutoScroll
 
-	logPanel := buildLogPanel(p.logScroll, copyBtn, clearLogBtn, p.autoBtn)
+	logPanel := buildLogPanel(p.logScroll, p.statsLine, copyBtn, clearLogBtn, p.autoBtn)
 
 	p.container = container.New(newResponsiveColumns(8), p.dropArea, logPanel)
 }

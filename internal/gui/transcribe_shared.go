@@ -137,17 +137,20 @@ func extensionSet(extensions []string) map[string]bool {
 	return set
 }
 
-func buildLogPanel(scroll *container.Scroll, copyBtn, clearLogBtn *pointerButton, extraBtns ...*pointerButton) fyne.CanvasObject {
+func buildLogPanel(scroll *container.Scroll, leftHeader fyne.CanvasObject, copyBtn, clearLogBtn *pointerButton, extraBtns ...*pointerButton) fyne.CanvasObject {
 	bg := canvas.NewRectangle(colSurfLowest)
 	bg.StrokeColor = colGhostBorder
 	bg.StrokeWidth = 1
 
-	logLabel := canvas.NewText("SYSTEM LOG", colMuted)
-	logLabel.TextSize = 10
-	logLabel.TextStyle = fyne.TextStyle{Bold: true}
+	if leftHeader == nil {
+		logLabel := canvas.NewText("SYSTEM LOG", colMuted)
+		logLabel.TextSize = 10
+		logLabel.TextStyle = fyne.TextStyle{Bold: true}
+		leftHeader = logLabel
+	}
 
 	headerBg := canvas.NewRectangle(colSurfLow)
-	headerObjs := []fyne.CanvasObject{logLabel, layout.NewSpacer()}
+	headerObjs := []fyne.CanvasObject{leftHeader, layout.NewSpacer()}
 	for _, b := range extraBtns {
 		headerObjs = append(headerObjs, b)
 	}

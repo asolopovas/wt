@@ -7,7 +7,6 @@ import (
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
@@ -85,11 +84,9 @@ func buildTranscodeTab(tp *transcribePanel) fyne.CanvasObject {
 	btnSpacer := canvas.NewRectangle(transparent)
 	btnSpacer.SetMinSize(fyne.NewSize(0, 4))
 
-	statusRow := container.NewHBox(tp.statusText, layout.NewSpacer(), tp.statsLine)
-
 	bottomBar := container.NewVBox(
 		tp.progress,
-		statusRow,
+		tp.statusText,
 		optionsRow,
 		startTimeRow,
 		actionRow,
