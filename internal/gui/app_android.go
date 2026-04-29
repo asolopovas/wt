@@ -65,11 +65,9 @@ func buildTranscodeTabAndroid(tp *transcribePanel) fyne.CanvasObject {
 		settingsField("SPEAKERS", tp.settings.speakersSelect),
 	)
 
-	exportRow := container.NewGridWithColumns(1,
-		borderedBtn(tp.exportBtn, colOutline),
-	)
-	previewTranscribeRow := container.NewGridWithColumns(2,
+	actionRow := container.NewGridWithColumns(3,
 		borderedBtn(tp.previewBtn, colOutline),
+		borderedBtn(tp.exportBtn, colOutline),
 		borderedBtn(tp.transcribeBtn, colPrimary),
 	)
 
@@ -91,8 +89,7 @@ func buildTranscodeTabAndroid(tp *transcribePanel) fyne.CanvasObject {
 		tp.statsLine,
 		startTimeRow,
 		settingsRow,
-		exportRow,
-		previewTranscribeRow,
+		actionRow,
 		bottomGap,
 	)
 

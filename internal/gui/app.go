@@ -61,8 +61,8 @@ func buildTranscodeTab(tp *transcribePanel) fyne.CanvasObject {
 	tp.previewBtn.Disable()
 
 	actionRow := container.NewGridWithColumns(3,
-		borderedBtn(tp.exportBtn, colOutline),
 		borderedBtn(tp.previewBtn, colOutline),
+		borderedBtn(tp.exportBtn, colOutline),
 		borderedBtn(tp.transcribeBtn, colPrimary),
 	)
 
