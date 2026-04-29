@@ -71,6 +71,9 @@ func (p *transcribePanel) openPreview(item exportItem, onClose func()) {
 	if p.speakerRenames == nil {
 		p.speakerRenames = map[string]string{}
 	}
+	for k, v := range loadSpeakerRenames(item.cacheKey) {
+		p.speakerRenames[k] = v
+	}
 
 	content := widget.NewRichText()
 	content.Wrapping = fyne.TextWrapWord
@@ -160,6 +163,7 @@ func (p *transcribePanel) openPreview(item exportItem, onClose func()) {
 			} else {
 				p.speakerRenames[speaker] = s
 			}
+			_ = saveSpeakerRenames(item.cacheKey, p.speakerRenames)
 			render()
 		}
 		label := canvas.NewText(speaker, colMuted)

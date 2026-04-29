@@ -292,6 +292,7 @@ func cacheGC(expiryDays int) int {
 	for _, e := range entries {
 		if e.CreatedAt.Before(cutoff) {
 			_ = os.Remove(transcriptPathForKey(e.Key))
+			_ = os.Remove(speakerRenamesPath(e.Key))
 			removed++
 			continue
 		}
@@ -309,6 +310,7 @@ func cacheDelete(key string) error {
 	for _, e := range entries {
 		if e.Key == key {
 			_ = os.Remove(transcriptPathForKey(e.Key))
+			_ = os.Remove(speakerRenamesPath(e.Key))
 			continue
 		}
 		kept = append(kept, e)
@@ -329,6 +331,44 @@ func cacheClear() error {
 		_ = os.Remove(filepath.Join(dir, e.Name()))
 	}
 	return nil
+}
+
+func speakerRenamesPath(key string) string {
+	return filepath.Join(transcriptCacheDir(), key+"_speakers.json")
+}
+
+func loadSpeakerRenames(key string) map[string]string {
+	if key == "" {
+		return nil
+	}
+	data, err := os.ReadFile(speakerRenamesPath(key))
+	if err != nil {
+		return nil
+	}
+	var m map[string]string
+	if err := json.Unmarshal(data, &m); err != nil {
+		return nil
+	}
+	return m
+}
+
+func saveSpeakerRenames(key string, m map[string]string) error {
+	if key == "" {
+		return nil
+	}
+	path := speakerRenamesPath(key)
+	if len(m) == 0 {
+		_ = os.Remove(path)
+		return nil
+	}
+	if err := os.MkdirAll(transcriptCacheDir(), 0o755); err != nil {
+		return err
+	}
+	data, err := json.MarshalIndent(m, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, data, 0o644)
 }
 
 func cacheEntriesByRecent() []cacheEntry {
