@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/widget"
@@ -72,31 +73,63 @@ func (p *transcribePanel) chooseFilesAndTranscribe() {
 	group := widget.NewCheckGroup(options, nil)
 	group.Selected = append([]string(nil), options...)
 
-	body := container.NewVScroll(group)
-	body.SetMinSize(fyne.NewSize(280, 320))
+	scroll := container.NewVScroll(group)
+	scroll.SetMinSize(fyne.NewSize(280, 320))
 
-	dlg := dialog.NewCustomConfirm("Choose files to transcribe", "TRANSCRIBE", "CANCEL",
-		dialogBordered(body), func(ok bool) {
-			if !ok {
-				return
+	var hidePopup func()
+
+	confirm := func() {
+		if hidePopup != nil {
+			hidePopup()
+		}
+		selectedSet := make(map[string]bool, len(group.Selected))
+		for _, s := range group.Selected {
+			selectedSet[s] = true
+		}
+		files := make([]string, 0, len(p.files))
+		for i, f := range p.files {
+			if selectedSet[options[i]] {
+				files = append(files, f)
 			}
-			selectedSet := make(map[string]bool, len(group.Selected))
-			for _, s := range group.Selected {
-				selectedSet[s] = true
-			}
-			files := make([]string, 0, len(p.files))
-			for i, f := range p.files {
-				if selectedSet[options[i]] {
-					files = append(files, f)
-				}
-			}
-			if len(files) == 0 {
-				return
-			}
-			p.startTranscription(files)
-		}, p.window)
-	dlg.Resize(libraryDialogSize(p.window))
-	dlg.Show()
+		}
+		if len(files) == 0 {
+			return
+		}
+		p.startTranscription(files)
+	}
+
+	cancelBtn := newPointerButton("CANCEL", func() {
+		if hidePopup != nil {
+			hidePopup()
+		}
+	})
+	cancelBtn.Importance = widget.LowImportance
+
+	transcribeBtn := newPointerButton("TRANSCRIBE", confirm)
+	transcribeBtn.Importance = widget.LowImportance
+
+	buttons := container.NewGridWithColumns(2,
+		borderedBtn(cancelBtn, colOutline),
+		borderedBtn(transcribeBtn, colOutline),
+	)
+	bottomGap := canvas.NewRectangle(transparent)
+	bottomGap.SetMinSize(fyne.NewSize(0, previewBottomInset()))
+	actionRow := container.NewVBox(buttons, bottomGap)
+
+	titleLabel := canvas.NewText("CHOOSE FILES TO TRANSCRIBE", colMuted)
+	titleLabel.TextSize = 10
+	titleLabel.TextStyle = fyne.TextStyle{Bold: true}
+
+	topGap := canvas.NewRectangle(transparent)
+	topGap.SetMinSize(fyne.NewSize(0, previewTopInset()))
+	top := container.NewVBox(topGap, container.NewHBox(titleLabel))
+
+	body := container.NewBorder(top, actionRow, nil, nil, scroll)
+
+	pop := widget.NewModalPopUp(dialogBordered(body), p.window.Canvas())
+	pop.Resize(libraryDialogSize(p.window))
+	hidePopup = pop.Hide
+	pop.Show()
 }
 
 func (p *transcribePanel) runTranscription(files []string) {
