@@ -14,24 +14,40 @@ import (
 )
 
 func (p *transcribePanel) openLibrary() {
-	var dlg *dialog.CustomDialog
+	var hidePopup func()
 
-	addBtn := widget.NewButton("ADD FILES", p.onBrowse)
-	clearBtn := widget.NewButton("CLEAR ALL", func() {
-		p.files = nil
-		p.rebuildChips()
-		p.updateDropLabel()
+	addBtn := newPointerButton("ADD FILES", func() {
+		if hidePopup != nil {
+			hidePopup()
+		}
+		p.onBrowse()
 	})
-	closeBtn := widget.NewButton("Close", func() {
-		if dlg != nil {
-			dlg.Hide()
+	addBtn.Importance = widget.LowImportance
+
+	closeBtn := newPointerButton("CLOSE", func() {
+		if hidePopup != nil {
+			hidePopup()
 		}
 	})
+	closeBtn.Importance = widget.LowImportance
 
-	dlg = dialog.NewCustomWithoutButtons("Library", dialogBordered(p.history.container), p.window)
-	dlg.SetButtons([]fyne.CanvasObject{addBtn, clearBtn, closeBtn})
-	dlg.Resize(libraryDialogSize(p.window))
-	dlg.Show()
+	buttons := container.NewGridWithColumns(2,
+		borderedBtn(closeBtn, colOutline),
+		borderedBtn(addBtn, colOutline),
+	)
+	bottomGap := canvas.NewRectangle(transparent)
+	bottomGap.SetMinSize(fyne.NewSize(0, previewBottomInset()))
+	actionRow := container.NewVBox(buttons, bottomGap)
+
+	topGap := canvas.NewRectangle(transparent)
+	topGap.SetMinSize(fyne.NewSize(0, previewTopInset()))
+
+	body := container.NewBorder(topGap, actionRow, nil, nil, p.history.container)
+
+	pop := widget.NewModalPopUp(dialogBordered(body), p.window.Canvas())
+	pop.Resize(libraryDialogSize(p.window))
+	hidePopup = pop.Hide
+	pop.Show()
 }
 
 func libraryDialogSize(w fyne.Window) fyne.Size {

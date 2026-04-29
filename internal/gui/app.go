@@ -77,12 +77,19 @@ func buildSidebar(tp *transcribePanel, libraryBtn *pointerButton) fyne.CanvasObj
 
 	actionsBlock := container.NewVBox(
 		sidebarHeader("ACTIONS"),
-		container.New(newCappedGrid(2, 8, 36), libraryBtn, tp.transcribeBtn),
+		container.New(newCappedGrid(2, 8, 36),
+			borderedBtn(libraryBtn, colDialogBorder),
+			borderedBtn(tp.transcribeBtn, colDialogBorder),
+		),
 	)
 
 	logBlock := container.NewVBox(
 		sidebarHeader("LOG"),
-		container.New(newCappedGrid(3, 6, 36), tp.autoBtn, tp.copyLogBtn, tp.clearLogBtn),
+		container.New(newCappedGrid(3, 6, 36),
+			borderedBtn(tp.autoBtn, colDialogBorder),
+			borderedBtn(tp.copyLogBtn, colDialogBorder),
+			borderedBtn(tp.clearLogBtn, colDialogBorder),
+		),
 	)
 
 	statusRow := container.NewBorder(nil, nil, tp.statusText, tp.timerText)
