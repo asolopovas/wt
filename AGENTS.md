@@ -22,12 +22,9 @@ task clean-comments      # Strip non-directive comments
 task bump                # Auto-increment version, build, install, verify, commit
 ```
 
-Compile-check GUI without `task`:
-
-```bash
-PATH="C:/Users/asolo/src/wt/third_party/whisper.cpp/build/bin:/c/msys64/mingw64/bin:$PATH" \
-  go build -o /dev/null ./cmd/wt-gui
-```
+Always compile-check GUI via `task build ONLY=gui`. A bare `go build ./cmd/wt-gui` will
+fail to link: `CGO_LDFLAGS` differs between MinGW (`-lwhisper`) and CUDA/MSVC
+(`whisper.lib`) whisper.cpp builds, and Taskfile picks the right flags.
 
 Requires Go 1.26+, GCC/MinGW, CMake, ffmpeg, [Task](https://taskfile.dev/). CGo env is set by Taskfile.
 

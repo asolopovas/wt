@@ -406,8 +406,6 @@ func (p *transcribePanel) setProgress(val float64) {
 	})
 }
 
-var spinnerFrames = []rune{'⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'}
-
 func (p *transcribePanel) makeDownloadProgress(label string) func(downloaded, total int64) {
 	var (
 		startTime    time.Time
@@ -416,7 +414,6 @@ func (p *transcribePanel) makeDownloadProgress(label string) func(downloaded, to
 		lastTime     time.Time
 		instRate     float64
 		headerLogged bool
-		ticks        int
 	)
 	return func(downloaded, total int64) {
 		if downloaded < 0 {
@@ -468,10 +465,8 @@ func (p *transcribePanel) makeDownloadProgress(label string) func(downloaded, to
 		if instRate > 0 && downloaded < total {
 			eta = formatETA((totalMB - dlMB) / instRate)
 		}
-		ticks++
-		spinner := string(spinnerFrames[ticks%len(spinnerFrames)])
-		status := fmt.Sprintf("%s %s %.0f%% • %.0f/%.0fMB • %.1fMB/s • ETA %s",
-			spinner, label, pct*100, dlMB, totalMB, instRate, eta)
+		status := fmt.Sprintf("%s %.0f%% • %.0f/%.0fMB • %.1fMB/s • ETA %s",
+			label, pct*100, dlMB, totalMB, instRate, eta)
 		p.setStatus(status)
 		p.setProgress(pct)
 
