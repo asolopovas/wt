@@ -164,7 +164,15 @@ func (p *transcribePanel) openPreview(item exportItem, onClose func()) {
 	})
 	exportBtn.Importance = widget.LowImportance
 
-	actionRow := container.NewGridWithColumns(2,
+	closeBtn := newPointerButton("CLOSE", func() {
+		if hidePreview != nil {
+			hidePreview()
+		}
+	})
+	closeBtn.Importance = widget.LowImportance
+
+	actionRow := container.NewGridWithColumns(3,
+		borderedBtn(closeBtn, colOutline),
 		borderedBtn(exportBtn, colOutline),
 		borderedBtn(editBtn, colOutline),
 	)
