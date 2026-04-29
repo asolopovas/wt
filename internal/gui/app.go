@@ -22,7 +22,7 @@ func Run(version string) error {
 
 	w := a.NewWindow("wt " + version)
 	w.SetIcon(appIcon)
-	w.Resize(fyne.NewSize(1180, 720))
+	w.Resize(fyne.NewSize(1040, 720))
 
 	settings := newSettingsPanel(cfg, w)
 	transcribe := newTranscribePanel(w, settings)
@@ -68,7 +68,7 @@ func buildSidebar(tp *transcribePanel, libraryBtn *pointerButton) fyne.CanvasObj
 
 	optionsBlock := container.NewVBox(
 		sidebarHeader("OPTIONS"),
-		container.NewGridWithColumns(3,
+		container.New(newCappedGrid(3, 6, 0),
 			settingsField("MODEL", tp.settings.modelSelect),
 			settingsField("LANGUAGE", tp.settings.langSelect),
 			settingsField("SPEAKERS", tp.settings.speakersSelect),
@@ -77,12 +77,12 @@ func buildSidebar(tp *transcribePanel, libraryBtn *pointerButton) fyne.CanvasObj
 
 	actionsBlock := container.NewVBox(
 		sidebarHeader("ACTIONS"),
-		container.NewGridWithColumns(2, libraryBtn, tp.transcribeBtn),
+		container.New(newCappedGrid(2, 8, 36), libraryBtn, tp.transcribeBtn),
 	)
 
 	logBlock := container.NewVBox(
 		sidebarHeader("LOG"),
-		container.NewGridWithColumns(3, tp.autoBtn, tp.copyLogBtn, tp.clearLogBtn),
+		container.New(newCappedGrid(3, 6, 36), tp.autoBtn, tp.copyLogBtn, tp.clearLogBtn),
 	)
 
 	statusRow := container.NewBorder(nil, nil, tp.statusText, tp.timerText)
