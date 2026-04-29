@@ -32,6 +32,8 @@ Requires Go 1.26+, GCC/MinGW, CMake, ffmpeg, [Task](https://taskfile.dev/). CGo 
 
 **Always:** run `task build ONLY=gui` for GUI compile checks; keep `Taskfile.yml VERSION` and `scripts/installer.iss MyAppVersion` in sync.
 
+**Before every commit:** run `task lint`, `task test`, and `go vet ./cmd/... ./internal/...`. If any fail, fix the failures first — never commit or push with red checks. No `--no-verify`, no skipping. This applies to every commit, not just user-facing changes.
+
 **Ask first:** anything that mutates user state outside the repo (installs, registry, version bumps).
 
 **Never:**
@@ -69,7 +71,7 @@ Module: `github.com/asolopovas/wt` (Go 1.26). Key deps: `fyne.io/fyne/v2`, `pter
 ## Testing
 
 stdlib `testing` only. Names: `Test<Function>_<Scenario>`, prefer table-driven.
-Config tests: `t.TempDir()` + `t.Setenv("HOME", ...)`. CI runs `go vet` only.
+Config tests: `t.TempDir()` + `t.Setenv("HOME", ...)`. CI runs `go vet`, `golangci-lint`, and full `go test` on Linux.
 
 ## Diarization
 

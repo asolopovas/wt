@@ -25,22 +25,7 @@ var baseAudioExtensions = []string{
 	".webm", ".mp4", ".mka", ".3gp", ".amr",
 }
 
-const (
-	startTimeLayout = "2006-01-02 15:04:05"
-	timeOnlyLayout  = "15:04:05"
-)
-
-func formatTimeOnly(t time.Time) string {
-	return t.Format(timeOnlyLayout)
-}
-
-func parseTimeOfDay(s string) (hour, min, sec int, err error) {
-	t, err := time.Parse(timeOnlyLayout, strings.TrimSpace(s))
-	if err != nil {
-		return 0, 0, 0, err
-	}
-	return t.Hour(), t.Minute(), t.Second(), nil
-}
+const startTimeLayout = "2006-01-02 15:04:05"
 
 func (p *transcribePanel) displayName(speaker string) string {
 	if alias, ok := p.speakerRenames[speaker]; ok {

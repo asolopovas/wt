@@ -46,9 +46,9 @@ func (s *Smoother) Report(pct int) {
 		audioProcessed := float64(pctDelta) / 100.0 * s.audioDurSec
 		observedRTF := audioProcessed / elapsed
 		s.samples++
-		switch {
-		case s.samples == 1:
-		case s.samples == 2:
+		switch s.samples {
+		case 1:
+		case 2:
 			s.rtf = observedRTF
 		default:
 			s.rtf = 0.6*s.rtf + 0.4*observedRTF
