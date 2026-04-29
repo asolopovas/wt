@@ -5,8 +5,8 @@ import (
 	"time"
 
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/widget"
 )
 
@@ -20,30 +20,62 @@ func showTimePicker(parent fyne.Window, current time.Time, onSelect func(h, m, s
 	hourSel.SetSelected(fmt.Sprintf("%02d", current.Hour()))
 	minSel.SetSelected(fmt.Sprintf("%02d", current.Minute()))
 
-	colon1 := widget.NewLabel(":")
-	row := container.NewHBox(hourSel, colon1, minSel)
+	colon := widget.NewLabel(":")
+	row := container.NewCenter(container.NewHBox(hourSel, colon, minSel))
 
-	d := dialog.NewCustomWithoutButtons("Pick time", dialogBordered(row), parent)
+	var hidePopup func()
 
-	nowBtn := widget.NewButton("NOW", func() {
-		d.Hide()
+	nowBtn := newPointerButton("NOW", func() {
+		if hidePopup != nil {
+			hidePopup()
+		}
 		now := time.Now()
 		onSelect(now.Hour(), now.Minute(), now.Second())
 	})
-	cancelBtn := widget.NewButton("CANCEL", func() { d.Hide() })
-	okBtn := widget.NewButton("OK", func() {
-		d.Hide()
+	nowBtn.Importance = widget.LowImportance
+
+	cancelBtn := newPointerButton("CANCEL", func() {
+		if hidePopup != nil {
+			hidePopup()
+		}
+	})
+	cancelBtn.Importance = widget.LowImportance
+
+	okBtn := newPointerButton("OK", func() {
+		if hidePopup != nil {
+			hidePopup()
+		}
 		var h, m int
 		_, _ = fmt.Sscanf(hourSel.Selected, "%d", &h)
 		_, _ = fmt.Sscanf(minSel.Selected, "%d", &m)
 		onSelect(h, m, 0)
 	})
-	okBtn.Importance = widget.HighImportance
+	okBtn.Importance = widget.LowImportance
 
-	d.SetButtons([]fyne.CanvasObject{nowBtn, cancelBtn, okBtn})
-	d.Show()
+	buttons := container.NewGridWithColumns(3,
+		borderedBtn(cancelBtn, colOutline),
+		borderedBtn(nowBtn, colOutline),
+		borderedBtn(okBtn, colOutline),
+	)
+	bottomGap := canvas.NewRectangle(transparent)
+	bottomGap.SetMinSize(fyne.NewSize(0, previewBottomInset()))
+	actionRow := container.NewVBox(buttons, bottomGap)
+
+	titleLabel := canvas.NewText("PICK TIME", colMuted)
+	titleLabel.TextSize = 10
+	titleLabel.TextStyle = fyne.TextStyle{Bold: true}
+
+	topGap := canvas.NewRectangle(transparent)
+	topGap.SetMinSize(fyne.NewSize(0, previewTopInset()))
+	top := container.NewVBox(topGap, container.NewHBox(titleLabel))
+
+	body := container.NewBorder(top, actionRow, nil, nil, row)
+	pop := widget.NewModalPopUp(dialogBordered(body), parent.Canvas())
+
 	winSize := parent.Canvas().Size()
-	d.Resize(fyne.NewSize(winSize.Width*0.8, d.MinSize().Height))
+	pop.Resize(fyne.NewSize(winSize.Width*0.6, pop.MinSize().Height))
+	hidePopup = pop.Hide
+	pop.Show()
 }
 
 func makeRange(lo, hi int, format string) []string {
