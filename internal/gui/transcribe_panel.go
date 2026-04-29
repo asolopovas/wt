@@ -146,6 +146,7 @@ func newTranscribePanel(window fyne.Window, settings *settingsPanel) *transcribe
 	}
 	p.build()
 	p.setupDragDrop()
+	p.restorePendingFiles()
 	p.startStats()
 	return p
 }

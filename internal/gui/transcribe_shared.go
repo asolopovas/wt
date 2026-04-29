@@ -268,6 +268,24 @@ func (p *transcribePanel) addLocalFile(path string) bool {
 	return true
 }
 
+func (p *transcribePanel) restorePendingFiles() {
+	for _, e := range cacheEntriesByRecent() {
+		if !e.Pending {
+			continue
+		}
+		if _, err := os.Stat(e.SourcePath); err != nil {
+			_ = cacheDelete(e.Key)
+			continue
+		}
+		if p.hasFile(e.SourcePath) {
+			continue
+		}
+		p.files = append(p.files, e.SourcePath)
+	}
+	p.rebuildChips()
+	p.updateDropLabel()
+}
+
 func (p *transcribePanel) hasFile(path string) bool {
 	for _, f := range p.files {
 		if f == path {
