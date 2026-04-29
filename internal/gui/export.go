@@ -47,7 +47,7 @@ func (p *transcribePanel) onPreview() {
 	}
 	if len(entries) == 1 {
 		e := entries[0]
-		p.openPreview(exportItem{cachePath: transcriptPathForKey(e.Key), sourceName: e.SourceName})
+		p.openPreview(exportItem{cachePath: transcriptPathForKey(e.Key), sourceName: e.SourceName}, nil)
 		return
 	}
 	p.showPreviewSelector(entries)
@@ -83,7 +83,7 @@ func (p *transcribePanel) showPreviewSelector(entries []cacheEntry) {
 			if dlg != nil {
 				dlg.Hide()
 			}
-			p.openPreview(item)
+			p.openPreview(item, func() { p.showPreviewSelector(entries) })
 		})
 		rows = append(rows, container.NewStack(rowBg, container.NewPadded(info), tap))
 	}
@@ -95,7 +95,7 @@ func (p *transcribePanel) showPreviewSelector(entries []cacheEntry) {
 	dlg.Show()
 }
 
-func (p *transcribePanel) openPreview(item exportItem) {
+func (p *transcribePanel) openPreview(item exportItem, onClose func()) {
 	tr, err := loadTranscript(item.cachePath)
 	if err != nil {
 		dialog.ShowError(fmt.Errorf("loading %s: %w", item.sourceName, err), p.window)
@@ -223,7 +223,7 @@ func (p *transcribePanel) openPreview(item exportItem) {
 	render()
 
 	body := container.NewBorder(top, actionRow, nil, nil, scroll)
-	showTranscriptPreview(item.sourceName, body, p.window)
+	showTranscriptPreview(item.sourceName, body, p.window, onClose)
 }
 
 func (p *transcribePanel) exportSinglePrompt(item exportItem, start time.Time) {

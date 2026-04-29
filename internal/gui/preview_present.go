@@ -5,12 +5,19 @@ package gui
 import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 )
 
-func showTranscriptPreview(title string, body fyne.CanvasObject, parent fyne.Window) func() {
+func showTranscriptPreview(title string, body fyne.CanvasObject, parent fyne.Window, onClose func()) func() {
 	var pop *widget.PopUp
-	closeBtn := widget.NewButton("Close", func() { pop.Hide() })
+	closeBtn := widget.NewButtonWithIcon("", theme.CancelIcon(), func() {
+		pop.Hide()
+		if onClose != nil {
+			onClose()
+		}
+	})
+	closeBtn.Importance = widget.LowImportance
 	header := container.NewBorder(nil, nil, nil, closeBtn, widget.NewLabel(title))
 	content := container.NewBorder(header, nil, nil, nil, body)
 	pop = widget.NewModalPopUp(content, parent.Canvas())
