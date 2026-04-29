@@ -36,6 +36,8 @@ func (t *whisperTheme) Color(name fyne.ThemeColorName, variant fyne.ThemeVariant
 	switch name {
 	case theme.ColorNameBackground:
 		return colBackground
+	case theme.ColorNameOverlayBackground, theme.ColorNameMenuBackground:
+		return colSurfMid
 	case theme.ColorNameButton:
 		return colSurfHigh
 	case theme.ColorNamePrimary:
@@ -71,7 +73,7 @@ func (t *whisperTheme) Color(name fyne.ThemeColorName, variant fyne.ThemeVariant
 	case theme.ColorNameShadow:
 		return transparent
 	}
-	return theme.DefaultTheme().Color(name, variant)
+	return theme.DefaultTheme().Color(name, theme.VariantDark)
 }
 
 func (t *whisperTheme) Icon(name fyne.ThemeIconName) fyne.Resource {

@@ -6,6 +6,19 @@ vars:
   WHISPER_ROOT: '{{.ROOT_DIR | toSlash}}/third_party/whisper.cpp'
   WHISPER_BUILD: '{{.WHISPER_ROOT}}/build'
 
+  HOST_OS:
+    sh: uname -s 2>/dev/null | tr '[:upper:]' '[:lower:]' | sed 's/.*mingw.*/windows/;s/.*msys.*/windows/;s/.*cygwin.*/windows/'
+  IS_LINUX:
+    sh: |
+      case "$(uname -s 2>/dev/null)" in Linux) echo 1;; *) echo "";; esac
+  IS_WINDOWS:
+    sh: |
+      case "$(uname -s 2>/dev/null)" in MINGW*|MSYS*|CYGWIN*|Windows*) echo 1;; *) echo "";; esac
+
+  LINUX_CUDA:
+    sh: |
+      if [ "$(uname -s 2>/dev/null)" = "Linux" ] && command -v nvcc >/dev/null 2>&1; then echo 1; fi
+
   MINGW_BIN:
     sh: |
       if gcc --version >/dev/null 2>&1; then echo ""; exit 0; fi
@@ -45,10 +58,10 @@ vars:
 
 env:
   CGO_ENABLED: '1'
-  CC: '{{.GCC_PATH}}'
+  CC: '{{if .IS_LINUX}}gcc{{else}}{{.GCC_PATH}}{{end}}'
   CGO_CFLAGS: '-I{{.WHISPER_ROOT}}/include -I{{.WHISPER_ROOT}}/ggml/include'
-  CGO_LDFLAGS: '{{if .CUDA_DIR}}-L{{.WHISPER_BUILD}}/src -L{{.WHISPER_BUILD}}/ggml/src {{.WHISPER_BUILD}}/src/whisper.lib {{.WHISPER_BUILD}}/ggml/src/ggml.lib {{.WHISPER_BUILD}}/ggml/src/ggml-base.lib -lm -lstdc++ -fopenmp{{else}}-L{{.WHISPER_ROOT}}/build/src -L{{.WHISPER_ROOT}}/build/ggml/src -lwhisper -lggml -lggml-base -lggml-cpu -lm -lstdc++ -fopenmp -static{{end}}'
-  CGO_LDFLAGS_ALLOW: '.*\.lib'
+  CGO_LDFLAGS: '{{if .IS_LINUX}}-L{{.WHISPER_BUILD}}/src -L{{.WHISPER_BUILD}}/ggml/src -lwhisper -lggml -lggml-base -lggml-cpu -lm -lstdc++ -ldl -lpthread -Wl,-rpath,$ORIGIN{{else if .CUDA_DIR}}-L{{.WHISPER_BUILD}}/src -L{{.WHISPER_BUILD}}/ggml/src {{.WHISPER_BUILD}}/src/whisper.lib {{.WHISPER_BUILD}}/ggml/src/ggml.lib {{.WHISPER_BUILD}}/ggml/src/ggml-base.lib -lm -lstdc++ -fopenmp{{else}}-L{{.WHISPER_ROOT}}/build/src -L{{.WHISPER_ROOT}}/build/ggml/src -lwhisper -lggml -lggml-base -lggml-cpu -lm -lstdc++ -fopenmp -static{{end}}'
+  CGO_LDFLAGS_ALLOW: '.*\.(lib|so|so\..*)'
 
 tasks:
   default:
@@ -81,7 +94,23 @@ tasks:
           for f in ggml.a ggml-base.a ggml-cpu.a; do
             [ -f "$f" ] && cp "$f" "lib$f" 2>/dev/null
           done
-        if: '[ -z "{{.CUDA_DIR}}" ] && [ ! -f "{{.WHISPER_ROOT}}/build/src/libwhisper.a" ]'
+        if: '[ -z "{{.IS_LINUX}}" ] && [ -z "{{.CUDA_DIR}}" ] && [ ! -f "{{.WHISPER_ROOT}}/build/src/libwhisper.a" ]'
+      - cmd: |
+          echo "Linux: building whisper.cpp (CUDA={{.LINUX_CUDA}})..."
+          cd "{{.WHISPER_ROOT}}"
+          extra=""
+          if [ -n "{{.LINUX_CUDA}}" ]; then
+            extra="-DGGML_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES=native"
+          fi
+          cmake -B build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_SHARED_LIBS=ON \
+            -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+            -DWHISPER_BUILD_EXAMPLES=OFF \
+            -DWHISPER_BUILD_TESTS=OFF \
+            $extra
+          cmake --build build -j$(nproc)
+        if: '[ -n "{{.IS_LINUX}}" ] && [ ! -f "{{.WHISPER_BUILD}}/src/libwhisper.so" ]'
 
   build:
     desc: 'Build binaries, copy runtime DLLs, and produce dist/wt-setup.exe. Use ONLY=cli or ONLY=gui to limit (skips installer).'
@@ -98,10 +127,11 @@ tasks:
           echo ""
     cmds:
       - mkdir -p dist/bin
+      # ---- Windows builds ----
       - cmd: 'export PATH="{{.WHISPER_BUILD}}/bin;{{.EXTRA_PATH}};$PATH" && go build -ldflags "-X main.Version={{.VERSION}}" -o dist/bin/{{.BINARY}}.exe ./cmd/wt'
-        if: '[ "{{.ONLY}}" != "gui" ]'
+        if: '[ -z "{{.IS_LINUX}}" ] && [ "{{.ONLY}}" != "gui" ]'
       - cmd: 'export PATH="{{.WHISPER_BUILD}}/bin;{{.EXTRA_PATH}};$PATH" && go build -ldflags "-X main.Version={{.VERSION}} -H windowsgui" -o dist/bin/{{.BINARY}}-gui.exe ./cmd/wt-gui'
-        if: '[ "{{.ONLY}}" != "cli" ]'
+        if: '[ -z "{{.IS_LINUX}}" ] && [ "{{.ONLY}}" != "cli" ]'
       - cmd: |
           dlldir="{{.WHISPER_BUILD}}/bin"
           dest="{{.ROOT_DIR | toSlash}}/dist/bin"
@@ -112,21 +142,40 @@ tasks:
           for f in "$dlldir"/ggml-cpu-*.dll "$dlldir"/ggml-cuda.dll; do
             [ -f "$f" ] && cp "$f" "$dest/"
           done
-        if: '[ -n "{{.CUDA_DIR}}" ]'
+        if: '[ -z "{{.IS_LINUX}}" ] && [ -n "{{.CUDA_DIR}}" ]'
+      # ---- Linux builds ----
+      - cmd: |
+          go build -ldflags "-X main.Version={{.VERSION}}" -o dist/bin/{{.BINARY}} ./cmd/wt
+        if: '[ -n "{{.IS_LINUX}}" ] && [ "{{.ONLY}}" != "gui" ]'
+      - cmd: |
+          go build -ldflags "-X main.Version={{.VERSION}}" -o dist/bin/{{.BINARY}}-gui ./cmd/wt-gui
+        if: '[ -n "{{.IS_LINUX}}" ] && [ "{{.ONLY}}" != "cli" ]'
+      - cmd: |
+          dest="{{.ROOT_DIR | toSlash}}/dist/bin"
+          mkdir -p "$dest"
+          find "{{.WHISPER_BUILD}}/src" "{{.WHISPER_BUILD}}/ggml" \
+            \( -name 'libwhisper.so*' -o -name 'libggml*.so*' \) \
+            -exec cp -P {} "$dest/" \;
+        if: '[ -n "{{.IS_LINUX}}" ]'
+      # ---- Shared assets ----
       - cp scripts/diarize.py "{{.ROOT_DIR | toSlash}}/dist/bin/diarize.py"
+      # ---- Windows installer ----
       - cmd: |
           if [ -z "{{.ISCC_PATH}}" ]; then
             echo "ERROR: Inno Setup not found. Install via: winget install JRSoftware.InnoSetup"
             exit 1
           fi
-        if: '[ -z "{{.ONLY}}" ]'
+        if: '[ -z "{{.IS_LINUX}}" ] && [ -z "{{.ONLY}}" ]'
       - cmd: '"{{.ISCC_PATH}}" scripts/installer.iss'
-        if: '[ -z "{{.ONLY}}" ]'
+        if: '[ -z "{{.IS_LINUX}}" ] && [ -z "{{.ONLY}}" ]'
       - cmd: 'ls -l dist/wt-setup-{{.VERSION}}.exe'
-        if: '[ -z "{{.ONLY}}" ]'
+        if: '[ -z "{{.IS_LINUX}}" ] && [ -z "{{.ONLY}}" ]'
+      # ---- Linux .deb ----
+      - cmd: 'task linux-deb'
+        if: '[ -n "{{.IS_LINUX}}" ] && [ -z "{{.ONLY}}" ]'
 
   install:
-    desc: 'Build then replace binaries at {localappdata}/wt (skips full installer)'
+    desc: 'Build then replace binaries (Win: {localappdata}/wt; Linux: ~/.local/share/wt + ~/.local/bin)'
     deps: [build]
     cmds:
       - cmd: |
@@ -143,6 +192,19 @@ tasks:
           cp -f dist/bin/diarize.py "$dest/" 2>/dev/null || true
           echo "Updated $dest"
           "$dest/{{.BINARY}}.exe" --version
+        if: '[ -z "{{.IS_LINUX}}" ]'
+      - cmd: |
+          set -e
+          deb="dist/wt_{{.VERSION}}_amd64.deb"
+          if [ ! -f "$deb" ]; then
+            echo "ERROR: $deb not found"; exit 1
+          fi
+          pkill -x {{.BINARY}}-gui 2>/dev/null || true
+          pkill -x {{.BINARY}} 2>/dev/null || true
+          sleep 0.3
+          sudo dpkg -i "$deb"
+          {{.BINARY}} --version
+        if: '[ -n "{{.IS_LINUX}}" ]'
 
   install-android:
     desc: Build APK, install on device, and launch
@@ -172,16 +234,25 @@ tasks:
     internal: true
     cmds:
       - mkdir -p dist/deps
-      - |
-        if [ ! -f dist/deps/uv.exe ]; then
-          echo "Downloading uv..."
-          curl -sL "https://github.com/astral-sh/uv/releases/latest/download/uv-x86_64-pc-windows-msvc.zip" -o dist/deps/uv.zip
-          powershell -NoProfile -Command "Expand-Archive -Force 'dist/deps/uv.zip' 'dist/deps/uv-tmp'"
-          cp dist/deps/uv-tmp/uv.exe dist/deps/uv.exe
-          rm -rf dist/deps/uv-tmp dist/deps/uv.zip
-        fi
-    status:
-      - test -f dist/deps/uv.exe
+      - cmd: |
+          if [ ! -f dist/deps/uv.exe ]; then
+            echo "Downloading uv (windows)..."
+            curl -sL "https://github.com/astral-sh/uv/releases/latest/download/uv-x86_64-pc-windows-msvc.zip" -o dist/deps/uv.zip
+            powershell -NoProfile -Command "Expand-Archive -Force 'dist/deps/uv.zip' 'dist/deps/uv-tmp'"
+            cp dist/deps/uv-tmp/uv.exe dist/deps/uv.exe
+            rm -rf dist/deps/uv-tmp dist/deps/uv.zip
+          fi
+        if: '[ -z "{{.IS_LINUX}}" ]'
+      - cmd: |
+          if [ ! -f dist/deps/uv-linux ]; then
+            echo "Downloading uv (linux)..."
+            curl -sL "https://github.com/astral-sh/uv/releases/latest/download/uv-x86_64-unknown-linux-gnu.tar.gz" -o dist/deps/uv.tgz
+            tar -xzf dist/deps/uv.tgz -C dist/deps
+            cp dist/deps/uv-x86_64-unknown-linux-gnu/uv dist/deps/uv-linux
+            chmod +x dist/deps/uv-linux
+            rm -rf dist/deps/uv-x86_64-unknown-linux-gnu dist/deps/uv.tgz
+          fi
+        if: '[ -n "{{.IS_LINUX}}" ]'
 
   package:
     desc: Alias for build (installer is produced by build)
@@ -227,15 +298,142 @@ tasks:
         powershell -NoProfile -Command "Compress-Archive -Path 'wt-setup.exe' -DestinationPath 'wt-dist.zip'"
         ls -l wt-dist.zip
 
+  linux-deb:
+    desc: 'Build dist/wt_{{.VERSION}}_amd64.deb (Linux). Installs to /opt/wt with /usr/bin symlinks.'
+    deps: [fetch-deps]
+    cmds:
+      - cmd: |
+          set -e
+          if ! command -v dpkg-deb >/dev/null 2>&1; then
+            echo "ERROR: dpkg-deb not found (install: sudo apt install dpkg-dev fakeroot)"; exit 1
+          fi
+          root="dist/wt-deb"
+          rm -rf "$root"
+          mkdir -p "$root/DEBIAN" "$root/opt/wt" "$root/opt/wt/models" \
+                   "$root/usr/bin" "$root/usr/share/applications" \
+                   "$root/usr/share/icons/hicolor/256x256/apps" \
+                   "$root/usr/share/doc/wt"
+
+          cp -P dist/bin/{{.BINARY}} dist/bin/{{.BINARY}}-gui "$root/opt/wt/"
+          cp -P dist/bin/*.so* "$root/opt/wt/" 2>/dev/null || true
+          cp dist/bin/diarize.py "$root/opt/wt/"
+          cp dist/deps/uv-linux "$root/opt/wt/uv"
+          cp scripts/setup-linux-user.sh "$root/opt/wt/wt-setup"
+          chmod +x "$root/opt/wt/uv" "$root/opt/wt/wt-setup" "$root/opt/wt/{{.BINARY}}" "$root/opt/wt/{{.BINARY}}-gui"
+
+          # Bundled models (whisper turbo + Silero VAD)
+          src_models="${XDG_CONFIG_HOME:-$HOME/.config}/wt/models"
+          for f in ggml-large-v3-turbo.bin ggml-silero-v6.2.0.bin; do
+            if [ -f "$src_models/$f" ]; then
+              echo "  bundling $f"
+              cp "$src_models/$f" "$root/opt/wt/models/$f"
+            else
+              echo "  WARN: $src_models/$f missing (run 'task models-import' first)"
+            fi
+          done
+
+          # Docs
+          cp LICENSE "$root/usr/share/doc/wt/copyright" 2>/dev/null || true
+          cp THIRD-PARTY-LICENSES.txt "$root/usr/share/doc/wt/" 2>/dev/null || true
+          cp README.md "$root/usr/share/doc/wt/" 2>/dev/null || true
+          cp AGENTS.md "$root/usr/share/doc/wt/" 2>/dev/null || true
+
+          ln -sf /opt/wt/{{.BINARY}}     "$root/usr/bin/{{.BINARY}}"
+          ln -sf /opt/wt/{{.BINARY}}-gui "$root/usr/bin/{{.BINARY}}-gui"
+          ln -sf /opt/wt/wt-setup        "$root/usr/bin/wt-setup"
+
+          if [ -f winres/icon.png ]; then
+            cp winres/icon.png "$root/usr/share/icons/hicolor/256x256/apps/wt.png"
+          fi
+
+          cat > "$root/usr/share/applications/wt.desktop" <<EOF
+          [Desktop Entry]
+          Type=Application
+          Name=wt
+          Comment=Whisper transcription with diarization
+          Exec=/opt/wt/wt-gui
+          Icon=wt
+          Terminal=false
+          Categories=AudioVideo;Audio;Utility;
+          EOF
+
+          inst_size=$(du -sk "$root/opt" | cut -f1)
+          cat > "$root/DEBIAN/control" <<EOF
+          Package: wt
+          Version: {{.VERSION}}
+          Section: sound
+          Priority: optional
+          Architecture: amd64
+          Maintainer: A. Solopovas <info@lyntouch.com>
+          Installed-Size: ${inst_size}
+          Depends: libc6, libgcc-s1, libstdc++6
+          Recommends: ffmpeg, nvidia-driver-535 | nvidia-driver-550 | nvidia-driver-560 | nvidia-driver-570
+          Description: Whisper.cpp CLI + GUI with NeMo speaker diarization
+           wt transcribes audio using whisper.cpp (CUDA-accelerated when an NVIDIA GPU
+           is present) and performs speaker diarization via NVIDIA NeMo Sortformer.
+           After install, run 'wt-setup' once to provision the per-user Python venv
+           with NeMo (one-time, ~2 GB) and link bundled models into your config dir.
+          EOF
+
+          cat > "$root/DEBIAN/postinst" <<'EOF'
+          #!/bin/sh
+          set -e
+          if [ -d /usr/share/icons/hicolor ] && command -v gtk-update-icon-cache >/dev/null 2>&1; then
+            gtk-update-icon-cache -f -t /usr/share/icons/hicolor 2>/dev/null || true
+          fi
+          if command -v update-desktop-database >/dev/null 2>&1; then
+            update-desktop-database -q /usr/share/applications 2>/dev/null || true
+          fi
+          echo
+          echo "wt installed. To finish setup, each user must run once:"
+          echo "  wt-setup"
+          echo "(creates ~/.config/wt/python with nemo_toolkit[asr], ~2 GB download,"
+          echo " and links bundled whisper models into ~/.config/wt/models)"
+          EOF
+          chmod 0755 "$root/DEBIAN/postinst"
+
+          out="dist/wt_{{.VERSION}}_amd64.deb"
+          fakeroot dpkg-deb --build -Zxz "$root" "$out"
+          ls -l "$out"
+        if: '[ -n "{{.IS_LINUX}}" ]'
+
+  models-import:
+    desc: 'Copy whisper + diarization models from /mnt/c Windows mounts to ~/.config/wt/models'
+    cmds:
+      - cmd: |
+          set -e
+          dest="${XDG_CONFIG_HOME:-$HOME/.config}/{{.BINARY}}/models"
+          mkdir -p "$dest"
+          src_whisper="/mnt/c/Users/asolo/.whisper-go/models"
+          src_sherpa="/mnt/c/Users/asolo/AppData/Local/wt/models"
+          for f in ggml-large-v3-turbo.bin ggml-silero-v6.2.0.bin; do
+            if [ -f "$src_whisper/$f" ] && [ ! -f "$dest/$f" ]; then
+              echo "Copying $f..."
+              cp "$src_whisper/$f" "$dest/$f"
+            else
+              echo "skip $f"
+            fi
+          done
+          if [ -f "$src_sherpa/titanet_large.onnx" ] && [ ! -f "$dest/titanet_large.onnx" ]; then
+            cp "$src_sherpa/titanet_large.onnx" "$dest/"
+          fi
+          if [ -d "$src_sherpa/sherpa-onnx-pyannote-segmentation-3-0" ] && [ ! -d "$dest/sherpa-onnx-pyannote-segmentation-3-0" ]; then
+            cp -r "$src_sherpa/sherpa-onnx-pyannote-segmentation-3-0" "$dest/"
+          fi
+          echo "Models in $dest:"
+          ls -lh "$dest"
+
   release:
-    desc: 'Tag v{{.VERSION}}, push tag, and attach Windows installer + Android APK to GitHub release'
-    deps: [build, android-apk]
+    desc: 'Tag v{{.VERSION}} and attach platform artifacts (Linux on Linux host; Windows + Android on Windows host)'
+    deps: [build]
     cmds:
       - |
         if ! command -v gh >/dev/null 2>&1; then
           echo "ERROR: gh CLI not found. Install via: winget install GitHub.cli"
           exit 1
         fi
+      - cmd: 'task android-apk'
+        if: '[ -z "{{.IS_LINUX}}" ]'
       - |
         tag="v{{.VERSION}}"
         if git rev-parse "$tag" >/dev/null 2>&1; then
@@ -249,7 +447,17 @@ tasks:
         else
           gh release create "$tag" --title "$tag" --generate-notes
         fi
-        gh release upload "$tag" dist/wt-setup-{{.VERSION}}.exe dist/wt-{{.VERSION}}.apk --clobber
+        artifacts=""
+        for f in \
+          "dist/wt-setup-{{.VERSION}}.exe" \
+          "dist/wt-{{.VERSION}}.apk" \
+          "dist/wt_{{.VERSION}}_amd64.deb"; do
+          [ -f "$f" ] && artifacts="$artifacts $f"
+        done
+        if [ -z "$artifacts" ]; then
+          echo "ERROR: no artifacts found to upload"; exit 1
+        fi
+        gh release upload "$tag" $artifacts --clobber
         gh release view "$tag" --web || true
 
   bump:
@@ -284,7 +492,7 @@ tasks:
     desc: Run all tests
     deps: [whisper-lib]
     cmds:
-      - cmd: 'export PATH="{{.EXTRA_PATH}};$PATH" && go test -v ./...'
+      - cmd: 'export PATH="{{.EXTRA_PATH}};$PATH" LD_LIBRARY_PATH="{{.WHISPER_BUILD}}/src:{{.WHISPER_BUILD}}/ggml/src:{{.WHISPER_BUILD}}/ggml/src/ggml-cuda${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" && go test -v ./...'
 
   test-unit:
     desc: Run unit tests (no CGo / model required)
@@ -347,20 +555,27 @@ tasks:
         echo "GCC:"
         export PATH="{{.EXTRA_PATH}};$PATH"
         gcc --version 2>/dev/null || echo "  NOT FOUND (required for CGo)"
+      - cmd: 'echo "OS: linux  CUDA(linux nvcc): {{if .LINUX_CUDA}}yes{{else}}no{{end}}"'
+        if: '[ -n "{{.IS_LINUX}}" ]'
       - cmd: 'echo "CUDA: {{.CUDA_DIR}} (arch {{.CUDA_ARCH}})"'
-        if: '[ -n "{{.CUDA_DIR}}" ]'
+        if: '[ -z "{{.IS_LINUX}}" ] && [ -n "{{.CUDA_DIR}}" ]'
       - cmd: 'echo "CUDA: not found (CPU-only build)"'
-        if: '[ -z "{{.CUDA_DIR}}" ]'
+        if: '[ -z "{{.IS_LINUX}}" ] && [ -z "{{.CUDA_DIR}}" ]'
+      - cmd: |
+          echo "whisper.cpp:"
+          if [ -f "{{.WHISPER_BUILD}}/src/libwhisper.so" ]; then echo "  Built (Linux shared)";
+          else echo "  NOT BUILT (run: task build)"; fi
+        if: '[ -n "{{.IS_LINUX}}" ]'
       - cmd: |
           echo "whisper.cpp:"
           if [ -f "{{.WHISPER_BUILD}}/bin/whisper.dll" ]; then echo "  Built (CUDA)";
           else echo "  NOT BUILT (run: task build)"; fi
-        if: '[ -n "{{.CUDA_DIR}}" ]'
+        if: '[ -z "{{.IS_LINUX}}" ] && [ -n "{{.CUDA_DIR}}" ]'
       - cmd: |
           echo "whisper.cpp:"
           if [ -f "{{.WHISPER_ROOT}}/build/src/libwhisper.a" ]; then echo "  Built (CPU)";
           else echo "  NOT BUILT (run: task build)"; fi
-        if: '[ -z "{{.CUDA_DIR}}" ]'
+        if: '[ -z "{{.IS_LINUX}}" ] && [ -z "{{.CUDA_DIR}}" ]'
       - |
         echo ""
         echo "ffmpeg:"

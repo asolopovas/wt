@@ -6,6 +6,7 @@ import sys
 
 os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
 os.environ["HF_HUB_DISABLE_SYMLINKS"] = "1"
+os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
 
 
 def _fix_hf_symlinks(model_id: str) -> None:
@@ -53,14 +54,19 @@ def main():
 
     import torch
 
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+    force_cpu = os.environ.get("WT_DIAR_DEVICE") == "cpu"
+    device = "cpu" if force_cpu else ("cuda" if torch.cuda.is_available() else "cpu")
     print(f"device: {device}", file=sys.stderr, flush=True)
     print("loading model...", file=sys.stderr, flush=True)
 
-    model = SortformerEncLabelModel.from_pretrained(
-        "nvidia/diar_sortformer_4spk-v1", map_location=device
-    )
-    model.eval()
+    def _load(dev):
+        m = SortformerEncLabelModel.from_pretrained(
+            "nvidia/diar_sortformer_4spk-v1", map_location=dev
+        )
+        m.eval()
+        return m
+
+    model = _load(device)
 
     print("processing...", file=sys.stderr, flush=True)
 
@@ -70,7 +76,22 @@ def main():
             file=sys.stderr,
             flush=True,
         )
-    result = model.diarize(audio=args.wav, batch_size=1)
+    try:
+        result = model.diarize(audio=args.wav, batch_size=1)
+    except torch.OutOfMemoryError as e:
+        if device != "cpu":
+            print(
+                f"CUDA OOM ({e}); retrying on CPU...",
+                file=sys.stderr,
+                flush=True,
+            )
+            del model
+            torch.cuda.empty_cache()
+            device = "cpu"
+            model = _load(device)
+            result = model.diarize(audio=args.wav, batch_size=1)
+        else:
+            raise
 
     os.dup2(real_stdout, 1)
     sys.stdout = io.TextIOWrapper(os.fdopen(1, "wb"), line_buffering=True)

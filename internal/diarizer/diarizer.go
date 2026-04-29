@@ -51,13 +51,16 @@ func NewWithPreference(numSpeakers int, preferSherpa bool) (Backend, error) {
 
 func resolvePython() (string, error) {
 	pythonExe := shared.PythonExe()
-	if _, err := os.Stat(pythonExe); err != nil {
-		if p, lookErr := exec.LookPath("python"); lookErr == nil {
-			return p, nil
-		}
-		return "", fmt.Errorf("python not found at %s", pythonExe)
+	if _, err := os.Stat(pythonExe); err == nil {
+		return pythonExe, nil
 	}
-	return pythonExe, nil
+	if runtime.GOOS == "linux" {
+		return "", fmt.Errorf("wt python venv not found at %s — run 'wt-setup' to install nemo_toolkit", pythonExe)
+	}
+	if p, lookErr := exec.LookPath("python"); lookErr == nil {
+		return p, nil
+	}
+	return "", fmt.Errorf("python not found at %s", pythonExe)
 }
 
 func findScript(name string) (string, error) {
