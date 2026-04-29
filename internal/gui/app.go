@@ -56,19 +56,14 @@ func buildTranscodeTab(tp *transcribePanel) fyne.CanvasObject {
 
 	tp.exportBtn = newPointerButton("EXPORT", tp.onExport)
 	tp.exportBtn.Importance = widget.LowImportance
-	tp.openBtn = newPointerButton("OPEN", tp.onOpen)
-	tp.openBtn.Importance = widget.LowImportance
 	tp.previewBtn = newPointerButton("PREVIEW", tp.onPreview)
 	tp.previewBtn.Importance = widget.LowImportance
 	tp.previewBtn.Disable()
-	tp.clearBtn.SetText("CLEAR")
-	tp.clearBtn.Importance = widget.LowImportance
 
-	actionRow := container.NewGridWithColumns(4,
-		borderedBtn(tp.clearBtn, colOutline),
+	actionRow := container.NewGridWithColumns(3,
 		borderedBtn(tp.exportBtn, colOutline),
-		borderedBtn(tp.openBtn, colOutline),
 		borderedBtn(tp.previewBtn, colOutline),
+		borderedBtn(tp.transcribeBtn, colPrimary),
 	)
 
 	optionsRow := container.NewGridWithColumns(3,
@@ -96,7 +91,6 @@ func buildTranscodeTab(tp *transcribePanel) fyne.CanvasObject {
 		optionsRow,
 		startTimeRow,
 		actionRow,
-		tp.transcribeBtn,
 		btnSpacer,
 	)
 

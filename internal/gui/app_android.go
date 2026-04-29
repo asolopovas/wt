@@ -55,13 +55,9 @@ func buildTranscodeTabAndroid(tp *transcribePanel) fyne.CanvasObject {
 
 	tp.exportBtn = newPointerButton("EXPORT", tp.onExport)
 	tp.exportBtn.Importance = widget.LowImportance
-	tp.openBtn = newPointerButton("OPEN", tp.onOpen)
-	tp.openBtn.Importance = widget.LowImportance
 	tp.previewBtn = newPointerButton("PREVIEW", tp.onPreview)
 	tp.previewBtn.Importance = widget.LowImportance
 	tp.previewBtn.Disable()
-	tp.clearBtn.SetText("CLEAR LOG")
-	tp.clearBtn.Importance = widget.LowImportance
 
 	settingsRow := container.NewGridWithColumns(3,
 		settingsField("MODEL", tp.settings.modelSelect),
@@ -69,13 +65,12 @@ func buildTranscodeTabAndroid(tp *transcribePanel) fyne.CanvasObject {
 		settingsField("SPEAKERS", tp.settings.speakersSelect),
 	)
 
-	actionRow1 := container.NewGridWithColumns(2,
-		borderedBtn(tp.clearBtn, colOutline),
+	exportRow := container.NewGridWithColumns(1,
 		borderedBtn(tp.exportBtn, colOutline),
 	)
-	actionRow2 := container.NewGridWithColumns(2,
-		borderedBtn(tp.openBtn, colOutline),
+	previewTranscribeRow := container.NewGridWithColumns(2,
 		borderedBtn(tp.previewBtn, colOutline),
+		borderedBtn(tp.transcribeBtn, colPrimary),
 	)
 
 	nowBtn := newPointerButton("NOW", tp.onStartTimeBothNow)
@@ -96,9 +91,8 @@ func buildTranscodeTabAndroid(tp *transcribePanel) fyne.CanvasObject {
 		tp.statsLine,
 		startTimeRow,
 		settingsRow,
-		actionRow1,
-		actionRow2,
-		borderedBtn(tp.transcribeBtn, colPrimary),
+		exportRow,
+		previewTranscribeRow,
 		bottomGap,
 	)
 

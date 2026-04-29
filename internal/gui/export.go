@@ -184,12 +184,14 @@ func (p *transcribePanel) onPreview() {
 			editBtn.SetText("RENAME")
 		}
 	}
+	openBtn := widget.NewButton("OPEN", p.onOpen)
 
 	topItems := []fyne.CanvasObject{}
 	if picker != nil {
 		topItems = append(topItems, picker)
 	}
-	topItems = append(topItems, container.NewBorder(nil, nil, nil, editBtn, widget.NewLabel("")))
+	topItems = append(topItems, container.NewBorder(nil, nil, nil,
+		container.NewHBox(openBtn, editBtn), widget.NewLabel("")))
 	if speakerPanel != nil {
 		topItems = append(topItems, speakerPanel)
 	}
