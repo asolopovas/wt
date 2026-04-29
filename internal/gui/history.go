@@ -35,11 +35,12 @@ func libraryDialogSize(w fyne.Window) fyne.Size {
 }
 
 type historyPanel struct {
-	window     fyne.Window
-	transcribe *transcribePanel
-	list       *fyne.Container
-	empty      *canvas.Text
-	container  fyne.CanvasObject
+	window      fyne.Window
+	transcribe  *transcribePanel
+	list        *fyne.Container
+	empty       *canvas.Text
+	container   fyne.CanvasObject
+	headerRight *fyne.Container
 }
 
 func newHistoryPanel(window fyne.Window, tp *transcribePanel) *historyPanel {
@@ -62,9 +63,12 @@ func (h *historyPanel) build() {
 	header.TextSize = 10
 	header.TextStyle = fyne.TextStyle{Bold: true}
 
+	h.headerRight = container.NewHBox()
+	headerContent := container.NewBorder(nil, nil, header, h.headerRight)
+
 	headerBar := container.NewStack(
 		canvas.NewRectangle(colSurfLow),
-		container.NewPadded(container.NewHBox(header)),
+		container.NewPadded(headerContent),
 	)
 
 	bg := canvas.NewRectangle(colSurfLowest)

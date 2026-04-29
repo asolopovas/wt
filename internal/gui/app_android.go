@@ -29,6 +29,10 @@ func Run(version string) error {
 	history := newHistoryPanel(w, transcribe)
 	transcribe.history = history
 	transcribe.attachLibrary(history)
+	if history.headerRight != nil {
+		history.headerRight.Objects = []fyne.CanvasObject{transcribe.statsLine, transcribe.timerText}
+		history.headerRight.Refresh()
+	}
 	settings.onCacheCleared = history.refresh
 
 	if cacheGC(cfg.CacheExpiryDays) > 0 {
@@ -99,7 +103,7 @@ func buildTranscodeTabAndroid(tp *transcribePanel) fyne.CanvasObject {
 
 	bottomBar := container.NewVBox(
 		tp.progress,
-		container.NewBorder(nil, nil, tp.statusText, container.NewHBox(tp.statsLine, tp.timerText)),
+		container.NewBorder(nil, nil, tp.statusText, nil),
 		settingsRow,
 		actionRow,
 		bottomGap,
