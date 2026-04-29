@@ -9,14 +9,22 @@ import (
 )
 
 func showDatePicker(parent fyne.Window, current time.Time, onSelect func(time.Time)) {
-	picked := current
+	var d *dialog.CustomDialog
 	cal := widget.NewCalendar(current, func(t time.Time) {
-		picked = t
-	})
-	dialog.ShowCustomConfirm("Pick date", "OK", "CANCEL", cal, func(ok bool) {
-		if !ok {
-			return
+		if d != nil {
+			d.Hide()
 		}
-		onSelect(picked)
-	}, parent)
+		onSelect(t)
+	})
+
+	d = dialog.NewCustomWithoutButtons("Pick date", cal, parent)
+
+	nowBtn := widget.NewButton("NOW", func() {
+		d.Hide()
+		onSelect(time.Now())
+	})
+	cancelBtn := widget.NewButton("CANCEL", func() { d.Hide() })
+
+	d.SetButtons([]fyne.CanvasObject{nowBtn, cancelBtn})
+	d.Show()
 }

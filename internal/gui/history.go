@@ -137,8 +137,9 @@ func (h *historyPanel) buildRow(e cacheEntry) fyne.CanvasObject {
 		h.editRecordedAt(e.Key, recorded)
 	})
 	stampBtn.Importance = widget.LowImportance
+	stampRow := container.NewHBox(stampBtn, layout.NewSpacer())
 
-	info := container.NewVBox(name, metaText, stampBtn)
+	info := container.NewVBox(name, metaText, stampRow)
 
 	deleteBtn := newPointerButtonWithIcon("", theme.DeleteIcon(), func() {
 		var msg string
