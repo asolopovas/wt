@@ -15,7 +15,6 @@ package platsvc
 #define WT_LOGI(...) __android_log_print(ANDROID_LOG_INFO, WT_TAG, __VA_ARGS__)
 #define WT_LOGE(...) __android_log_print(ANDROID_LOG_ERROR, WT_TAG, __VA_ARGS__)
 
-// wt_share_result is a simple C-side container for paths produced by an intent intake.
 typedef struct {
 	char** paths;
 	int    count;
@@ -33,7 +32,6 @@ static void wt_result_push(wt_share_result* r, const char* p) {
 	r->paths[r->count++] = strdup(p);
 }
 
-// wt_jstring_to_c copies a jstring into a malloc'd C string.
 static char* wt_jstring_to_c(JNIEnv* env, jstring s) {
 	if (!s) return NULL;
 	const char* utf = (*env)->GetStringUTFChars(env, s, NULL);
@@ -43,8 +41,6 @@ static char* wt_jstring_to_c(JNIEnv* env, jstring s) {
 	return out;
 }
 
-// wt_query_display_name calls resolver.query(uri, [DISPLAY_NAME], null, null, null)
-// and returns a malloc'd string for the OpenableColumns.DISPLAY_NAME, or NULL.
 static char* wt_query_display_name(JNIEnv* env, jobject resolver, jobject uri) {
 	jclass cResolver = (*env)->GetObjectClass(env, resolver);
 	jmethodID mQuery = (*env)->GetMethodID(env, cResolver,
@@ -88,7 +84,6 @@ static char* wt_query_display_name(JNIEnv* env, jobject resolver, jobject uri) {
 	return out;
 }
 
-// wt_unique_path returns a malloc'd path under outDir, suffixing -N if needed to avoid collisions.
 static char* wt_unique_path(const char* outDir, const char* name) {
 	char buf[1024];
 	snprintf(buf, sizeof(buf), "%s/%s", outDir, name);
@@ -115,8 +110,6 @@ static char* wt_unique_path(const char* outDir, const char* name) {
 	return strdup(buf);
 }
 
-// wt_persist_uri opens an InputStream from resolver.openInputStream(uri) and streams
-// it into outDir/<displayName>, returning the resolved path (malloc'd) or NULL.
 static char* wt_persist_uri(JNIEnv* env, jobject resolver, jobject uri, const char* outDir) {
 	jclass cResolver = (*env)->GetObjectClass(env, resolver);
 	jmethodID mOpen = (*env)->GetMethodID(env, cResolver, "openInputStream",
@@ -128,7 +121,6 @@ static char* wt_persist_uri(JNIEnv* env, jobject resolver, jobject uri, const ch
 
 	char* name = wt_query_display_name(env, resolver, uri);
 	if (!name) {
-		// Fallback: derive from Uri.getLastPathSegment().
 		jclass cUri = (*env)->GetObjectClass(env, uri);
 		jmethodID mLast = (*env)->GetMethodID(env, cUri, "getLastPathSegment", "()Ljava/lang/String;");
 		jstring js = (jstring)(*env)->CallObjectMethod(env, uri, mLast);
@@ -139,7 +131,6 @@ static char* wt_persist_uri(JNIEnv* env, jobject resolver, jobject uri, const ch
 		if (name) free(name);
 		name = strdup("shared-audio");
 	}
-	// Strip any path separators in name to keep us inside outDir.
 	for (char* p = name; *p; p++) { if (*p == '/' || *p == '\\') *p = '_'; }
 
 	char* dst = wt_unique_path(outDir, name);
@@ -195,11 +186,6 @@ static char* wt_persist_uri(JNIEnv* env, jobject resolver, jobject uri, const ch
 	return dst;
 }
 
-// wt_intake_intent inspects activity.getIntent() and persists any audio share/view URIs
-// into outDir. Caller frees out->paths[i] and out->paths.
-//
-// Sets a sentinel action ("wt.intake.consumed") on the intent so re-entry on resume does
-// not duplicate-import the same payload.
 static void wt_intake_intent(JNIEnv* env, jobject activity, const char* outDir, wt_share_result* out) {
 	jclass cAct = (*env)->GetObjectClass(env, activity);
 	jmethodID mGetIntent = (*env)->GetMethodID(env, cAct, "getIntent", "()Landroid/content/Intent;");
@@ -227,7 +213,6 @@ static void wt_intake_intent(JNIEnv* env, jobject activity, const char* outDir, 
 	jmethodID mGetCR = (*env)->GetMethodID(env,
 		(*env)->GetObjectClass(env, activity),
 		"getContentResolver", "()Landroid/content/ContentResolver;");
-	// Fetch via activity again (the cAct above was deleted).
 	jclass cAct2 = (*env)->GetObjectClass(env, activity);
 	mGetCR = (*env)->GetMethodID(env, cAct2, "getContentResolver", "()Landroid/content/ContentResolver;");
 	jobject resolver = (*env)->CallObjectMethod(env, activity, mGetCR);
@@ -276,7 +261,6 @@ static void wt_intake_intent(JNIEnv* env, jobject activity, const char* outDir, 
 		}
 	}
 
-	// Mark consumed so resume doesn't re-import.
 	jmethodID mSetAction = (*env)->GetMethodID(env, cIntent, "setAction",
 		"(Ljava/lang/String;)Landroid/content/Intent;");
 	jstring consumed = (*env)->NewStringUTF(env, "wt.intake.consumed");
@@ -291,7 +275,6 @@ static void wt_intake_intent(JNIEnv* env, jobject activity, const char* outDir, 
 	(*env)->DeleteLocalRef(env, intent);
 }
 
-// Entry point invoked from Go via cgo. envPtr/actPtr are uintptr-style handles.
 static void wt_run_intake(uintptr_t envPtr, uintptr_t actPtr, const char* outDir, wt_share_result* out) {
 	JNIEnv* env = (JNIEnv*)envPtr;
 	jobject activity = (jobject)actPtr;

@@ -8,20 +8,14 @@ import (
 )
 
 const (
-	spaceXS  = decor.SpaceXS
-	spaceSM  = decor.SpaceSM
-	spaceMD  = decor.SpaceMD
-	spaceLG  = decor.SpaceLG
-	spaceXL  = decor.SpaceXL
-	spaceXXL = decor.SpaceXXL
+	spaceMD = decor.SpaceMD
+	spaceLG = decor.SpaceLG
+	spaceXL = decor.SpaceXL
 )
 
 const (
 	textCaption = decor.TextCaption
 	textBody    = decor.TextBody
-	textLabel   = decor.TextLabel
-	textRow     = decor.TextRow
-	textHeading = decor.TextHeading
 )
 
 var (

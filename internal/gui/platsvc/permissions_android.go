@@ -14,7 +14,6 @@ package platsvc
 #define WP_LOGI(...) __android_log_print(ANDROID_LOG_INFO, WP_TAG, __VA_ARGS__)
 #define WP_LOGE(...) __android_log_print(ANDROID_LOG_ERROR, WP_TAG, __VA_ARGS__)
 
-// wt_check_permission returns 1 if ContextCompat.checkSelfPermission == PERMISSION_GRANTED.
 static int wt_check_permission(uintptr_t envPtr, uintptr_t actPtr, const char* perm) {
 	JNIEnv* env = (JNIEnv*)envPtr;
 	jobject ctx = (jobject)actPtr;
@@ -32,11 +31,9 @@ static int wt_check_permission(uintptr_t envPtr, uintptr_t actPtr, const char* p
 	jint res = (*env)->CallIntMethod(env, ctx, mCheck, jPerm);
 	(*env)->DeleteLocalRef(env, jPerm);
 	if ((*env)->ExceptionCheck(env)) { (*env)->ExceptionClear(env); return 0; }
-	// PackageManager.PERMISSION_GRANTED == 0
 	return res == 0 ? 1 : 0;
 }
 
-// wt_request_permissions calls Activity.requestPermissions(perms[], 0).
 static void wt_request_permissions(uintptr_t envPtr, uintptr_t actPtr, const char** perms, int n) {
 	JNIEnv* env = (JNIEnv*)envPtr;
 	jobject act = (jobject)actPtr;
@@ -64,7 +61,6 @@ static void wt_request_permissions(uintptr_t envPtr, uintptr_t actPtr, const cha
 	(*env)->DeleteLocalRef(env, cString);
 }
 
-// wt_open_app_settings launches Settings.ACTION_APPLICATION_DETAILS_SETTINGS for our package.
 static void wt_open_app_settings(uintptr_t envPtr, uintptr_t actPtr) {
 	JNIEnv* env = (JNIEnv*)envPtr;
 	jobject act = (jobject)actPtr;
@@ -95,7 +91,6 @@ static void wt_open_app_settings(uintptr_t envPtr, uintptr_t actPtr) {
 	(*env)->DeleteLocalRef(env, uri);
 
 	jmethodID mAddFlags = (*env)->GetMethodID(env, cIntent, "addFlags", "(I)Landroid/content/Intent;");
-	// FLAG_ACTIVITY_NEW_TASK = 0x10000000
 	jobject _r2 = (*env)->CallObjectMethod(env, intent, mAddFlags, (jint)0x10000000);
 	if (_r2) (*env)->DeleteLocalRef(env, _r2);
 
@@ -108,8 +103,6 @@ static void wt_open_app_settings(uintptr_t envPtr, uintptr_t actPtr) {
 	(*env)->DeleteLocalRef(env, cIntent);
 }
 
-// wt_start_action_intent launches Intent(action) with FLAG_ACTIVITY_NEW_TASK.
-// Returns 1 on success.
 static int wt_start_action_intent(JNIEnv* env, jobject act, const char* action) {
 	jclass cIntent = (*env)->FindClass(env, "android/content/Intent");
 	jmethodID mInit = (*env)->GetMethodID(env, cIntent, "<init>", "(Ljava/lang/String;)V");
@@ -133,10 +126,6 @@ static int wt_start_action_intent(JNIEnv* env, jobject act, const char* action) 
 	return ok;
 }
 
-// wt_open_battery_settings opens the system list of battery-optimized apps.
-// ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS works on all Android versions
-// without the package URI (REQUEST_IGNORE_BATTERY_OPTIMIZATIONS is restricted
-// by Google Play policy and silently fails).
 static void wt_open_battery_settings(uintptr_t envPtr, uintptr_t actPtr) {
 	JNIEnv* env = (JNIEnv*)envPtr;
 	jobject act = (jobject)actPtr;
@@ -146,7 +135,6 @@ static void wt_open_battery_settings(uintptr_t envPtr, uintptr_t actPtr) {
 	wt_start_action_intent(env, act, "android.settings.SETTINGS");
 }
 
-// wt_is_ignoring_battery returns 1 if our package is whitelisted from battery optimizations.
 static int wt_is_ignoring_battery(uintptr_t envPtr, uintptr_t actPtr) {
 	JNIEnv* env = (JNIEnv*)envPtr;
 	jobject act = (jobject)actPtr;

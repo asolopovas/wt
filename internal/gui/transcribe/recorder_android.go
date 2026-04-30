@@ -18,8 +18,6 @@ package transcribe
 
 static jobject g_recorder = NULL;
 
-// wt_rec_start: creates MediaRecorder, configures AAC/MP4, writes to outPath, start().
-// Returns 1 on success.
 static int wt_rec_start(uintptr_t envPtr, const char* outPath) {
 	JNIEnv* env = (JNIEnv*)envPtr;
 	if (!env || g_recorder) return 0;
@@ -30,17 +28,14 @@ static int wt_rec_start(uintptr_t envPtr, const char* outPath) {
 	jobject mr = (*env)->NewObject(env, cMR, mInit);
 	if (!mr) { (*env)->ExceptionClear(env); (*env)->DeleteLocalRef(env, cMR); return 0; }
 
-	// MediaRecorder.AudioSource.MIC = 1
 	jmethodID mSetSrc = (*env)->GetMethodID(env, cMR, "setAudioSource", "(I)V");
 	(*env)->CallVoidMethod(env, mr, mSetSrc, (jint)1);
 	if ((*env)->ExceptionCheck(env)) goto fail;
 
-	// OutputFormat.MPEG_4 = 2
 	jmethodID mSetFmt = (*env)->GetMethodID(env, cMR, "setOutputFormat", "(I)V");
 	(*env)->CallVoidMethod(env, mr, mSetFmt, (jint)2);
 	if ((*env)->ExceptionCheck(env)) goto fail;
 
-	// AudioEncoder.AAC = 3
 	jmethodID mSetEnc = (*env)->GetMethodID(env, cMR, "setAudioEncoder", "(I)V");
 	(*env)->CallVoidMethod(env, mr, mSetEnc, (jint)3);
 	if ((*env)->ExceptionCheck(env)) goto fail;
@@ -127,8 +122,6 @@ static int wt_rec_stop(uintptr_t envPtr) {
 	return stop_threw ? 0 : 1;
 }
 
-// wt_publish_to_documents copies the file at srcPath to MediaStore Documents/wt/<displayName>.
-// Returns 1 on success. On API 28- it writes to Environment.DIRECTORY_DOCUMENTS/wt directly.
 static int wt_publish_to_documents(uintptr_t envPtr, uintptr_t actPtr,
 		const char* srcPath, const char* displayName, const char* mimeType, int sdkInt) {
 	JNIEnv* env = (JNIEnv*)envPtr;
@@ -167,14 +160,12 @@ static int wt_publish_to_documents(uintptr_t envPtr, uintptr_t actPtr,
 		(*env)->DeleteLocalRef(env, kPending); (*env)->DeleteLocalRef(env, pendingOne);
 		(*env)->DeleteLocalRef(env, cInteger);
 
-		// Resolver
 		jclass cAct = (*env)->GetObjectClass(env, act);
 		jmethodID mGetCR = (*env)->GetMethodID(env, cAct, "getContentResolver",
 			"()Landroid/content/ContentResolver;");
 		jobject resolver = (*env)->CallObjectMethod(env, act, mGetCR);
 		(*env)->DeleteLocalRef(env, cAct);
 
-		// Files.getContentUri("external")
 		jclass cFiles = (*env)->FindClass(env, "android/provider/MediaStore$Files");
 		jmethodID mGetURI = (*env)->GetStaticMethodID(env, cFiles, "getContentUri",
 			"(Ljava/lang/String;)Landroid/net/Uri;");
@@ -231,7 +222,6 @@ static int wt_publish_to_documents(uintptr_t envPtr, uintptr_t actPtr,
 			(*env)->DeleteLocalRef(env, out);
 		}
 
-		// Clear is_pending=0
 		jclass cValues2 = (*env)->FindClass(env, "android/content/ContentValues");
 		jobject vals2 = (*env)->NewObject(env, cValues2, mInitV);
 		jmethodID mPutI2 = (*env)->GetMethodID(env, cValues2, "put",
@@ -257,7 +247,6 @@ static int wt_publish_to_documents(uintptr_t envPtr, uintptr_t actPtr,
 		return ok;
 	}
 
-	// Pre-Q: write directly to /sdcard/Documents/wt/<displayName>.
 	jclass cEnv = (*env)->FindClass(env, "android/os/Environment");
 	jmethodID mGetPub = (*env)->GetStaticMethodID(env, cEnv, "getExternalStoragePublicDirectory",
 		"(Ljava/lang/String;)Ljava/io/File;");
