@@ -491,34 +491,47 @@ tasks:
       - cmd: 'task android-apk'
         if: '[ -z "{{.IS_LINUX}}" ]'
       - |
+        set -e
         ver="{{.VERSION}}"
         sha=$(git rev-parse --short HEAD)
+        branch=$(git rev-parse --abbrev-ref HEAD)
+        [ "$branch" = "HEAD" ] && branch="main"
         tag="rolling"
-        echo "Updating $tag to $sha (version $ver)"
+        rolldir="dist/rolling"
+        echo "Updating $tag to $sha (branch $branch, version $ver)"
 
         git push origin HEAD
-
         git tag -f "$tag" HEAD
         git push origin "$tag" --force
 
+        rm -rf "$rolldir" && mkdir -p "$rolldir"
         artifacts=""
-        for f in \
-          "dist/wt-setup-$ver.exe" \
-          "dist/wt-$ver.apk" \
-          "dist/wt_${ver}_amd64.deb"; do
-          [ -f "$f" ] && artifacts="$artifacts $f"
-        done
+        if [ -f "dist/wt-setup-$ver.exe" ]; then
+          cp "dist/wt-setup-$ver.exe" "$rolldir/wt-setup-$branch.exe"
+          artifacts="$artifacts $rolldir/wt-setup-$branch.exe"
+        fi
+        if [ -f "dist/wt-$ver.apk" ]; then
+          cp "dist/wt-$ver.apk" "$rolldir/wt-$branch.apk"
+          artifacts="$artifacts $rolldir/wt-$branch.apk"
+        fi
+        if [ -f "dist/wt_${ver}_amd64.deb" ]; then
+          cp "dist/wt_${ver}_amd64.deb" "$rolldir/wt-${branch}_amd64.deb"
+          artifacts="$artifacts $rolldir/wt-${branch}_amd64.deb"
+        fi
         if [ -z "$artifacts" ]; then
           echo "ERROR: no artifacts found to upload"; exit 1
         fi
+        echo "Artifacts:$artifacts"
 
         if gh release view "$tag" >/dev/null 2>&1; then
+          echo "Deleting existing $tag release..."
           gh release delete "$tag" --yes --cleanup-tag=false
         fi
+        echo "Creating $tag release..."
         gh release create "$tag" \
-          --title "Rolling (main @ $sha)" \
+          --title "Rolling ($branch @ $sha)" \
           --prerelease \
-          --notes "Rolling build of main. Commit \`$sha\`, version $ver. Updated automatically; not a stable release." \
+          --notes "Rolling build of $branch. Commit \`$sha\`, version $ver. Updated automatically; not a stable release." \
           $artifacts
         echo "Rolling release: https://github.com/asolopovas/wt/releases/tag/$tag"
 
