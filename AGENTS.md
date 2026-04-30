@@ -43,7 +43,7 @@ Requires Go 1.26+, GCC/MinGW, CMake, ffmpeg, [Task](https://taskfile.dev/). CGo 
 
 **Always:** run `task build ONLY=gui` for GUI compile checks; keep `Taskfile.yml VERSION` and `scripts/installer.iss MyAppVersion` in sync.
 
-**Before every commit (MUST):** run `task lint`, `task test`, and `task vet`. Bare `go vet` outside the Task env fails on Windows with a `go-gl/gl` CGo constraint error; `task vet` sets the right PATH/CGo env. If any fail, fix the failures first — never commit or push with red checks. No `--no-verify`, no skipping. Applies to every commit, not just user-facing changes.
+**Before every commit (MUST):** run `task lint`, `task test`, and `task vet`. Bare `go vet` / `go test` outside the Task env fails because the whisper.cpp CGo bindings need `CGO_LDFLAGS` from the Taskfile (manifests as `undefined: whisper.SampleBits` etc., not the gopls go-gl warning). Always invoke through `task`. If any fail, fix the failures first — never commit or push with red checks. No `--no-verify`, no skipping. Applies to every commit, not just user-facing changes.
 
 **Ask first:** anything that mutates user state outside the repo (installs, registry, version bumps).
 
@@ -113,6 +113,10 @@ Diarization integration tests live behind `//go:build integration` (`task test-i
 ## Config env vars
 
 `shared.Load()` applies `WT_*` overrides after YAML parse: `WT_MODEL`, `WT_LANGUAGE`, `WT_DEVICE`, `WT_THREADS`, `WT_SPEAKERS`, `WT_NO_DIARIZE`, `WT_TDRZ`, `WT_CACHE_EXPIRY_DAYS`. Booleans accept `1/true/yes/on` and `0/false/no/off` (case-insensitive). Invalid values are silently ignored — a typo cannot flip a flag.
+
+## Subprocess IPC
+
+`internal/diarizer/subproc.go` is the canonical helper for any backend that spawns an external process. It owns pipe setup, an optional stderr line interceptor (return `true` to skip appending to the tail buffer), and tail-on-error formatting via `wait(ctx)`. Both nemo and sherpa go through it. Don't reintroduce ad-hoc `cmd.StdoutPipe`/`cmd.StderrPipe` + `sync.Mutex` boilerplate in new diarizer or transcribe-side subprocess code — extend `subproc` instead.
 
 ## Diarization
 
