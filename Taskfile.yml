@@ -455,12 +455,6 @@ tasks:
         fi
         git push origin "$tag"
 
-        if gh release view "$tag" >/dev/null 2>&1; then
-          echo "Release $tag exists; uploading artifacts (clobber)..."
-        else
-          gh release create "$tag" --title "$tag" --generate-notes
-        fi
-
         artifacts=""
         for f in \
           "dist/wt-setup-$ver.exe" \
@@ -471,13 +465,13 @@ tasks:
         if [ -z "$artifacts" ]; then
           echo "ERROR: no artifacts found to upload"; exit 1
         fi
-        for attempt in 1 2 3; do
-          if gh release upload "$tag" $artifacts --clobber; then
-            break
-          fi
-          echo "upload attempt $attempt failed; retrying..." && sleep 3
-          [ "$attempt" = "3" ] && { echo "ERROR: gh release upload failed after 3 attempts"; exit 1; }
-        done
+
+        if gh release view "$tag" >/dev/null 2>&1; then
+          echo "Release $tag exists; uploading artifacts (clobber)..."
+          gh release upload "$tag" $artifacts --clobber
+        else
+          gh release create "$tag" --title "$tag" --generate-notes $artifacts
+        fi
         echo "Released $tag: https://github.com/asolopovas/wt/releases/tag/$tag"
 
   release-latest:
@@ -507,14 +501,6 @@ tasks:
         git tag -f "$tag" HEAD
         git push origin "$tag" --force
 
-        if gh release view "$tag" >/dev/null 2>&1; then
-          gh release delete "$tag" --yes --cleanup-tag=false
-        fi
-        gh release create "$tag" \
-          --title "Rolling (main @ $sha)" \
-          --prerelease \
-          --notes "Rolling build of main. Commit \`$sha\`, version $ver. Updated automatically; not a stable release."
-
         artifacts=""
         for f in \
           "dist/wt-setup-$ver.exe" \
@@ -525,13 +511,15 @@ tasks:
         if [ -z "$artifacts" ]; then
           echo "ERROR: no artifacts found to upload"; exit 1
         fi
-        for attempt in 1 2 3; do
-          if gh release upload "$tag" $artifacts --clobber; then
-            break
-          fi
-          echo "upload attempt $attempt failed; retrying..." && sleep 3
-          [ "$attempt" = "3" ] && { echo "ERROR: gh release upload failed after 3 attempts"; exit 1; }
-        done
+
+        if gh release view "$tag" >/dev/null 2>&1; then
+          gh release delete "$tag" --yes --cleanup-tag=false
+        fi
+        gh release create "$tag" \
+          --title "Rolling (main @ $sha)" \
+          --prerelease \
+          --notes "Rolling build of main. Commit \`$sha\`, version $ver. Updated automatically; not a stable release." \
+          $artifacts
         echo "Rolling release: https://github.com/asolopovas/wt/releases/tag/$tag"
 
   bump:
