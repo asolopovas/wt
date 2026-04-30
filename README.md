@@ -2,32 +2,42 @@
 
 [![CI](https://github.com/asolopovas/wt/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/asolopovas/wt/actions/workflows/ci.yml)
 
-Audio transcription for Windows, powered by [whisper.cpp](https://github.com/ggml-org/whisper.cpp) with speaker diarization from [NVIDIA NeMo Sortformer](https://huggingface.co/nvidia/diar_sortformer_4spk-v1).
+Audio transcription for Windows, Linux, and Android. Powered by [whisper.cpp](https://github.com/ggml-org/whisper.cpp) with speaker diarization via [NVIDIA NeMo Sortformer](https://huggingface.co/nvidia/diar_sortformer_4spk-v1) (desktop CLI) or sherpa-onnx with pyannote + TitaNet (GUI and Android).
 
-Models download automatically on first run.
+Ships as a CLI (`wt`), a desktop GUI (`wt-gui`), and an Android APK. Models download automatically on first run.
 
-## Features
+## Download
 
-- Batch transcription of any audio format (WAV native, everything else via ffmpeg)
-- Speaker diarization (up to 4 speakers) — GPU-accelerated via NeMo
-- 99 languages with auto-detection
-- Live microphone transcription
-- Structured JSON output with per-word timestamps, speakers, and confidence
-- CUDA acceleration for both whisper.cpp and diarization
+* [Latest release](https://github.com/asolopovas/wt/releases/latest) (stable, versioned)
+* [Rolling release](https://github.com/asolopovas/wt/releases/tag/rolling) (current `main`, prerelease)
 
-## Install
+Each release includes:
 
-Download the latest installer from [Releases](https://github.com/asolopovas/wt/releases) and run it. The installer bundles `wt`, a Python environment, the NeMo diarizer, and a default Whisper model.
+* `wt-setup-<v>.exe` — Windows installer (Inno Setup)
+* `wt_<v>_amd64.deb` — Debian/Ubuntu package
+* `wt-<v>.apk` — Android app
 
-Silent install:
+Silent Windows install:
 
 ```
 wt-setup.exe /VERYSILENT /SP-
 ```
 
-Config and models are stored under `%USERPROFILE%\.wt\`.
+Config and models live under `%USERPROFILE%\.wt\` (Windows) or `~/.wt/` (Linux).
 
-## Usage
+## GUI
+
+`wt-gui` is a Fyne desktop app (Windows/Linux) and Android app:
+
+* Drag and drop audio files, or pick via file dialog
+* In app recording (Android) and live microphone transcription (desktop)
+* Transcript history with search, replay, and re-export
+* Export to JSON, RTF, or CSV
+* Session log tab with live whisper.cpp / diarizer output
+* System tray icon and CPU/RAM/GPU stats
+* Settings UI for model, language, device, threads, diarization
+
+## CLI Usage
 
 ```bash
 wt recording.ogg                    # single file
@@ -36,7 +46,7 @@ wt "recordings/*.ogg"               # glob pattern
 wt -m medium -l en audio.wav        # specify model and language
 wt --speakers 3 meeting.ogg         # hint number of speakers
 wt --no-diarize audio.ogg           # skip speaker detection
-wt --tdrz audio.ogg                 # use whisper.cpp tinydiarize instead of NeMo
+wt --tdrz audio.ogg                 # whisper.cpp tinydiarize instead of NeMo
 wt --live -l en                     # live microphone transcription
 ```
 
@@ -62,18 +72,18 @@ Output is written next to the input as `<name>_<model>_<timestamp>.json`.
 }
 ```
 
-All timestamps are milliseconds.
+All timestamps are in milliseconds.
 
 ## Flags
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `-l, --lang` | auto | Language code (`en`, `ru`, ...). Omit to auto-detect. |
+| `-l, --lang` | auto | Language code (`en`, `ru`, ...). Omit to auto detect. |
 | `-m, --model-size` | `turbo` | `tiny`, `base`, `small`, `medium`, `large-v3`, `turbo` |
-| `--model` | — | Explicit path to a GGML model file. |
+| `--model` | | Explicit path to a GGML model file. |
 | `-t, --threads` | all cores | Thread count. |
-| `--speakers` | 0 (auto) | Hint number of speakers (NeMo Sortformer caps at 4). |
-| `--tdrz` | off | Use whisper.cpp tinydiarize instead of NeMo. |
+| `--speakers` | 0 (auto) | Hint number of speakers. Forces sherpa backend when > 0. |
+| `--tdrz` | off | Use whisper.cpp tinydiarize. |
 | `--no-diarize` | off | Skip diarization entirely. |
 | `--live` | off | Live microphone transcription. |
 | `-V, --verbose` | off | Debug output. |
@@ -91,7 +101,7 @@ CLI flags override `config.yml` values.
 | `large-v3` | 3.1 GB | Best accuracy, slowest |
 | `turbo` | 1.6 GB | Best speed/accuracy tradeoff (default) |
 
-`.en` variants are English-only and slightly faster. Models download to `~/.wt/models/` on first use.
+`.en` variants are English only and slightly faster. Models download to `~/.wt/models/` on first use.
 
 ## Config
 
@@ -99,7 +109,7 @@ CLI flags override `config.yml` values.
 
 ```yaml
 model: turbo
-language: ""           # empty = auto-detect
+language: ""           # empty = auto detect
 device: auto           # auto, cuda, cpu
 threads: 0             # 0 = all cores
 speakers: 0            # 0 = auto
@@ -110,38 +120,32 @@ cache_expiry_days: 30
 
 ## Diarization
 
-Speaker detection uses [NVIDIA NeMo Sortformer](https://huggingface.co/nvidia/diar_sortformer_4spk-v1), running locally via the bundled Python environment. It identifies up to 4 speakers and is GPU-accelerated when CUDA is available.
-
-The model is public — no HuggingFace token is required. It downloads automatically on first run to `~/.cache/huggingface/`.
-
-Alternatives:
-
-- `--tdrz` — whisper.cpp's built-in tinydiarize. Pure Go, no Python, less accurate.
-- `--no-diarize` — skip speaker detection; every utterance gets `SPEAKER_01`.
+* **NeMo Sortformer** (desktop CLI default): up to 4 speakers, GPU accelerated when CUDA is available, runs via the bundled Python environment. Public model, no HuggingFace token needed. Caches to `~/.cache/huggingface/`.
+* **sherpa-onnx** (GUI default, Android only backend, CLI when `--speakers N` is set): pyannote-3.0 segmentation + NeMo TitaNet-Large embeddings. Pure ONNX runtime, no Python.
+* `--tdrz`: whisper.cpp built in tinydiarize. Fast, less accurate.
+* `--no-diarize`: every utterance gets `SPEAKER_01`.
 
 ## Logs
 
-- `~/.wt/setup.log` — installer output (ffmpeg, CUDA, Python env, NeMo, model download)
-- `%TEMP%\Setup Log *.txt` — Inno Setup file operations
+* `~/.wt/setup.log` — installer output (ffmpeg, CUDA, Python env, NeMo, model download)
+* `%TEMP%\Setup Log *.txt` — Inno Setup file operations
 
 ## Build from Source
 
-Requires: Go 1.26+, GCC (MinGW), CMake, ffmpeg, [Task](https://taskfile.dev/).
+Requires Go 1.26+, GCC (MinGW on Windows), CMake, ffmpeg, [Task](https://taskfile.dev/).
 
 ```bash
 git clone https://github.com/asolopovas/wt.git
 cd wt
-task build              # compile binaries (clones whisper.cpp on first run)
+task build              # compile CLI + GUI (clones whisper.cpp on first run)
+task build ONLY=cli     # CLI only
 task install            # replace installed binaries locally
-task setup              # full silent reinstall via installer
 task test               # run test suite
 task check              # verify toolchain
 ```
 
-## Disclaimer
-
-This software is provided "as is", without warranty of any kind. Use it at your own risk. If you want a feature, please open a pull request.
+Android APK: `task install-android` (requires Android SDK/NDK + adb).
 
 ## License
 
-MIT
+MIT. Provided as is, no warranty. PRs welcome.
