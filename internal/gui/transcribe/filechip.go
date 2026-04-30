@@ -1,4 +1,4 @@
-package gui
+package transcribe
 
 import (
 	"fyne.io/fyne/v2"

@@ -1,6 +1,6 @@
 //go:build android
 
-package gui
+package transcribe
 
 import (
 	"fmt"
@@ -22,7 +22,7 @@ var (
 	audioExtensions    = extensionSet(audioExtensionList)
 )
 
-func (p *transcribePanel) build() {
+func (p *Panel) build() {
 	chipsFlow := newFlowLayout(spaceMD)
 	p.fileChips = container.New(chipsFlow)
 	chipsFlow.setParent(p.fileChips)
@@ -31,15 +31,15 @@ func (p *transcribePanel) build() {
 	p.dropText.TextSize = textBody
 	p.dropText.TextStyle = fyne.TextStyle{Monospace: true}
 
-	p.libraryHost = container.NewStack()
-	p.dropArea = container.NewStack(newPanelBackground(), container.NewPadded(p.libraryHost))
+	p.LibraryHost = container.NewStack()
+	p.dropArea = container.NewStack(newPanelBackground(), container.NewPadded(p.LibraryHost))
 
 	p.buildSharedControls()
 
-	p.container = p.dropArea
+	p.Container = p.dropArea
 }
 
-func (p *transcribePanel) onBrowse() {
+func (p *Panel) OnBrowse() {
 	fd := dialog.NewFileOpen(func(reader fyne.URIReadCloser, err error) {
 		if err != nil || reader == nil {
 			return
@@ -48,13 +48,13 @@ func (p *transcribePanel) onBrowse() {
 		localPath, copyErr := copyURIToLocal(reader)
 		_ = reader.Close()
 		if copyErr != nil {
-			p.appendLog(fmt.Sprintf("Error importing file: %v", copyErr))
+			p.AppendLog(fmt.Sprintf("Error importing file: %v", copyErr))
 			return
 		}
 
-		if p.addLocalFile(localPath) {
-			p.rebuildChips()
-			p.updateDropLabel()
+		if p.AddLocalFile(localPath) {
+			p.RebuildChips()
+			p.UpdateDropLabel()
 		}
 	}, p.window)
 
@@ -62,7 +62,7 @@ func (p *transcribePanel) onBrowse() {
 	fd.Show()
 }
 
-func (p *transcribePanel) updateDropLabel() {
+func (p *Panel) UpdateDropLabel() {
 	if len(p.files) > 0 {
 		p.dropText.Text = fmt.Sprintf("%d file(s) selected", len(p.files))
 	} else {

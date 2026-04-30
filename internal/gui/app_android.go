@@ -16,6 +16,7 @@ import (
 	"github.com/asolopovas/wt/internal/gui/cache"
 	"github.com/asolopovas/wt/internal/gui/decor"
 	"github.com/asolopovas/wt/internal/gui/platsvc"
+	"github.com/asolopovas/wt/internal/gui/transcribe"
 )
 
 func Run(version string) error {
@@ -29,12 +30,12 @@ func Run(version string) error {
 	w.SetIcon(appIcon)
 
 	settings := newSettingsPanel(cfg, w)
-	transcribe := newTranscribePanel(w, settings)
-	history := newHistoryPanel(w, transcribe)
-	transcribe.history = history
-	transcribe.attachLibrary(history)
+	tp := transcribe.New(w, settings)
+	history := newHistoryPanel(w, tp)
+	tp.History = history
+	attachLibrary(tp, history)
 	if history.headerRight != nil {
-		history.headerRight.Objects = []fyne.CanvasObject{transcribe.statsLine, transcribe.timerText}
+		history.headerRight.Objects = []fyne.CanvasObject{tp.StatsLine, tp.TimerText}
 		history.headerRight.Refresh()
 	}
 	settings.onCacheCleared = history.Refresh
@@ -50,8 +51,8 @@ func Run(version string) error {
 
 	deviceInfo := detectDevice()
 
-	transcodeTab := buildTranscodeTabAndroid(transcribe)
-	logTab := buildLogTab(transcribe)
+	transcodeTab := buildTranscodeTabAndroid(tp, settings)
+	logTab := transcribe.BuildLogTab(tp)
 	settingsTab := buildSettingsTab(settings, deviceInfo)
 
 	if missing := platsvc.MissingPermissions(); len(missing) > 0 {
@@ -75,20 +76,20 @@ func Run(version string) error {
 	}
 
 	w.SetContent(tabs)
-	wireShareIntake(transcribe, tabs)
+	wireShareIntake(tp, tabs)
 	w.ShowAndRun()
 	return nil
 }
 
-func wireShareIntake(tp *transcribePanel, tabs *container.AppTabs) {
+func wireShareIntake(tp *transcribe.Panel, tabs *container.AppTabs) {
 	go func() {
 		for path := range platsvc.ShareIntakeChan() {
 			path := path
 			fyne.Do(func() {
-				if tp.addLocalFile(path) {
-					tp.rebuildChips()
-					tp.updateDropLabel()
-					tp.appendLog("Imported shared file: " + path)
+				if tp.AddLocalFile(path) {
+					tp.RebuildChips()
+					tp.UpdateDropLabel()
+					tp.AppendLog("Imported shared file: " + path)
 					if tabs != nil {
 						tabs.SelectIndex(0)
 					}
@@ -106,20 +107,20 @@ func wireShareIntake(tp *transcribePanel, tabs *container.AppTabs) {
 	}()
 }
 
-func buildTranscodeTabAndroid(tp *transcribePanel) fyne.CanvasObject {
-	tp.transcribeBtn.Importance = widget.HighImportance
+func buildTranscodeTabAndroid(tp *transcribe.Panel, settings *settingsPanel) fyne.CanvasObject {
+	tp.TranscribeBtn.Importance = widget.HighImportance
 
-	addBtn := newSecondaryButton("ADD FILES", tp.onBrowse)
-	cancelBtn := decor.NewDangerButton("CANCEL", tp.onCancel)
+	addBtn := newSecondaryButton("ADD FILES", tp.OnBrowse)
+	cancelBtn := decor.NewDangerButton("CANCEL", tp.OnCancel)
 
 	var recBtn *pointerButton
-	recBtn = newPointerButtonWithIcon("RECORD", assets.MicIcon, func() { tp.onToggleRecord(recBtn) })
+	recBtn = newPointerButtonWithIcon("RECORD", assets.MicIcon, func() { tp.OnToggleRecord(recBtn) })
 	recBtn.Importance = widget.HighImportance
 
 	settingsRow := container.NewGridWithColumns(3,
-		newFormField("MODEL", tp.settings.modelSelect),
-		newFormField("LANGUAGE", tp.settings.langSelect),
-		newFormField("SPEAKERS", tp.settings.speakersSelect),
+		newFormField("MODEL", settings.modelSelect),
+		newFormField("LANGUAGE", settings.langSelect),
+		newFormField("SPEAKERS", settings.speakersSelect),
 	)
 
 	actionRow := container.NewGridWithColumns(3,
@@ -129,8 +130,8 @@ func buildTranscodeTabAndroid(tp *transcribePanel) fyne.CanvasObject {
 	)
 
 	bottomBar := container.NewVBox(
-		tp.progress,
-		container.NewBorder(nil, nil, tp.statusText, nil),
+		tp.Progress,
+		container.NewBorder(nil, nil, tp.StatusText, nil),
 		settingsRow,
 		actionRow,
 		vGap(spaceMD),
@@ -138,7 +139,7 @@ func buildTranscodeTabAndroid(tp *transcribePanel) fyne.CanvasObject {
 
 	return container.NewBorder(
 		nil, bottomBar, nil, nil,
-		tp.container,
+		tp.Container,
 	)
 }
 

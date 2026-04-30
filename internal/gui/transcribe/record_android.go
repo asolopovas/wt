@@ -1,6 +1,6 @@
 //go:build android
 
-package gui
+package transcribe
 
 import (
 	"fmt"
@@ -12,7 +12,7 @@ import (
 	"github.com/asolopovas/wt/internal/gui/platsvc"
 )
 
-func (p *transcribePanel) onToggleRecord(btn *pointerButton) {
+func (p *Panel) OnToggleRecord(btn *pointerButton) {
 	if isRecording() {
 		path, err := stopRecording()
 		btn.SetIcon(assets.MicIcon)
@@ -20,24 +20,24 @@ func (p *transcribePanel) onToggleRecord(btn *pointerButton) {
 		btn.Importance = widget.HighImportance
 		btn.Refresh()
 		if err != nil {
-			p.appendLog("Recording stop failed: " + err.Error())
+			p.AppendLog("Recording stop failed: " + err.Error())
 			return
 		}
-		p.appendLog("Recording saved: " + path)
+		p.AppendLog("Recording saved: " + path)
 		go func(srcPath string) {
 			if err := publishRecordingToDocuments(srcPath); err != nil {
-				fyne.Do(func() { p.appendLog("warn: " + err.Error()) })
+				fyne.Do(func() { p.AppendLog("warn: " + err.Error()) })
 			} else {
 				fyne.Do(func() {
-					p.appendLog("Saved to Documents/wt/" + filenameOnly(srcPath))
+					p.AppendLog("Saved to Documents/wt/" + filenameOnly(srcPath))
 				})
 			}
 		}(path)
 		fyne.Do(func() {
-			if p.addLocalFile(path) {
-				p.rebuildChips()
-				p.updateDropLabel()
-				p.appendLog("Added recording to file list")
+			if p.AddLocalFile(path) {
+				p.RebuildChips()
+				p.UpdateDropLabel()
+				p.AppendLog("Added recording to file list")
 			}
 		})
 		return
@@ -60,7 +60,7 @@ func (p *transcribePanel) onToggleRecord(btn *pointerButton) {
 	btn.SetText("STOP")
 	btn.Importance = widget.DangerImportance
 	btn.Refresh()
-	p.appendLog("Recording: " + path)
+	p.AppendLog("Recording: " + path)
 }
 
 func filenameOnly(path string) string {

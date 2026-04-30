@@ -1,6 +1,6 @@
 //go:build !android
 
-package gui
+package transcribe
 
 import (
 	"fyne.io/fyne/v2/container"
@@ -11,15 +11,15 @@ var (
 	audioExtensions    = extensionSet(audioExtensionList)
 )
 
-func (p *transcribePanel) build() {
+func (p *Panel) build() {
 	chipsFlow := newFlowLayout(spaceLG)
 	p.fileChips = container.New(chipsFlow)
 	chipsFlow.setParent(p.fileChips)
 
-	p.libraryHost = container.NewStack()
-	p.dropArea = container.NewStack(newPanelBackground(), container.NewPadded(p.libraryHost))
+	p.LibraryHost = container.NewStack()
+	p.dropArea = container.NewStack(newPanelBackground(), container.NewPadded(p.LibraryHost))
 
 	p.buildSharedControls()
 
-	p.container = p.dropArea
+	p.Container = p.dropArea
 }

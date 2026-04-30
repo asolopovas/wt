@@ -1,4 +1,4 @@
-package gui
+package transcribe
 
 import (
 	"context"
@@ -15,50 +15,65 @@ import (
 
 const maxLogLines = 5000
 
-type transcribePanel struct {
+type Settings interface {
+	ModelSize() string
+	Language() string
+	Speakers() int
+	Threads() int
+	NoDiarize() bool
+	Device() string
+	Debug() bool
+}
+
+type History interface {
+	Refresh()
+	Container() fyne.CanvasObject
+}
+
+type Panel struct {
 	window   fyne.Window
-	settings *settingsPanel
-	history  *historyPanel
+	Settings Settings
+	History  History
 
 	dropArea      *fyne.Container
 	dropText      *canvas.Text
 	fileChips     *fyne.Container
-	libraryHost   *fyne.Container
+	LibraryHost   *fyne.Container
 	files         []string
 	clearBtn      *pointerButton
 	clearCacheBtn *pointerButton
-	transcribeBtn *pointerButton
+	TranscribeBtn *pointerButton
 
 	speakerRenames map[string]string
 
-	progress   *thinProgress
-	statusText *canvas.Text
-	timerText  *canvas.Text
-	statsLine  *widget.Label
+	Progress   *thinProgress
+	StatusText *canvas.Text
+	TimerText  *canvas.Text
+	StatsLine  *widget.Label
 
 	runStart    time.Time
 	timerStop   chan struct{}
 	timerStopMu sync.Mutex
 
-	logEntry     *widget.Entry
+	LogEntry     *widget.Entry
 	logBufMu     sync.Mutex
 	logBuf       []string
 	logFlushCh   chan struct{}
 	logFlushStop chan struct{}
 
 	autoScroll  atomic.Bool
-	autoBtn     *pointerButton
-	copyLogBtn  *pointerButton
-	clearLogBtn *pointerButton
+	AutoBtn     *pointerButton
+	CopyLogBtn  *pointerButton
+	ClearLogBtn *pointerButton
 
 	lastCSVPath string
-	results     []exportItem
+	results     []ExportItem
 
 	mu         sync.Mutex
 	running    bool
 	cancelled  atomic.Bool
 	cancelFunc context.CancelFunc
-	container  fyne.CanvasObject
+	Container  fyne.CanvasObject
 
 	progressTarget atomic.Uint64
 	statusTarget   atomic.Pointer[string]
@@ -69,7 +84,7 @@ type transcribePanel struct {
 	progSlice float64
 }
 
-func (p *transcribePanel) setLocalProgress(local float64) {
+func (p *Panel) setLocalProgress(local float64) {
 	if local < 0 {
 		local = 0
 	}
@@ -83,7 +98,7 @@ func (p *transcribePanel) setLocalProgress(local float64) {
 	p.setProgress(p.progBase + local*slice)
 }
 
-func (p *transcribePanel) startSmoothUpdates() {
+func (p *Panel) startSmoothUpdates() {
 	p.smoothMu.Lock()
 	defer p.smoothMu.Unlock()
 	if p.smoothStop != nil {
@@ -124,10 +139,10 @@ func (p *transcribePanel) startSmoothUpdates() {
 				}
 				cur := current
 				fyne.Do(func() {
-					p.progress.SetValue(cur)
+					p.Progress.SetValue(cur)
 					if statusChanged {
-						p.statusText.Text = nextStatus
-						p.statusText.Refresh()
+						p.StatusText.Text = nextStatus
+						p.StatusText.Refresh()
 					}
 				})
 			}
@@ -135,7 +150,7 @@ func (p *transcribePanel) startSmoothUpdates() {
 	}()
 }
 
-func (p *transcribePanel) stopSmoothUpdates() {
+func (p *Panel) stopSmoothUpdates() {
 	p.smoothMu.Lock()
 	if p.smoothStop != nil {
 		close(p.smoothStop)
@@ -149,18 +164,18 @@ func (p *transcribePanel) stopSmoothUpdates() {
 		finalStatus = *sp
 	}
 	fyne.Do(func() {
-		p.progress.SetValue(finalProgress)
+		p.Progress.SetValue(finalProgress)
 		if finalStatus != "" {
-			p.statusText.Text = finalStatus
-			p.statusText.Refresh()
+			p.StatusText.Text = finalStatus
+			p.StatusText.Refresh()
 		}
 	})
 }
 
-func newTranscribePanel(window fyne.Window, settings *settingsPanel) *transcribePanel {
-	p := &transcribePanel{
+func New(window fyne.Window, settings Settings) *Panel {
+	p := &Panel{
 		window:     window,
-		settings:   settings,
+		Settings:   settings,
 		logFlushCh: make(chan struct{}, 1),
 	}
 	p.build()
@@ -171,7 +186,7 @@ func newTranscribePanel(window fyne.Window, settings *settingsPanel) *transcribe
 	return p
 }
 
-func (p *transcribePanel) startLogFlusher() {
+func (p *Panel) startLogFlusher() {
 	p.logFlushStop = make(chan struct{})
 	go func() {
 		ticker := time.NewTicker(100 * time.Millisecond)
@@ -189,7 +204,7 @@ func (p *transcribePanel) startLogFlusher() {
 	}()
 }
 
-func (p *transcribePanel) flushLogBuffer() {
+func (p *Panel) flushLogBuffer() {
 	p.logBufMu.Lock()
 	if len(p.logBuf) == 0 {
 		p.logBufMu.Unlock()
@@ -202,10 +217,10 @@ func (p *transcribePanel) flushLogBuffer() {
 	chunk := strings.Join(pending, "\n")
 	autoScroll := p.autoScroll.Load()
 	fyne.Do(func() {
-		if p.logEntry == nil {
+		if p.LogEntry == nil {
 			return
 		}
-		text := p.logEntry.Text
+		text := p.LogEntry.Text
 		if text == "" {
 			text = chunk
 		} else {
@@ -216,16 +231,16 @@ func (p *transcribePanel) flushLogBuffer() {
 			lines = lines[len(lines)-maxLogLines:]
 			text = strings.Join(lines, "\n")
 		}
-		p.logEntry.SetText(text)
+		p.LogEntry.SetText(text)
 		if autoScroll {
-			p.logEntry.CursorRow = strings.Count(text, "\n")
-			p.logEntry.CursorColumn = len(text) - strings.LastIndex(text, "\n") - 1
-			p.logEntry.Refresh()
+			p.LogEntry.CursorRow = strings.Count(text, "\n")
+			p.LogEntry.CursorColumn = len(text) - strings.LastIndex(text, "\n") - 1
+			p.LogEntry.Refresh()
 		}
 	})
 }
 
-func (p *transcribePanel) setupDragDrop() {
+func (p *Panel) setupDragDrop() {
 	p.window.SetOnDropped(func(_ fyne.Position, uris []fyne.URI) {
 		p.addDroppedFiles(uris)
 	})

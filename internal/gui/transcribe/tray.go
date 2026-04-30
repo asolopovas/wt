@@ -1,6 +1,6 @@
 //go:build !android
 
-package gui
+package transcribe
 
 import (
 	"fmt"
@@ -11,13 +11,13 @@ import (
 	"fyne.io/fyne/v2/driver/desktop"
 )
 
-func setupTray(a fyne.App, w fyne.Window, tp *transcribePanel) {
+func SetupTray(a fyne.App, w fyne.Window, tp *Panel, icon fyne.Resource) {
 	dApp, ok := a.(desktop.App)
 	if !ok {
 		return
 	}
 
-	dApp.SetSystemTrayIcon(appIcon)
+	dApp.SetSystemTrayIcon(icon)
 
 	showItem := fyne.NewMenuItem("Show wt", func() {
 		w.Show()
@@ -28,7 +28,7 @@ func setupTray(a fyne.App, w fyne.Window, tp *transcribePanel) {
 		running := tp.running
 		tp.mu.Unlock()
 		if running {
-			tp.onCancel()
+			tp.OnCancel()
 		}
 	})
 
@@ -53,7 +53,7 @@ func setupTray(a fyne.App, w fyne.Window, tp *transcribePanel) {
 	}()
 }
 
-func trayProgressLabel(tp *transcribePanel) string {
+func trayProgressLabel(tp *Panel) string {
 	tp.mu.Lock()
 	running := tp.running
 	tp.mu.Unlock()

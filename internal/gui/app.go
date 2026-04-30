@@ -11,6 +11,7 @@ import (
 
 	shared "github.com/asolopovas/wt/internal"
 	"github.com/asolopovas/wt/internal/gui/cache"
+	"github.com/asolopovas/wt/internal/gui/transcribe"
 )
 
 func Run(version string) error {
@@ -25,10 +26,10 @@ func Run(version string) error {
 	w.Resize(fyne.NewSize(1040, 720))
 
 	settings := newSettingsPanel(cfg, w)
-	transcribe := newTranscribePanel(w, settings)
-	history := newHistoryPanel(w, transcribe)
-	transcribe.history = history
-	transcribe.attachLibrary(history)
+	tp := transcribe.New(w, settings)
+	history := newHistoryPanel(w, tp)
+	tp.History = history
+	attachLibrary(tp, history)
 	settings.onCacheCleared = history.Refresh
 
 	if cache.GC(cfg.CacheExpiryDays) > 0 {
@@ -42,8 +43,8 @@ func Run(version string) error {
 
 	deviceInfo := detectDevice()
 
-	transcodeTab := buildTranscodeTab(transcribe)
-	logTab := buildLogTab(transcribe)
+	transcodeTab := buildTranscodeTab(tp, settings)
+	logTab := transcribe.BuildLogTab(tp)
 	settingsTab := buildSettingsTab(settings, deviceInfo)
 
 	tabs := container.NewAppTabs(
@@ -53,28 +54,36 @@ func Run(version string) error {
 	)
 	tabs.SetTabLocation(container.TabLocationBottom)
 
-	setupTray(a, w, transcribe)
+	transcribe.SetupTray(a, w, tp, appIcon)
 
 	w.SetContent(tabs)
 	w.ShowAndRun()
 	return nil
 }
 
-func buildTranscodeTab(tp *transcribePanel) fyne.CanvasObject {
-	addBtn := newSecondaryButton("ADD FILES", tp.onBrowse)
-
-	sidebar := buildSidebar(tp, addBtn)
-
-	return container.New(newSidebarLayout(spaceLG), tp.container, sidebar)
+func attachLibrary(p *transcribe.Panel, h transcribe.History) {
+	if p.LibraryHost == nil {
+		return
+	}
+	p.LibraryHost.Objects = []fyne.CanvasObject{h.Container()}
+	p.LibraryHost.Refresh()
 }
 
-func buildSidebar(tp *transcribePanel, addBtn *pointerButton) fyne.CanvasObject {
+func buildTranscodeTab(tp *transcribe.Panel, settings *settingsPanel) fyne.CanvasObject {
+	addBtn := newSecondaryButton("ADD FILES", tp.OnBrowse)
+
+	sidebar := buildSidebar(tp, settings, addBtn)
+
+	return container.New(newSidebarLayout(spaceLG), tp.Container, sidebar)
+}
+
+func buildSidebar(tp *transcribe.Panel, settings *settingsPanel, addBtn *pointerButton) fyne.CanvasObject {
 	optionsBlock := container.NewVBox(
 		newSectionHeader("OPTIONS"),
 		container.New(newCappedGrid(3, spaceMD, 0),
-			newFormField("MODEL", tp.settings.modelSelect),
-			newFormField("LANGUAGE", tp.settings.langSelect),
-			newFormField("SPEAKERS", tp.settings.speakersSelect),
+			newFormField("MODEL", settings.modelSelect),
+			newFormField("LANGUAGE", settings.langSelect),
+			newFormField("SPEAKERS", settings.speakersSelect),
 		),
 	)
 
@@ -85,10 +94,10 @@ func buildSidebar(tp *transcribePanel, addBtn *pointerButton) fyne.CanvasObject 
 		),
 	)
 
-	statusRow := container.NewBorder(nil, nil, tp.statusText, tp.timerText)
+	statusRow := container.NewBorder(nil, nil, tp.StatusText, tp.TimerText)
 	statusBlock := container.NewVBox(
 		newSectionHeader("STATUS"),
-		tp.progress,
+		tp.Progress,
 		statusRow,
 	)
 

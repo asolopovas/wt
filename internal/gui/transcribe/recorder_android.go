@@ -1,6 +1,6 @@
 //go:build android
 
-package gui
+package transcribe
 
 /*
 #cgo LDFLAGS: -llog

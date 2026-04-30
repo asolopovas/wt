@@ -9,7 +9,6 @@ import (
 
 var (
 	colBackground   = color.NRGBA{R: 15, G: 20, B: 26, A: 255}
-	colSurfLowest   = color.NRGBA{R: 10, G: 15, B: 20, A: 255}
 	colSurfLow      = color.NRGBA{R: 23, G: 28, B: 34, A: 255}
 	colSurfMid      = color.NRGBA{R: 27, G: 32, B: 38, A: 255}
 	colSurfHigh     = color.NRGBA{R: 37, G: 42, B: 49, A: 255}
@@ -20,7 +19,6 @@ var (
 	colMuted        = color.NRGBA{R: 191, G: 199, B: 208, A: 255}
 	colSecondary    = color.NRGBA{R: 255, G: 208, B: 135, A: 255}
 	colDialogBorder = color.NRGBA{R: 168, G: 178, B: 188, A: 200}
-	colPrimaryFaint = color.NRGBA{R: 143, G: 205, B: 255, A: 102}
 	colHover        = color.NRGBA{R: 143, G: 205, B: 255, A: 20}
 	colSuccess      = color.NRGBA{R: 187, G: 250, B: 195, A: 255}
 	colError        = color.NRGBA{R: 255, G: 180, B: 171, A: 255}
@@ -79,15 +77,6 @@ func (t *whisperTheme) Icon(name fyne.ThemeIconName) fyne.Resource {
 
 func (t *whisperTheme) Font(style fyne.TextStyle) fyne.Resource {
 	return theme.DefaultTheme().Font(style)
-}
-
-type logEntryTheme struct{ whisperTheme }
-
-func (t *logEntryTheme) Color(name fyne.ThemeColorName, variant fyne.ThemeVariant) color.Color {
-	if name == theme.ColorNameInputBackground || name == theme.ColorNameDisabled {
-		return colSurfLowest
-	}
-	return t.whisperTheme.Color(name, variant)
 }
 
 func (t *whisperTheme) Size(name fyne.ThemeSizeName) float32 {

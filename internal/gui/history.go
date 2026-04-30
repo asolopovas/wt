@@ -13,33 +13,15 @@ import (
 
 	"github.com/asolopovas/wt/internal/gui/cache"
 	"github.com/asolopovas/wt/internal/gui/player"
+	"github.com/asolopovas/wt/internal/gui/transcribe"
 	"github.com/asolopovas/wt/internal/transcriber"
 )
 
-func (p *transcribePanel) attachLibrary(h *historyPanel) {
-	if p.libraryHost == nil {
-		return
-	}
-	p.libraryHost.Objects = []fyne.CanvasObject{h.container}
-	p.libraryHost.Refresh()
-}
-
-func libraryDialogSize(w fyne.Window) fyne.Size {
-	cs := w.Canvas().Size()
-	width := cs.Width * 0.9
-	height := cs.Height * 0.85
-	if width < 360 {
-		width = 360
-	}
-	if height < 480 {
-		height = 480
-	}
-	return fyne.NewSize(width, height)
-}
+const startTimeLayout = "2006-01-02 15:04:05"
 
 type historyPanel struct {
 	window      fyne.Window
-	transcribe  *transcribePanel
+	transcribe  *transcribe.Panel
 	list        *fyne.Container
 	empty       *canvas.Text
 	container   fyne.CanvasObject
@@ -47,7 +29,11 @@ type historyPanel struct {
 	player      player.Player
 }
 
-func newHistoryPanel(window fyne.Window, tp *transcribePanel) *historyPanel {
+func (h *historyPanel) Container() fyne.CanvasObject {
+	return h.container
+}
+
+func newHistoryPanel(window fyne.Window, tp *transcribe.Panel) *historyPanel {
 	hp := &historyPanel{window: window, transcribe: tp}
 	hp.build()
 	hp.rebuild()
@@ -171,28 +157,28 @@ func (h *historyPanel) showRowMenu(e cache.Entry, recorded time.Time, anchor fyn
 				showError(h.window, fmt.Errorf("source file path missing"))
 				return
 			}
-			h.transcribe.startTranscription([]string{e.SourcePath})
+			h.transcribe.StartTranscription([]string{e.SourcePath})
 		}),
 	}
 
 	if !e.Pending {
 		items = append(items,
 			fyne.NewMenuItem("Preview", func() {
-				h.transcribe.openPreview(exportItem{
-					cachePath:  cache.TranscriptPathForKey(e.Key),
-					sourceName: e.SourceName,
-					sourcePath: e.SourcePath,
-					cacheKey:   e.Key,
-					recordedAt: recorded,
+				h.transcribe.OpenPreview(transcribe.ExportItem{
+					CachePath:  cache.TranscriptPathForKey(e.Key),
+					SourceName: e.SourceName,
+					SourcePath: e.SourcePath,
+					CacheKey:   e.Key,
+					RecordedAt: recorded,
 				}, nil)
 			}),
 			fyne.NewMenuItem("Export", func() {
-				h.transcribe.exportTranscript([]exportItem{{
-					cachePath:  cache.TranscriptPathForKey(e.Key),
-					sourceName: e.SourceName,
-					sourcePath: e.SourcePath,
-					cacheKey:   e.Key,
-					recordedAt: recorded,
+				h.transcribe.ExportTranscript([]transcribe.ExportItem{{
+					CachePath:  cache.TranscriptPathForKey(e.Key),
+					SourceName: e.SourceName,
+					SourcePath: e.SourcePath,
+					CacheKey:   e.Key,
+					RecordedAt: recorded,
 				}})
 			}),
 		)

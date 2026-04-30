@@ -1,0 +1,76 @@
+package transcribe
+
+import (
+	"image/color"
+
+	"github.com/asolopovas/wt/internal/gui/decor"
+	"github.com/asolopovas/wt/internal/gui/preview"
+)
+
+const (
+	spaceXS  = decor.SpaceXS
+	spaceSM  = decor.SpaceSM
+	spaceMD  = decor.SpaceMD
+	spaceLG  = decor.SpaceLG
+	spaceXL  = decor.SpaceXL
+	spaceXXL = decor.SpaceXXL
+)
+
+const (
+	textCaption = decor.TextCaption
+	textBody    = decor.TextBody
+	textLabel   = decor.TextLabel
+	textRow     = decor.TextRow
+	textHeading = decor.TextHeading
+)
+
+var (
+	surfaceRaised = decor.SurfaceRaised
+)
+
+var (
+	colMuted                    = decor.TextMuted
+	colPrimary                  = decor.ActionPrimary
+	colPrimaryFaint color.Color = color.NRGBA{R: 143, G: 205, B: 255, A: 102}
+	transparent                 = decor.Transparent
+)
+
+var (
+	newPrimaryButton         = decor.NewPrimaryButton
+	newSecondaryButton       = decor.NewSecondaryButton
+	wrapAction               = decor.WrapAction
+	newCaptionText           = decor.NewCaptionText
+	newPanelBackground       = decor.NewPanelBackground
+	newPointerButton         = decor.NewPointerButton
+	newPointerButtonWithIcon = decor.NewPointerButtonWithIcon
+	newThinProgress          = decor.NewThinProgress
+)
+
+type pointerButton = decor.PointerButton
+type thinProgress = decor.ThinProgress
+
+type dialogAction = decor.DialogAction
+type dialogConfig = decor.DialogConfig
+
+const (
+	kindSecondary = decor.KindSecondary
+	kindPrimary   = decor.KindPrimary
+)
+
+const (
+	notifyInfo   = decor.NotifyInfo
+	notifyActive = decor.NotifyActive
+)
+
+var (
+	setStatusText  = decor.SetStatusText
+	setStatusStyle = decor.SetStatusStyle
+	showNotice     = decor.ShowNotice
+	showError      = decor.ShowError
+)
+
+func showDialog(cfg dialogConfig) func() {
+	cfg.TopInset = preview.TopInset()
+	cfg.BottomInset = preview.BottomInset()
+	return decor.ShowDialog(cfg)
+}

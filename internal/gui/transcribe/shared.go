@@ -1,4 +1,4 @@
-package gui
+package transcribe
 
 import (
 	"fmt"
@@ -17,7 +17,6 @@ import (
 
 	shared "github.com/asolopovas/wt/internal"
 	"github.com/asolopovas/wt/internal/gui/cache"
-	whisper "github.com/ggerganov/whisper.cpp/bindings/go/pkg/whisper"
 )
 
 var baseAudioExtensions = []string{
@@ -27,7 +26,7 @@ var baseAudioExtensions = []string{
 
 const startTimeLayout = "2006-01-02 15:04:05"
 
-func (p *transcribePanel) displayName(speaker string) string {
+func (p *Panel) displayName(speaker string) string {
 	if alias, ok := p.speakerRenames[speaker]; ok {
 		trimmed := strings.TrimSpace(alias)
 		if trimmed != "" {
@@ -37,7 +36,7 @@ func (p *transcribePanel) displayName(speaker string) string {
 	return speaker
 }
 
-func (p *transcribePanel) resetSpeakerRenames() {
+func (p *Panel) resetSpeakerRenames() {
 	p.speakerRenames = nil
 }
 
@@ -76,9 +75,9 @@ func buildLogPanel(content fyne.CanvasObject, leftHeader fyne.CanvasObject, copy
 	return container.NewStack(newPanelBackground(), inner)
 }
 
-func appendLogInit(p *transcribePanel) {
-	p.appendLog("Initializing Whisper Core ...")
-	p.appendLog("Ready.")
+func appendLogInit(p *Panel) {
+	p.AppendLog("Initializing Whisper Core ...")
+	p.AppendLog("Ready.")
 }
 
 func clearCache(window fyne.Window, appendLog func(string)) {
@@ -94,32 +93,20 @@ func clearCache(window fyne.Window, appendLog func(string)) {
 	appendLog("Cache cleared: " + cacheDir)
 }
 
-func detectDevice() string {
-	var parts []string
-
-	whisper.SetLogQuiet(true)
-	if exePath, err := os.Executable(); err == nil {
-		whisper.BackendSetSearchPath(filepath.Dir(exePath))
+func libraryDialogSize(w fyne.Window) fyne.Size {
+	cs := w.Canvas().Size()
+	width := cs.Width * 0.9
+	height := cs.Height * 0.85
+	if width < 360 {
+		width = 360
 	}
-	whisper.BackendLoadAll()
-	devices := whisper.BackendDevices()
-	for _, dev := range devices {
-		if dev.Type == "GPU" || dev.Type == "iGPU" {
-			info := dev.Description
-			if dev.TotalMB > 0 {
-				info += fmt.Sprintf(" (%.1f GB)", float64(dev.TotalMB)/1024.0)
-			}
-			parts = append(parts, info)
-		}
+	if height < 480 {
+		height = 480
 	}
-
-	if len(parts) == 0 {
-		return "CPU ONLY"
-	}
-	return strings.Join(parts, " | ")
+	return fyne.NewSize(width, height)
 }
 
-func (p *transcribePanel) addDroppedFiles(uris []fyne.URI) {
+func (p *Panel) addDroppedFiles(uris []fyne.URI) {
 	var accepted, rejected []string
 	for _, u := range uris {
 		path := u.Path()
@@ -138,36 +125,36 @@ func (p *transcribePanel) addDroppedFiles(uris []fyne.URI) {
 	fyne.Do(func() {
 		added := 0
 		for _, path := range accepted {
-			if p.addLocalFile(path) {
+			if p.AddLocalFile(path) {
 				added++
 			}
 		}
 		if added > 0 {
-			p.rebuildChips()
-			p.updateDropLabel()
+			p.RebuildChips()
+			p.UpdateDropLabel()
 		}
 	})
 
 	if len(rejected) > 0 {
-		p.appendLog("Ignored (unsupported format): " + strings.Join(rejected, ", "))
+		p.AppendLog("Ignored (unsupported format): " + strings.Join(rejected, ", "))
 	}
 }
 
-func (p *transcribePanel) addLocalFile(path string) bool {
+func (p *Panel) AddLocalFile(path string) bool {
 	if p.hasFile(path) {
 		return false
 	}
 	p.files = append(p.files, path)
 	if err := cache.StorePending(path); err != nil {
-		p.appendLog("warn: could not record pending entry: " + err.Error())
+		p.AppendLog("warn: could not record pending entry: " + err.Error())
 	}
-	if p.history != nil {
-		p.history.Refresh()
+	if p.History != nil {
+		p.History.Refresh()
 	}
 	return true
 }
 
-func (p *transcribePanel) restorePendingFiles() {
+func (p *Panel) restorePendingFiles() {
 	for _, e := range cache.EntriesByRecent() {
 		if !e.Pending {
 			continue
@@ -181,11 +168,11 @@ func (p *transcribePanel) restorePendingFiles() {
 		}
 		p.files = append(p.files, e.SourcePath)
 	}
-	p.rebuildChips()
-	p.updateDropLabel()
+	p.RebuildChips()
+	p.UpdateDropLabel()
 }
 
-func (p *transcribePanel) hasFile(path string) bool {
+func (p *Panel) hasFile(path string) bool {
 	for _, f := range p.files {
 		if f == path {
 			return true
@@ -194,32 +181,32 @@ func (p *transcribePanel) hasFile(path string) bool {
 	return false
 }
 
-func (p *transcribePanel) removeFile(index int) {
+func (p *Panel) removeFile(index int) {
 	if index < 0 || index >= len(p.files) {
 		return
 	}
 	p.files = append(p.files[:index], p.files[index+1:]...)
-	p.rebuildChips()
-	p.updateDropLabel()
+	p.RebuildChips()
+	p.UpdateDropLabel()
 }
 
-func (p *transcribePanel) onClear() {
+func (p *Panel) onClear() {
 	p.files = nil
-	p.rebuildChips()
-	p.updateDropLabel()
+	p.RebuildChips()
+	p.UpdateDropLabel()
 	p.onClearLog()
 	p.setStatus("Ready")
-	p.progress.Hide()
+	p.Progress.Hide()
 	p.results = nil
 	p.resetSpeakerRenames()
 }
 
-func (p *transcribePanel) onClearCache() {
-	clearCache(p.window, p.appendLog)
+func (p *Panel) onClearCache() {
+	clearCache(p.window, p.AppendLog)
 	p.setStatus("Cache cleared.")
 }
 
-func (p *transcribePanel) rebuildChips() {
+func (p *Panel) RebuildChips() {
 	p.fileChips.Objects = nil
 	for i, f := range p.files {
 		idx := i
@@ -231,29 +218,29 @@ func (p *transcribePanel) rebuildChips() {
 	p.fileChips.Refresh()
 }
 
-func (p *transcribePanel) onClearLog() {
+func (p *Panel) onClearLog() {
 	p.logBufMu.Lock()
 	p.logBuf = nil
 	p.logBufMu.Unlock()
 	fyne.Do(func() {
-		if p.logEntry != nil {
-			p.logEntry.SetText("")
+		if p.LogEntry != nil {
+			p.LogEntry.SetText("")
 		}
 	})
 }
 
-func (p *transcribePanel) onCopyLog() {
-	if p.logEntry == nil {
+func (p *Panel) onCopyLog() {
+	if p.LogEntry == nil {
 		return
 	}
-	fyne.CurrentApp().Clipboard().SetContent(p.logEntry.Text)
+	fyne.CurrentApp().Clipboard().SetContent(p.LogEntry.Text)
 }
 
-func (p *transcribePanel) onShareLog() {
-	if p.logEntry == nil {
+func (p *Panel) onShareLog() {
+	if p.LogEntry == nil {
 		return
 	}
-	content := p.logEntry.Text
+	content := p.LogEntry.Text
 	if strings.TrimSpace(content) == "" {
 		return
 	}
@@ -274,7 +261,7 @@ func (p *transcribePanel) onShareLog() {
 	saveDialog.Show()
 }
 
-func (p *transcribePanel) appendLog(msg string) {
+func (p *Panel) AppendLog(msg string) {
 	line := time.Now().Format("[15:04:05]") + "  " + msg
 	p.logBufMu.Lock()
 	p.logBuf = append(p.logBuf, line)
@@ -285,7 +272,7 @@ func (p *transcribePanel) appendLog(msg string) {
 	}
 }
 
-func (p *transcribePanel) setStatus(msg string) {
+func (p *Panel) setStatus(msg string) {
 	p.mu.Lock()
 	running := p.running
 	p.mu.Unlock()
@@ -294,7 +281,7 @@ func (p *transcribePanel) setStatus(msg string) {
 		s := upper
 		p.statusTarget.Store(&s)
 		fyne.Do(func() {
-			setStatusStyle(p.statusText, notifyActive)
+			setStatusStyle(p.StatusText, notifyActive)
 		})
 		return
 	}
@@ -303,21 +290,21 @@ func (p *transcribePanel) setStatus(msg string) {
 		level = notifyActive
 	}
 	fyne.Do(func() {
-		setStatusText(p.statusText, level, msg)
+		setStatusText(p.StatusText, level, msg)
 	})
 }
 
-func (p *transcribePanel) setProgress(val float64) {
+func (p *Panel) setProgress(val float64) {
 	if p.smoothStop != nil {
 		p.progressTarget.Store(math.Float64bits(val))
 		return
 	}
 	fyne.Do(func() {
-		p.progress.SetValue(val)
+		p.Progress.SetValue(val)
 	})
 }
 
-func (p *transcribePanel) makeDownloadProgress(label string) func(downloaded, total int64) {
+func (p *Panel) makeDownloadProgress(label string) func(downloaded, total int64) {
 	var (
 		startTime    time.Time
 		startOffset  int64
@@ -328,7 +315,7 @@ func (p *transcribePanel) makeDownloadProgress(label string) func(downloaded, to
 	)
 	return func(downloaded, total int64) {
 		if downloaded < 0 {
-			p.appendLog(fmt.Sprintf("  %s: retry %d — resuming", label, -downloaded))
+			p.AppendLog(fmt.Sprintf("  %s: retry %d — resuming", label, -downloaded))
 			lastBytes = 0
 			startTime = time.Time{}
 			return
@@ -344,10 +331,10 @@ func (p *transcribePanel) makeDownloadProgress(label string) func(downloaded, to
 		}
 		if !headerLogged {
 			if downloaded > 0 && downloaded < total {
-				p.appendLog(fmt.Sprintf("  %s: resuming %.0f/%.0f MB...",
+				p.AppendLog(fmt.Sprintf("  %s: resuming %.0f/%.0f MB...",
 					label, float64(downloaded)/(1024*1024), float64(total)/(1024*1024)))
 			} else {
-				p.appendLog(fmt.Sprintf("  %s: downloading %.0f MB...",
+				p.AppendLog(fmt.Sprintf("  %s: downloading %.0f MB...",
 					label, float64(total)/(1024*1024)))
 			}
 			headerLogged = true
@@ -388,7 +375,7 @@ func (p *transcribePanel) makeDownloadProgress(label string) func(downloaded, to
 			if elapsed > 0 {
 				avg = gotMB / elapsed
 			}
-			p.appendLog(fmt.Sprintf("  %s: done — %.0f MB in %.0fs (%.1f MB/s avg)",
+			p.AppendLog(fmt.Sprintf("  %s: done — %.0f MB in %.0fs (%.1f MB/s avg)",
 				label, gotMB, elapsed, avg))
 		}
 	}

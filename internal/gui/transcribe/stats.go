@@ -1,4 +1,4 @@
-package gui
+package transcribe
 
 import (
 	"fmt"
@@ -8,7 +8,7 @@ import (
 	"github.com/asolopovas/wt/internal/gui/sysstats"
 )
 
-func (p *transcribePanel) startStats() {
+func (p *Panel) startStats() {
 	p.setStats(p.collectStats())
 	go func() {
 		ticker := time.NewTicker(2 * time.Second)
@@ -19,7 +19,7 @@ func (p *transcribePanel) startStats() {
 	}()
 }
 
-func (p *transcribePanel) collectStats() string {
+func (p *Panel) collectStats() string {
 	var parts []string
 
 	cpu := sysstats.ProcessCPU()

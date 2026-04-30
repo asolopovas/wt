@@ -1,4 +1,4 @@
-package gui
+package transcribe
 
 import (
 	"encoding/csv"
@@ -37,24 +37,24 @@ var exportFormats = []exportFormat{
 	{"Text", "txt"},
 }
 
-type exportItem struct {
-	cachePath  string
-	sourceName string
-	sourcePath string
-	cacheKey   string
-	recordedAt time.Time
+type ExportItem struct {
+	CachePath  string
+	SourceName string
+	SourcePath string
+	CacheKey   string
+	RecordedAt time.Time
 }
 
-func (p *transcribePanel) openPreview(item exportItem, onClose func()) {
-	tr, err := loadTranscript(item.cachePath)
+func (p *Panel) OpenPreview(item ExportItem, onClose func()) {
+	tr, err := loadTranscript(item.CachePath)
 	if err != nil {
-		showError(p.window, fmt.Errorf("loading %s: %w", item.sourceName, err))
+		showError(p.window, fmt.Errorf("loading %s: %w", item.SourceName, err))
 		return
 	}
 
-	start := item.recordedAt
+	start := item.RecordedAt
 	if start.IsZero() {
-		if t, ok := fileStartTime(item.sourcePath); ok {
+		if t, ok := fileStartTime(item.SourcePath); ok {
 			start = t
 		} else {
 			start = time.Now()
@@ -71,7 +71,7 @@ func (p *transcribePanel) openPreview(item exportItem, onClose func()) {
 	}
 
 	p.speakerRenames = map[string]string{}
-	for k, v := range cache.LoadSpeakerRenames(item.cacheKey) {
+	for k, v := range cache.LoadSpeakerRenames(item.CacheKey) {
 		p.speakerRenames[k] = v
 	}
 
@@ -163,7 +163,7 @@ func (p *transcribePanel) openPreview(item exportItem, onClose func()) {
 			} else {
 				p.speakerRenames[speaker] = s
 			}
-			_ = cache.SaveSpeakerRenames(item.cacheKey, p.speakerRenames)
+			_ = cache.SaveSpeakerRenames(item.CacheKey, p.speakerRenames)
 			render()
 		}
 		label := canvas.NewText(speaker, colMuted)
@@ -264,10 +264,10 @@ func (p *transcribePanel) openPreview(item exportItem, onClose func()) {
 	floating := container.New(newTopRightFloater(spaceXL, spaceXL), copyBtn)
 	bodyInner := container.NewBorder(top, actionRow, nil, nil, scroll)
 	body := container.NewStack(bodyInner, floating)
-	hidePreview = preview.ShowTranscript(item.sourceName, body, p.window, onClose)
+	hidePreview = preview.ShowTranscript(item.SourceName, body, p.window, onClose)
 }
 
-func (p *transcribePanel) exportSinglePrompt(item exportItem, start time.Time) {
+func (p *Panel) exportSinglePrompt(item ExportItem, start time.Time) {
 	labels := make([]string, len(exportFormats))
 	for i, f := range exportFormats {
 		labels[i] = f.label
@@ -294,17 +294,17 @@ func (p *transcribePanel) exportSinglePrompt(item exportItem, start time.Time) {
 	})
 }
 
-func itemStartTime(item exportItem) time.Time {
-	if !item.recordedAt.IsZero() {
-		return item.recordedAt
+func itemStartTime(item ExportItem) time.Time {
+	if !item.RecordedAt.IsZero() {
+		return item.RecordedAt
 	}
-	if t, ok := fileStartTime(item.sourcePath); ok {
+	if t, ok := fileStartTime(item.SourcePath); ok {
 		return t
 	}
 	return time.Now()
 }
 
-func (p *transcribePanel) renamedTranscript(tr *transcriber.Transcript) *transcriber.Transcript {
+func (p *Panel) renamedTranscript(tr *transcriber.Transcript) *transcriber.Transcript {
 	if len(p.speakerRenames) == 0 {
 		return tr
 	}
@@ -324,14 +324,14 @@ func (p *transcribePanel) renamedTranscript(tr *transcriber.Transcript) *transcr
 	return &cp
 }
 
-func (p *transcribePanel) exportTranscript(items []exportItem) {
+func (p *Panel) ExportTranscript(items []ExportItem) {
 	if len(items) == 0 {
 		showNotice(p.window, notifyInfo, "Export", "No output yet. Transcribe a file first.")
 		return
 	}
 	for _, it := range items {
-		if _, err := os.Stat(it.cachePath); err != nil {
-			showError(p.window, fmt.Errorf("output file not found: %s", it.cachePath))
+		if _, err := os.Stat(it.CachePath); err != nil {
+			showError(p.window, fmt.Errorf("output file not found: %s", it.CachePath))
 			return
 		}
 	}
@@ -366,8 +366,8 @@ func (p *transcribePanel) exportTranscript(items []exportItem) {
 	})
 }
 
-func (p *transcribePanel) exportSingleAs(f exportFormat, item exportItem, start time.Time) {
-	tr, err := loadTranscript(item.cachePath)
+func (p *Panel) exportSingleAs(f exportFormat, item ExportItem, start time.Time) {
+	tr, err := loadTranscript(item.CachePath)
 	if err != nil {
 		showError(p.window, err)
 		return
@@ -383,50 +383,50 @@ func (p *transcribePanel) exportSingleAs(f exportFormat, item exportItem, start 
 			showError(p.window, writeErr)
 			return
 		}
-		p.appendLog("Exported: " + w.URI().Path())
+		p.AppendLog("Exported: " + w.URI().Path())
 	}, p.window)
 
-	saveDialog.SetFileName(exportBaseName(item.sourceName, tr.Model) + "." + f.ext)
+	saveDialog.SetFileName(exportBaseName(item.SourceName, tr.Model) + "." + f.ext)
 	saveDialog.SetFilter(storage.NewExtensionFileFilter([]string{"." + f.ext}))
 	saveDialog.Show()
 }
 
-func (p *transcribePanel) exportBatchAs(f exportFormat, items []exportItem) {
+func (p *Panel) exportBatchAs(f exportFormat, items []ExportItem) {
 	folderDialog := dialog.NewFolderOpen(func(u fyne.ListableURI, err error) {
 		if err != nil || u == nil {
 			return
 		}
 		var done, failed int
 		for _, item := range items {
-			tr, err := loadTranscript(item.cachePath)
+			tr, err := loadTranscript(item.CachePath)
 			if err != nil {
-				p.appendLog(fmt.Sprintf("Export failed for %s: %v", item.sourceName, err))
+				p.AppendLog(fmt.Sprintf("Export failed for %s: %v", item.SourceName, err))
 				failed++
 				continue
 			}
 			model := tr.Model
 			tr = p.renamedTranscript(tr)
-			name := exportBaseName(item.sourceName, model) + "." + f.ext
+			name := exportBaseName(item.SourceName, model) + "." + f.ext
 			childURI, err := storage.Child(u, name)
 			if err != nil {
-				p.appendLog(fmt.Sprintf("Export failed for %s: %v", item.sourceName, err))
+				p.AppendLog(fmt.Sprintf("Export failed for %s: %v", item.SourceName, err))
 				failed++
 				continue
 			}
 			out, err := storage.Writer(childURI)
 			if err != nil {
-				p.appendLog(fmt.Sprintf("Export failed for %s: %v", item.sourceName, err))
+				p.AppendLog(fmt.Sprintf("Export failed for %s: %v", item.SourceName, err))
 				failed++
 				continue
 			}
 			werr := writeExport(out, tr, f, itemStartTime(item))
 			_ = out.Close()
 			if werr != nil {
-				p.appendLog(fmt.Sprintf("Export failed for %s: %v", item.sourceName, werr))
+				p.AppendLog(fmt.Sprintf("Export failed for %s: %v", item.SourceName, werr))
 				failed++
 				continue
 			}
-			p.appendLog("Exported: " + childURI.Path())
+			p.AppendLog("Exported: " + childURI.Path())
 			done++
 		}
 		if failed > 0 {

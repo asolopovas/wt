@@ -1,6 +1,6 @@
 //go:build !android
 
-package gui
+package transcribe
 
 import (
 	"fmt"
@@ -10,7 +10,7 @@ import (
 	"fyne.io/fyne/v2/storage"
 )
 
-func (p *transcribePanel) onBrowse() {
+func (p *Panel) OnBrowse() {
 	fd := dialog.NewFileOpen(func(reader fyne.URIReadCloser, err error) {
 		if err != nil || reader == nil {
 			return
@@ -19,9 +19,9 @@ func (p *transcribePanel) onBrowse() {
 			_ = reader.Close()
 		}()
 		path := reader.URI().Path()
-		if p.addLocalFile(path) {
-			p.rebuildChips()
-			p.updateDropLabel()
+		if p.AddLocalFile(path) {
+			p.RebuildChips()
+			p.UpdateDropLabel()
 		}
 	}, p.window)
 
@@ -29,7 +29,7 @@ func (p *transcribePanel) onBrowse() {
 	fd.Show()
 }
 
-func (p *transcribePanel) updateDropLabel() {
+func (p *Panel) UpdateDropLabel() {
 	if p.dropText == nil {
 		return
 	}

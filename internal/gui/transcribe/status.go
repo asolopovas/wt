@@ -1,4 +1,4 @@
-package gui
+package transcribe
 
 import (
 	"strings"
@@ -11,7 +11,7 @@ import (
 	"github.com/asolopovas/wt/internal/transcriber"
 )
 
-func (p *transcribePanel) startRunTimer() {
+func (p *Panel) startRunTimer() {
 	p.timerStopMu.Lock()
 	defer p.timerStopMu.Unlock()
 	if p.timerStop != nil {
@@ -21,8 +21,8 @@ func (p *transcribePanel) startRunTimer() {
 	stop := make(chan struct{})
 	p.timerStop = stop
 	fyne.Do(func() {
-		p.timerText.Text = "0:00"
-		p.timerText.Refresh()
+		p.TimerText.Text = "0:00"
+		p.TimerText.Refresh()
 	})
 	go func() {
 		ticker := time.NewTicker(500 * time.Millisecond)
@@ -34,15 +34,15 @@ func (p *transcribePanel) startRunTimer() {
 			case <-ticker.C:
 				txt := transcriber.FormatHMS(time.Since(p.runStart))
 				fyne.Do(func() {
-					p.timerText.Text = txt
-					p.timerText.Refresh()
+					p.TimerText.Text = txt
+					p.TimerText.Refresh()
 				})
 			}
 		}
 	}()
 }
 
-func (p *transcribePanel) stopRunTimer() {
+func (p *Panel) stopRunTimer() {
 	p.timerStopMu.Lock()
 	stop := p.timerStop
 	p.timerStop = nil
@@ -53,19 +53,19 @@ func (p *transcribePanel) stopRunTimer() {
 	if !p.runStart.IsZero() {
 		final := transcriber.FormatHMS(time.Since(p.runStart))
 		fyne.Do(func() {
-			p.timerText.Text = final
-			p.timerText.Refresh()
+			p.TimerText.Text = final
+			p.TimerText.Refresh()
 		})
 	}
 }
 
-func (p *transcribePanel) setStats(msg string) {
+func (p *Panel) setStats(msg string) {
 	fyne.Do(func() {
-		p.statsLine.SetText(msg)
+		p.StatsLine.SetText(msg)
 	})
 }
 
-func (p *transcribePanel) setRunning(running bool) {
+func (p *Panel) setRunning(running bool) {
 	p.mu.Lock()
 	p.running = running
 	p.mu.Unlock()
@@ -84,54 +84,54 @@ func (p *transcribePanel) setRunning(running bool) {
 
 	fyne.Do(func() {
 		if running {
-			p.transcribeBtn.SetText("CANCEL")
-			p.transcribeBtn.Importance = widget.DangerImportance
+			p.TranscribeBtn.SetText("CANCEL")
+			p.TranscribeBtn.Importance = widget.DangerImportance
 			p.clearBtn.Disable()
 			p.clearCacheBtn.Disable()
-			p.progress.Show()
-			p.progress.SetValue(0)
+			p.Progress.Show()
+			p.Progress.SetValue(0)
 		} else {
-			p.transcribeBtn.SetText("TRANSCRIBE")
-			p.transcribeBtn.Importance = widget.HighImportance
+			p.TranscribeBtn.SetText("TRANSCRIBE")
+			p.TranscribeBtn.Importance = widget.HighImportance
 			p.clearBtn.Enable()
 			p.clearCacheBtn.Enable()
 		}
 	})
 }
 
-func (p *transcribePanel) onCancel() {
+func (p *Panel) OnCancel() {
 	p.cancelled.Store(true)
 	p.mu.Lock()
 	if p.cancelFunc != nil {
 		p.cancelFunc()
 	}
 	p.mu.Unlock()
-	p.appendLog("Cancelling...")
+	p.AppendLog("Cancelling...")
 	p.setStatus("Cancelling...")
 }
 
-func (p *transcribePanel) toggleAutoScroll() {
+func (p *Panel) toggleAutoScroll() {
 	on := !p.autoScroll.Load()
 	p.autoScroll.Store(on)
 	fyne.Do(func() {
 		if on {
-			p.autoBtn.Importance = widget.HighImportance
-			if p.logEntry != nil {
-				text := p.logEntry.Text
-				p.logEntry.CursorRow = strings.Count(text, "\n")
-				p.logEntry.CursorColumn = len(text) - strings.LastIndex(text, "\n") - 1
-				p.logEntry.Refresh()
+			p.AutoBtn.Importance = widget.HighImportance
+			if p.LogEntry != nil {
+				text := p.LogEntry.Text
+				p.LogEntry.CursorRow = strings.Count(text, "\n")
+				p.LogEntry.CursorColumn = len(text) - strings.LastIndex(text, "\n") - 1
+				p.LogEntry.Refresh()
 			}
 		} else {
-			p.autoBtn.Importance = widget.LowImportance
+			p.AutoBtn.Importance = widget.LowImportance
 		}
-		p.autoBtn.Refresh()
+		p.AutoBtn.Refresh()
 	})
 }
 
-func (p *transcribePanel) debugLog(msg string) {
-	if !p.settings.Debug() {
+func (p *Panel) debugLog(msg string) {
+	if !p.Settings.Debug() {
 		return
 	}
-	p.appendLog("  [debug] " + msg)
+	p.AppendLog("  [debug] " + msg)
 }

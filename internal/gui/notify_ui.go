@@ -3,15 +3,11 @@ package gui
 import "github.com/asolopovas/wt/internal/gui/decor"
 
 const (
-	notifyInfo    = decor.NotifyInfo
-	notifyActive  = decor.NotifyActive
-	notifySuccess = decor.NotifySuccess
+	notifyInfo = decor.NotifyInfo
 )
 
 var (
-	setStatusText  = decor.SetStatusText
-	setStatusStyle = decor.SetStatusStyle
-	showNotice     = decor.ShowNotice
-	showError      = decor.ShowError
-	showConfirm    = decor.ShowConfirm
+	showNotice  = decor.ShowNotice
+	showError   = decor.ShowError
+	showConfirm = decor.ShowConfirm
 )

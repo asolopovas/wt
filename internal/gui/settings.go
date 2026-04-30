@@ -2,6 +2,7 @@ package gui
 
 import (
 	"fmt"
+	"os"
 	"runtime"
 	"slices"
 	"strconv"
@@ -177,7 +178,15 @@ func (p *settingsPanel) Debug() bool {
 }
 
 func (p *settingsPanel) onClearCache() {
-	clearCache(p.window, func(_ string) {})
+	cacheDir := shared.CacheDir()
+	if err := os.RemoveAll(cacheDir); err != nil {
+		showError(p.window, fmt.Errorf("clearing cache: %w", err))
+		return
+	}
+	if err := os.MkdirAll(cacheDir, 0o755); err != nil {
+		showError(p.window, fmt.Errorf("recreating cache dir: %w", err))
+		return
+	}
 	showNotice(p.window, notifyInfo, "Cache", "Audio cache cleared.")
 }
 
