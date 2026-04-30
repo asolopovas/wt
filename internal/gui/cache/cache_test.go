@@ -211,6 +211,106 @@ func TestCacheEntriesByRecent_DedupesPrefersReal(t *testing.T) {
 	}
 }
 
+func TestRecordedAtOrFallback(t *testing.T) {
+	explicit := time.Now().Add(-3 * time.Hour)
+	if got := RecordedAtOrFallback(Entry{RecordedAt: explicit}); !got.Equal(explicit) {
+		t.Errorf("explicit RecordedAt should win, got %v", got)
+	}
+
+	tmp := filepath.Join(t.TempDir(), "audio.m4a")
+	if err := os.WriteFile(tmp, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	info, _ := os.Stat(tmp)
+	got := RecordedAtOrFallback(Entry{SourcePath: tmp, CreatedAt: time.Now()})
+	if !got.Equal(info.ModTime().Local()) {
+		t.Errorf("source mtime fallback expected %v, got %v", info.ModTime().Local(), got)
+	}
+
+	created := time.Now().Add(-time.Hour)
+	got = RecordedAtOrFallback(Entry{SourcePath: "/nonexistent/file", CreatedAt: created})
+	if !got.Equal(created) {
+		t.Errorf("CreatedAt fallback expected %v, got %v", created, got)
+	}
+
+	got = RecordedAtOrFallback(Entry{CreatedAt: created})
+	if !got.Equal(created) {
+		t.Errorf("empty SourcePath: CreatedAt expected %v, got %v", created, got)
+	}
+}
+
+func TestSetRecordedAt(t *testing.T) {
+	redirectAppDir(t)
+	if _, err := Store(Entry{Key: "k1", CreatedAt: time.Now()}, []byte("{}")); err != nil {
+		t.Fatal(err)
+	}
+
+	when := time.Date(2024, 6, 1, 12, 0, 0, 0, time.UTC)
+	if err := SetRecordedAt("k1", when); err != nil {
+		t.Fatalf("SetRecordedAt: %v", err)
+	}
+
+	entries, _ := loadManifest()
+	if len(entries) != 1 || !entries[0].RecordedAt.Equal(when) {
+		t.Errorf("RecordedAt not persisted, got %+v", entries)
+	}
+
+	if err := SetRecordedAt("missing", when); err == nil {
+		t.Error("expected error for missing key")
+	}
+}
+
+func TestBuildKeyParams(t *testing.T) {
+	tmp := filepath.Join(t.TempDir(), "a.wav")
+	if err := os.WriteFile(tmp, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	p, err := BuildKeyParams(tmp, "small", "en", 2, true)
+	if err != nil {
+		t.Fatalf("BuildKeyParams: %v", err)
+	}
+	if !filepath.IsAbs(p.SourcePath) {
+		t.Errorf("SourcePath should be absolute, got %q", p.SourcePath)
+	}
+	if p.MtimeNs == 0 {
+		t.Error("MtimeNs should be set")
+	}
+	if p.Model != "small" || p.Language != "en" || p.Speakers != 2 || !p.NoDiarize {
+		t.Errorf("fields not propagated: %+v", p)
+	}
+
+	if _, err := BuildKeyParams("/nonexistent/audio.wav", "tiny", "en", 0, false); err == nil {
+		t.Error("expected error for missing file")
+	}
+}
+
+func TestClear(t *testing.T) {
+	redirectAppDir(t)
+	if _, err := Store(Entry{Key: "a", CreatedAt: time.Now()}, []byte("{}")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Store(Entry{Key: "b", CreatedAt: time.Now()}, []byte("{}")); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := Clear(); err != nil {
+		t.Fatalf("Clear: %v", err)
+	}
+
+	if _, err := os.Stat(TranscriptPathForKey("a")); !os.IsNotExist(err) {
+		t.Errorf("transcript a should be gone, stat err=%v", err)
+	}
+	if _, err := os.Stat(TranscriptPathForKey("b")); !os.IsNotExist(err) {
+		t.Errorf("transcript b should be gone, stat err=%v", err)
+	}
+
+	redirectAppDir(t)
+	if err := Clear(); err != nil {
+		t.Errorf("Clear on missing dir should be a no-op, got %v", err)
+	}
+}
+
 func TestSpeakerRenamesRoundTrip(t *testing.T) {
 	redirectAppDir(t)
 	if err := SaveSpeakerRenames("k", map[string]string{"S1": "Alice"}); err != nil {
