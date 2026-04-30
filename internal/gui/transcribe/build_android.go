@@ -32,7 +32,7 @@ func (p *Panel) build() {
 	p.dropText.TextStyle = fyne.TextStyle{Monospace: true}
 
 	p.LibraryHost = container.NewStack()
-	p.dropArea = container.NewStack(newPanelBackground(), container.NewPadded(p.LibraryHost))
+	p.dropArea = p.LibraryHost
 
 	p.buildSharedControls()
 

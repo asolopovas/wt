@@ -11,6 +11,7 @@ import (
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/widget"
 
+	"github.com/asolopovas/wt/internal/gui/decor"
 	"github.com/asolopovas/wt/internal/gui/platsvc"
 )
 
@@ -20,10 +21,7 @@ type permissionsSection struct {
 }
 
 func newPermissionsSection() *permissionsSection {
-	header := canvas.NewText("PERMISSIONS", colMuted)
-	header.TextSize = textLabel
-	header.TextStyle = fyne.TextStyle{Bold: true}
-	header.Alignment = fyne.TextAlignCenter
+	header := decor.NewPanelHeader(newCaptionText("PERMISSIONS"))
 
 	rows := container.NewVBox()
 	root := container.NewVBox(header, vGap(spaceMD), rows)

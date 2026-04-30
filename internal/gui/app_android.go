@@ -34,10 +34,6 @@ func Run(version string) error {
 	history := newHistoryPanel(w, tp)
 	tp.History = history
 	attachLibrary(tp, history)
-	if history.headerRight != nil {
-		history.headerRight.Objects = []fyne.CanvasObject{tp.StatsLine, tp.TimerText}
-		history.headerRight.Refresh()
-	}
 	settings.onCacheCleared = history.Refresh
 
 	if cache.GC(cfg.CacheExpiryDays) > 0 {
@@ -129,9 +125,10 @@ func buildTranscodeTabAndroid(tp *transcribe.Panel, settings *settingsPanel) fyn
 		wrapAction(cancelBtn),
 	)
 
+	statsRight := container.NewHBox(tp.StatsLine, tp.TimerText)
 	bottomBar := container.NewVBox(
 		tp.Progress,
-		container.NewBorder(nil, nil, tp.StatusText, nil),
+		container.NewBorder(nil, nil, tp.StatusText, statsRight),
 		settingsRow,
 		actionRow,
 		vGap(spaceMD),
@@ -157,13 +154,10 @@ func buildSettingsTab(sp *settingsPanel, deviceInfo string) fyne.CanvasObject {
 	settingsGrid := container.NewVBox(
 		inlineField("DEVICE", sp.deviceSelect),
 		inlineField("THREADS", sp.threadsSelect),
-		inlineField("EXPIRY", sp.expirySelect),
+		inlineField("CACHE EXPIRY", sp.expirySelect),
 	)
 
-	header := canvas.NewText("SETTINGS", colMuted)
-	header.TextSize = textLabel
-	header.TextStyle = fyne.TextStyle{Bold: true}
-	header.Alignment = fyne.TextAlignCenter
+	header := decor.NewPanelHeader(newCaptionText("SETTINGS"))
 
 	_ = deviceInfo
 	statsBlock := container.NewVBox()
@@ -178,9 +172,7 @@ func buildSettingsTab(sp *settingsPanel, deviceInfo string) fyne.CanvasObject {
 		permsSection = newPermissionsSection()
 	}
 
-	topSection := container.NewVBox(
-		vGap(spaceXL),
-		header,
+	bodySection := container.NewVBox(
 		vGap(spaceMD),
 		statsBlock,
 		vGap(spaceXL),
@@ -216,7 +208,7 @@ func buildSettingsTab(sp *settingsPanel, deviceInfo string) fyne.CanvasObject {
 	}
 
 	return container.NewBorder(
-		nil, pad(bottomSection), nil, nil,
-		container.NewVScroll(pad(topSection)),
+		header, pad(bottomSection), nil, nil,
+		container.NewVScroll(pad(bodySection)),
 	)
 }

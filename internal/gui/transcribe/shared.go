@@ -68,8 +68,8 @@ func buildLogPanel(content fyne.CanvasObject, leftHeader fyne.CanvasObject, copy
 	header := decor.NewPanelHeader(leftHeader, right...)
 
 	themed := container.NewThemeOverride(content, &logEntryTheme{})
-	inner := container.NewBorder(header, nil, nil, nil, themed)
-	return container.NewStack(newPanelBackground(), inner)
+	contentArea := container.NewStack(newPanelBackground(), themed)
+	return container.NewBorder(header, nil, nil, nil, contentArea)
 }
 
 func appendLogInit(p *Panel) {
