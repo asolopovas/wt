@@ -104,31 +104,6 @@ func (h *historyPanel) buildRow(e cache.Entry) fyne.CanvasObject {
 
 	info := container.New(&tightVBox{gap: spaceXS}, nameText, metaText)
 
-	playBtn := newPointerButtonWithIcon("", playIconResource, nil)
-	playBtn.Importance = widget.LowImportance
-	if h.player.Playing(e.Key) {
-		playBtn.SetIcon(pauseIconResource)
-	}
-	playBtn.OnTapped = func() {
-		if e.SourcePath == "" {
-			showError(h.window, fmt.Errorf("source file path missing"))
-			return
-		}
-		if h.player.Playing(e.Key) {
-			h.player.Stop()
-			playBtn.SetIcon(playIconResource)
-			return
-		}
-		err := h.player.Start(e.Key, e.SourcePath, func(string) {
-			fyne.Do(func() { playBtn.SetIcon(playIconResource) })
-		})
-		if err != nil {
-			showError(h.window, fmt.Errorf("ffplay not available: %w", err))
-			return
-		}
-		playBtn.SetIcon(pauseIconResource)
-	}
-
 	moreBtn := newPointerButtonWithIcon("", theme.MoreVerticalIcon(), nil)
 	moreBtn.Importance = widget.LowImportance
 	moreBtn.OnTapped = func() {
@@ -139,7 +114,55 @@ func (h *historyPanel) buildRow(e cache.Entry) fyne.CanvasObject {
 		return container.NewGridWrap(fyne.NewSize(32, 32), btn)
 	}
 
-	actions := container.NewHBox(wrap(playBtn), wrap(moreBtn))
+	actions := container.NewHBox()
+
+	if e.Pending {
+		spinner := widget.NewActivity()
+		spinner.Start()
+		actions.Add(wrap(container.NewCenter(spinner)))
+	} else {
+		playBtn := newPointerButtonWithIcon("", playIconResource, nil)
+		playBtn.Importance = widget.LowImportance
+		if h.player.Playing(e.Key) {
+			playBtn.SetIcon(pauseIconResource)
+		}
+		playBtn.OnTapped = func() {
+			if e.SourcePath == "" {
+				showError(h.window, fmt.Errorf("source file path missing"))
+				return
+			}
+			if h.player.Playing(e.Key) {
+				h.player.Stop()
+				playBtn.SetIcon(playIconResource)
+				return
+			}
+			err := h.player.Start(e.Key, e.SourcePath, func(string) {
+				fyne.Do(func() { playBtn.SetIcon(playIconResource) })
+			})
+			if err != nil {
+				showError(h.window, fmt.Errorf("ffplay not available: %w", err))
+				return
+			}
+			playBtn.SetIcon(pauseIconResource)
+		}
+
+		previewBtn := newPointerButtonWithIcon("", theme.VisibilityIcon(), nil)
+		previewBtn.Importance = widget.LowImportance
+		previewBtn.OnTapped = func() {
+			h.transcribe.OpenPreview(transcribe.ExportItem{
+				CachePath:  cache.TranscriptPathForKey(e.Key),
+				SourceName: e.SourceName,
+				SourcePath: e.SourcePath,
+				CacheKey:   e.Key,
+				RecordedAt: recorded,
+			}, nil)
+		}
+
+		actions.Add(wrap(playBtn))
+		actions.Add(wrap(previewBtn))
+	}
+
+	actions.Add(wrap(moreBtn))
 
 	row := container.NewBorder(nil, nil, nil, container.NewCenter(actions), info)
 
