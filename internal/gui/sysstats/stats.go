@@ -17,8 +17,14 @@ func FormatMB(mb int64) string {
 }
 
 func GPUStats() (utilPct int, memMB int) {
+	utilPct, memMB, _ = GPUStatsFull()
+	return
+}
+
+func GPUStatsFull() (utilPct, memUsedMB, memTotalMB int) {
 	utilPct = -1
-	memMB = -1
+	memUsedMB = -1
+	memTotalMB = -1
 
 	if u := AndroidGPU(); u >= 0 {
 		utilPct = u
@@ -26,7 +32,7 @@ func GPUStats() (utilPct int, memMB int) {
 	}
 
 	cmd := exec.Command("nvidia-smi",
-		"--query-gpu=utilization.gpu,memory.used",
+		"--query-gpu=utilization.gpu,memory.used,memory.total",
 		"--format=csv,noheader,nounits")
 	shared.HideWindow(cmd)
 	out, err := cmd.Output()
@@ -36,7 +42,7 @@ func GPUStats() (utilPct int, memMB int) {
 
 	line := strings.TrimSpace(string(out))
 	parts := strings.Split(line, ",")
-	if len(parts) < 2 {
+	if len(parts) < 3 {
 		return
 	}
 
@@ -44,7 +50,10 @@ func GPUStats() (utilPct int, memMB int) {
 		utilPct = v
 	}
 	if v, err := strconv.Atoi(strings.TrimSpace(parts[1])); err == nil {
-		memMB = v
+		memUsedMB = v
+	}
+	if v, err := strconv.Atoi(strings.TrimSpace(parts[2])); err == nil {
+		memTotalMB = v
 	}
 	return
 }

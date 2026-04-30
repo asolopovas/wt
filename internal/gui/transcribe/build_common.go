@@ -3,6 +3,7 @@ package transcribe
 import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
+	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 )
@@ -23,8 +24,7 @@ func (p *Panel) buildSharedControls() {
 	p.TimerText.TextStyle = monoBoldStyle
 	p.TimerText.Alignment = fyne.TextAlignTrailing
 
-	p.StatsLine = widget.NewLabel("")
-	p.StatsLine.TextStyle = fyne.TextStyle{Monospace: true}
+	p.StatsLine = container.NewHBox()
 
 	p.LogEntry = widget.NewMultiLineEntry()
 	p.LogEntry.TextStyle = fyne.TextStyle{Monospace: true}

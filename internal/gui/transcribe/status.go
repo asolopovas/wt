@@ -5,6 +5,8 @@ import (
 	"time"
 
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/canvas"
+	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/asolopovas/wt/internal/gui/platsvc"
@@ -59,9 +61,29 @@ func (p *Panel) stopRunTimer() {
 	}
 }
 
-func (p *Panel) setStats(msg string) {
+func (p *Panel) setStats(segs []statSegment) {
 	fyne.Do(func() {
-		p.StatsLine.SetText(msg)
+		objs := make([]fyne.CanvasObject, 0, len(segs)*3)
+		for i, s := range segs {
+			if i > 0 {
+				sep := canvas.NewText(" | ", colMuted)
+				sep.TextSize = textBody
+				sep.TextStyle = fyne.TextStyle{Monospace: true}
+				objs = append(objs, sep)
+			}
+			if s.icon != nil {
+				ic := canvas.NewImageFromResource(s.icon)
+				ic.FillMode = canvas.ImageFillContain
+				ic.SetMinSize(fyne.NewSize(textBody+spaceSM, textBody+spaceSM))
+				objs = append(objs, container.NewCenter(ic))
+			}
+			t := canvas.NewText(s.text, colMuted)
+			t.TextSize = textBody
+			t.TextStyle = fyne.TextStyle{Monospace: true}
+			objs = append(objs, container.NewCenter(t))
+		}
+		p.StatsLine.Objects = objs
+		p.StatsLine.Refresh()
 	})
 }
 

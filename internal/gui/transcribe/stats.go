@@ -2,11 +2,18 @@ package transcribe
 
 import (
 	"fmt"
-	"strings"
 	"time"
 
+	"fyne.io/fyne/v2"
+
+	"github.com/asolopovas/wt/internal/gui/assets"
 	"github.com/asolopovas/wt/internal/gui/sysstats"
 )
+
+type statSegment struct {
+	icon *fyne.StaticResource
+	text string
+}
 
 func (p *Panel) startStats() {
 	p.setStats(p.collectStats())
@@ -19,37 +26,36 @@ func (p *Panel) startStats() {
 	}()
 }
 
-func (p *Panel) collectStats() string {
-	var parts []string
+func (p *Panel) collectStats() []statSegment {
+	segs := make([]statSegment, 0, 3)
 
-	cpu := sysstats.ProcessCPU()
+	cpu := sysstats.CPUUsage()
 	if cpu < 0 {
-		cpu = sysstats.CPUUsage()
+		cpu = sysstats.ProcessCPU()
 	}
 	if cpu >= 0 {
-		parts = append(parts, fmt.Sprintf("CPU %d%%", cpu))
+		segs = append(segs, statSegment{icon: assets.CPUIcon, text: fmt.Sprintf("%d%%", cpu)})
 	}
 
-	gpuUtil, gpuMem := sysstats.GPUStats()
-	if gpuUtil >= 0 {
-		parts = append(parts, fmt.Sprintf("GPU %d%%", gpuUtil))
-	}
-	if freq := sysstats.AndroidGPUFreqMHz(); freq > 0 {
-		parts = append(parts, fmt.Sprintf("%d MHz", freq))
-	}
-	if temp := sysstats.AndroidGPUTempC(); temp > 0 {
-		parts = append(parts, fmt.Sprintf("%d°C", temp))
-	}
-	if gpuMem < 0 {
-		gpuMem = sysstats.AndroidGPUMemMB()
-	}
-	if gpuMem >= 0 {
-		parts = append(parts, "VRAM "+sysstats.FormatMB(int64(gpuMem)))
+	if used, total := sysstats.MemUsageMB(); used >= 0 && total > 0 {
+		segs = append(segs, statSegment{
+			icon: assets.RAMIcon,
+			text: fmt.Sprintf("%s / %s", sysstats.FormatMB(int64(used)), sysstats.FormatMB(int64(total))),
+		})
 	}
 
-	if rss := sysstats.ProcessRSSMB(); rss >= 0 {
-		parts = append(parts, "RAM "+sysstats.FormatMB(int64(rss)))
+	gpuUtil, gpuUsed, gpuTotal := sysstats.GPUStatsFull()
+	if gpuUsed < 0 {
+		gpuUsed = sysstats.AndroidGPUMemMB()
+	}
+	if gpuUsed >= 0 && gpuTotal > 0 {
+		segs = append(segs, statSegment{
+			icon: assets.GPUIcon,
+			text: fmt.Sprintf("%s / %s", sysstats.FormatMB(int64(gpuUsed)), sysstats.FormatMB(int64(gpuTotal))),
+		})
+	} else if gpuUtil >= 0 {
+		segs = append(segs, statSegment{icon: assets.GPUIcon, text: fmt.Sprintf("%d%%", gpuUtil)})
 	}
 
-	return strings.Join(parts, "  •  ")
+	return segs
 }

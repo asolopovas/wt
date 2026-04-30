@@ -49,7 +49,7 @@ type Panel struct {
 	Progress   *thinProgress
 	StatusText *canvas.Text
 	TimerText  *canvas.Text
-	StatsLine  *widget.Label
+	StatsLine  *fyne.Container
 
 	runStart    time.Time
 	timerStop   chan struct{}

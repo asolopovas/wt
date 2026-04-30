@@ -6,6 +6,7 @@ import (
 )
 
 const (
+	spaceSM  = decor.SpaceSM
 	spaceMD  = decor.SpaceMD
 	spaceLG  = decor.SpaceLG
 	spaceXL  = decor.SpaceXL

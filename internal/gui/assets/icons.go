@@ -37,3 +37,27 @@ var PauseIcon = &fyne.StaticResource{
 	StaticName:    "icon_pause.svg",
 	StaticContent: pauseIconData,
 }
+
+//go:embed icon_cpu.svg
+var cpuIconData []byte
+
+var CPUIcon = &fyne.StaticResource{
+	StaticName:    "icon_cpu.svg",
+	StaticContent: cpuIconData,
+}
+
+//go:embed icon_ram.svg
+var ramIconData []byte
+
+var RAMIcon = &fyne.StaticResource{
+	StaticName:    "icon_ram.svg",
+	StaticContent: ramIconData,
+}
+
+//go:embed icon_gpu.svg
+var gpuIconData []byte
+
+var GPUIcon = &fyne.StaticResource{
+	StaticName:    "icon_gpu.svg",
+	StaticContent: gpuIconData,
+}
