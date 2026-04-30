@@ -2,6 +2,7 @@ package gui
 
 import (
 	"fmt"
+	"os"
 	"time"
 
 	"fyne.io/fyne/v2"
@@ -41,6 +42,7 @@ type historyPanel struct {
 	empty       *canvas.Text
 	container   fyne.CanvasObject
 	headerRight *fyne.Container
+	player      audioPlayer
 }
 
 func newHistoryPanel(window fyne.Window, tp *transcribePanel) *historyPanel {
@@ -128,16 +130,17 @@ func (h *historyPanel) buildRow(e cacheEntry) fyne.CanvasObject {
 	info := container.NewVBox(titleRow, metaText)
 
 	deleteBtn := newPointerButtonWithIcon("", theme.DeleteIcon(), func() {
-		var msg string
-		if e.Pending {
-			msg = fmt.Sprintf("Remove %s from the list?", e.SourceName)
-		} else {
-			msg = fmt.Sprintf("Remove cached transcript for %s?", e.SourceName)
-		}
+		msg := fmt.Sprintf("Delete %s? This will remove the source file and any cached transcript.", e.SourceName)
 		dialog.ShowConfirm("Delete", msg,
 			func(ok bool) {
 				if !ok {
 					return
+				}
+				if e.SourcePath != "" {
+					if err := os.Remove(e.SourcePath); err != nil && !os.IsNotExist(err) {
+						dialog.ShowError(err, h.window)
+						return
+					}
 				}
 				if err := cacheDelete(e.Key); err != nil {
 					dialog.ShowError(err, h.window)
@@ -147,6 +150,31 @@ func (h *historyPanel) buildRow(e cacheEntry) fyne.CanvasObject {
 			}, h.window)
 	})
 	deleteBtn.Importance = widget.LowImportance
+
+	playBtn := newPointerButtonWithIcon("", playIconResource, nil)
+	playBtn.Importance = widget.LowImportance
+	if h.player.playing(e.Key) {
+		playBtn.SetIcon(pauseIconResource)
+	}
+	playBtn.OnTapped = func() {
+		if e.SourcePath == "" {
+			dialog.ShowError(fmt.Errorf("source file path missing"), h.window)
+			return
+		}
+		if h.player.playing(e.Key) {
+			h.player.stop()
+			playBtn.SetIcon(playIconResource)
+			return
+		}
+		err := h.player.start(e.Key, e.SourcePath, func(string) {
+			fyne.Do(func() { playBtn.SetIcon(playIconResource) })
+		})
+		if err != nil {
+			dialog.ShowError(fmt.Errorf("ffplay not available: %w", err), h.window)
+			return
+		}
+		playBtn.SetIcon(pauseIconResource)
+	}
 
 	transcribeBtn := newPointerButtonWithIcon("", transcribeIconResource, func() {
 		if e.SourcePath == "" {
@@ -164,7 +192,7 @@ func (h *historyPanel) buildRow(e cacheEntry) fyne.CanvasObject {
 
 	var actions *fyne.Container
 	if e.Pending {
-		actions = container.NewHBox(transcribeBtn, editStampBtn, deleteBtn)
+		actions = container.NewHBox(playBtn, transcribeBtn, editStampBtn, deleteBtn)
 	} else {
 		previewBtn := newPointerButtonWithIcon("", theme.VisibilityIcon(), func() {
 			h.transcribe.openPreview(exportItem{
@@ -188,7 +216,7 @@ func (h *historyPanel) buildRow(e cacheEntry) fyne.CanvasObject {
 		})
 		exportBtn.Importance = widget.LowImportance
 
-		actions = container.NewHBox(transcribeBtn, editStampBtn, previewBtn, exportBtn, deleteBtn)
+		actions = container.NewHBox(playBtn, transcribeBtn, editStampBtn, previewBtn, exportBtn, deleteBtn)
 	}
 
 	actionBg := canvas.NewRectangle(colSurfLow)

@@ -57,9 +57,9 @@ func (s *permissionsSection) buildRow(p permissionInfo) fyne.CanvasObject {
 	label.TextSize = 12
 	label.TextStyle = fyne.TextStyle{Bold: true, Monospace: true}
 
-	desc := canvas.NewText(p.purpose, colMuted)
-	desc.TextSize = 10
+	desc := widget.NewLabel(p.purpose)
 	desc.TextStyle = fyne.TextStyle{Monospace: true}
+	desc.Wrapping = fyne.TextWrapWord
 
 	status := canvas.NewText(statusText, statusColor)
 	status.TextSize = 11
@@ -106,9 +106,9 @@ func (s *permissionsSection) buildBatteryRow(ignoring bool) fyne.CanvasObject {
 	label.TextSize = 12
 	label.TextStyle = fyne.TextStyle{Bold: true, Monospace: true}
 
-	desc := canvas.NewText("Allow app to run long tasks without being killed by Doze.", colMuted)
-	desc.TextSize = 10
+	desc := widget.NewLabel("Skip Doze battery limit.")
 	desc.TextStyle = fyne.TextStyle{Monospace: true}
+	desc.Wrapping = fyne.TextWrapWord
 
 	status := canvas.NewText(statusText, statusColor)
 	status.TextSize = 11

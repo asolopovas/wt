@@ -230,13 +230,13 @@ func runtimePermissions() []string {
 func permissionLabel(id string) (string, string) {
 	switch id {
 	case permRecordAudio:
-		return "MICROPHONE", "Required to record audio in the app."
+		return "MICROPHONE", "Record audio."
 	case permReadMediaAudio:
-		return "AUDIO FILES", "Required to import audio from device storage."
+		return "AUDIO FILES", "Import audio."
 	case permReadStorage:
-		return "STORAGE", "Required to import audio from device storage."
+		return "STORAGE", "Import audio."
 	case permPostNotif:
-		return "NOTIFICATIONS", "Required to show progress while transcribing in background."
+		return "NOTIFICATIONS", "Background progress."
 	}
 	return id, ""
 }

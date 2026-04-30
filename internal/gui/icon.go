@@ -34,3 +34,17 @@ var micIconResource = &fyne.StaticResource{
 	StaticName:    "icon_mic.svg",
 	StaticContent: micIconData,
 }
+
+//go:embed icon_play.svg
+var playIconData []byte
+var playIconResource = &fyne.StaticResource{
+	StaticName:    "icon_play.svg",
+	StaticContent: playIconData,
+}
+
+//go:embed icon_pause.svg
+var pauseIconData []byte
+var pauseIconResource = &fyne.StaticResource{
+	StaticName:    "icon_pause.svg",
+	StaticContent: pauseIconData,
+}

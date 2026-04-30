@@ -173,9 +173,12 @@ tasks:
         if: '[ -n "{{.IS_LINUX}}" ] && [ -z "{{.ONLY}}" ]'
 
   install:
-    desc: 'Build then replace binaries (Win: {localappdata}/wt; Linux: ~/.local/share/wt + ~/.local/bin)'
-    deps: [build]
+    desc: 'Build then replace binaries (Win: {localappdata}/wt; Linux: ~/.local/share/wt + ~/.local/bin). Skips installer build (use `task setup` or `task package` for that).'
     cmds:
+      - cmd: 'task build ONLY=both'
+        if: '[ -z "{{.IS_LINUX}}" ]'
+      - cmd: 'task build'
+        if: '[ -n "{{.IS_LINUX}}" ]'
       - cmd: |
           dest="$LOCALAPPDATA/{{.BINARY}}"
           if [ ! -d "$dest" ]; then
@@ -641,14 +644,32 @@ tasks:
             "{{.ANDROID_BUILD}}/ggml/src/ggml-vulkan/libvulkan.so"
 
   android-apk:
-    desc: 'Build Android APK (dist/wt-{{.VERSION}}.apk)'
+    desc: 'Build Android APK (dist/wt-{{.VERSION}}.apk). Skipped if APK newer than all Go sources + manifest template (use FORCE=1 to override).'
     deps: [android-whisper-lib]
     vars:
       NDK_ROOT:
         sh: echo "$LOCALAPPDATA/Android/Sdk/ndk/27.2.12479018"
       BUILD_TOOLS:
         sh: echo "$LOCALAPPDATA/Android/Sdk/build-tools/36.1.0"
+      APK_FRESH:
+        sh: |
+          python -c "
+          import os, sys
+          if '{{.FORCE}}': sys.exit(0)
+          apk = 'dist/wt-{{.VERSION}}.apk'
+          if not os.path.exists(apk): sys.exit(0)
+          apk_mtime = os.path.getmtime(apk)
+          exts = ('.go', '.xml', '.in')
+          for root in ('cmd/wt-gui', 'cmd/wt', 'internal', 'bindings'):
+              for dp, _, fs in os.walk(root):
+                  for f in fs:
+                      if f.endswith(exts) and os.path.getmtime(os.path.join(dp, f)) > apk_mtime:
+                          sys.exit(0)
+          print('1')
+          "
     cmds:
+      - cmd: 'echo "APK up-to-date (dist/wt-{{.VERSION}}.apk newer than all Go sources). Use FORCE=1 to rebuild."'
+        if: '[ -n "{{.APK_FRESH}}" ]'
       - cmd: |
           set -e
           # Materialize cmd/wt-gui/AndroidManifest.xml from .in template so Fyne
@@ -668,6 +689,7 @@ tasks:
           with open('cmd/wt-gui/AndroidManifest.xml', 'w', encoding='utf-8') as f:
               f.write(data)
           "
+        if: '[ -z "{{.APK_FRESH}}" ]'
       - defer: rm -f cmd/wt-gui/AndroidManifest.xml
       - cmd: |
           export ANDROID_HOME="$LOCALAPPDATA/Android/Sdk"
@@ -679,6 +701,7 @@ tasks:
             --app-version {{.VERSION}} \
             --icon "{{.ROOT_DIR | toSlash}}/winres/icon.png" \
             --src "{{.ROOT_DIR | toSlash}}/cmd/wt-gui"
+        if: '[ -z "{{.APK_FRESH}}" ]'
       - cmd: |
           set -e
           apk="cmd/wt-gui/wt.apk"
@@ -727,6 +750,7 @@ tasks:
             --out dist/wt-{{.VERSION}}.apk dist/aligned.apk
           rm -f dist/unsigned.apk dist/aligned.apk
           rm -f "$apk" "${apk}.idsig"
+        if: '[ -z "{{.APK_FRESH}}" ]'
 
   android-test:
     desc: Build native Android test CLI, push to device, run (pass args via -- ...)

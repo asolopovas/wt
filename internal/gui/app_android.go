@@ -143,7 +143,7 @@ func buildSettingsTab(sp *settingsPanel, deviceInfo string) fyne.CanvasObject {
 	settingsGrid := container.NewGridWithColumns(2,
 		settingsField("DEVICE", sp.deviceSelect),
 		settingsField("THREADS", sp.threadsSelect),
-		settingsField("CACHE EXPIRY (DAYS)", sp.expirySelect),
+		settingsField("EXPIRY (DAYS)", sp.expirySelect),
 	)
 
 	gap := func(h float32) fyne.CanvasObject {
@@ -160,9 +160,9 @@ func buildSettingsTab(sp *settingsPanel, deviceInfo string) fyne.CanvasObject {
 	deviceHeader := canvas.NewText("DEVICE", colMuted)
 	deviceHeader.TextSize = 10
 	deviceHeader.TextStyle = fyne.TextStyle{Monospace: true, Bold: true}
-	deviceLabel := canvas.NewText(deviceInfo, colSecondary)
-	deviceLabel.TextSize = 11
+	deviceLabel := widget.NewLabel(deviceInfo)
 	deviceLabel.TextStyle = fyne.TextStyle{Monospace: true}
+	deviceLabel.Wrapping = fyne.TextWrapWord
 
 	if permsSection == nil {
 		permsSection = newPermissionsSection()
@@ -188,7 +188,7 @@ func buildSettingsTab(sp *settingsPanel, deviceInfo string) fyne.CanvasObject {
 	clearCacheBtn := newPointerButton("CLEAR CACHE", sp.onClearCache)
 	clearCacheBtn.Importance = widget.LowImportance
 
-	clearTranscriptsBtn := newPointerButton("CLEAR TRANSCRIPTS", sp.onClearTranscripts)
+	clearTranscriptsBtn := newPointerButton("CLEAR TEXT", sp.onClearTranscripts)
 	clearTranscriptsBtn.Importance = widget.LowImportance
 
 	cacheRow := container.NewGridWithColumns(2,

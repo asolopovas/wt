@@ -109,7 +109,7 @@ func (p *settingsPanel) build() {
 	clearCacheBtn := newPointerButton("CLEAR CACHE", p.onClearCache)
 	clearCacheBtn.Importance = widget.LowImportance
 
-	clearTranscriptsBtn := newPointerButton("CLEAR TRANSCRIPTS", p.onClearTranscripts)
+	clearTranscriptsBtn := newPointerButton("CLEAR TEXT", p.onClearTranscripts)
 	clearTranscriptsBtn.Importance = widget.LowImportance
 
 	settingsGrid := container.NewGridWithColumns(2,
@@ -118,7 +118,7 @@ func (p *settingsPanel) build() {
 		settingsField("DEVICE", p.deviceSelect),
 		settingsField("THREADS", p.threadsSelect),
 		settingsField("SPEAKERS", p.speakersSelect),
-		settingsField("CACHE EXPIRY (DAYS)", p.expirySelect),
+		settingsField("EXPIRY (DAYS)", p.expirySelect),
 	)
 
 	toggleRow := container.NewGridWithColumns(2,
