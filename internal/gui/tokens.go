@@ -1,22 +1,22 @@
 package gui
 
-import "image/color"
+import "github.com/asolopovas/wt/internal/gui/decor"
 
 const (
-	spaceXS  = 2
-	spaceSM  = 4
-	spaceMD  = 6
-	spaceLG  = 8
-	spaceXL  = 12
-	spaceXXL = 16
+	spaceXS  = decor.SpaceXS
+	spaceSM  = decor.SpaceSM
+	spaceMD  = decor.SpaceMD
+	spaceLG  = decor.SpaceLG
+	spaceXL  = decor.SpaceXL
+	spaceXXL = decor.SpaceXXL
 )
 
 const (
-	textCaption = 10
-	textBody    = 11
-	textLabel   = 12
-	textRow     = 13
-	textHeading = 14
+	textCaption = decor.TextCaption
+	textBody    = decor.TextBody
+	textLabel   = decor.TextLabel
+	textRow     = decor.TextRow
+	textHeading = decor.TextHeading
 )
 
 const (
@@ -26,18 +26,17 @@ const (
 )
 
 var (
-	borderSubtle  color.Color = colGhostBorder
-	borderDefault color.Color = colOutline
-	borderStrong  color.Color = colDialogBorder
-	borderAccent  color.Color = colPrimaryGhost
+	borderSubtle  = decor.BorderSubtle
+	borderDefault = decor.BorderDefault
+	borderAccent  = decor.BorderAccent
 )
 
 var (
-	actionPrimary color.Color = colPrimary
-	actionDanger  color.Color = colError
+	actionPrimary = decor.ActionPrimary
+	actionDanger  = decor.ActionDanger
 )
 
 var (
-	surfacePanel  color.Color = colSurfLowest
-	surfaceRaised color.Color = colSurfLow
+	surfacePanel  = decor.SurfacePanel
+	surfaceRaised = decor.SurfaceRaised
 )

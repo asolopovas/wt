@@ -7,6 +7,8 @@ import (
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/widget"
+
+	"github.com/asolopovas/wt/internal/gui/decor"
 )
 
 func newPrimaryButton(label string, onTap func()) *pointerButton {
@@ -28,11 +30,11 @@ func newDangerButton(label string, onTap func()) *pointerButton {
 }
 
 func wrapAction(b *pointerButton) fyne.CanvasObject {
-	return borderedBtn(b, borderColorFor(b))
+	return decor.BorderedBtn(b, borderColorFor(b))
 }
 
 func wrapGhost(b *pointerButton) fyne.CanvasObject {
-	return borderedBtn(b, borderAccent)
+	return decor.BorderedBtn(b, borderAccent)
 }
 
 func borderColorFor(b *pointerButton) color.Color {
@@ -83,12 +85,6 @@ func newPanelBackground() *canvas.Rectangle {
 func vGap(h float32) fyne.CanvasObject {
 	r := canvas.NewRectangle(transparent)
 	r.SetMinSize(fyne.NewSize(0, h))
-	return r
-}
-
-func hGap(w float32) fyne.CanvasObject {
-	r := canvas.NewRectangle(transparent)
-	r.SetMinSize(fyne.NewSize(w, 0))
 	return r
 }
 
@@ -159,7 +155,7 @@ func showDialog(cfg dialogConfig) func() {
 	}
 
 	bodyContainer := container.NewBorder(top, bottom, nil, nil, cfg.Body)
-	pop := widget.NewModalPopUp(dialogBordered(bodyContainer), cfg.Parent.Canvas())
+	pop := widget.NewModalPopUp(decor.DialogBordered(bodyContainer), cfg.Parent.Canvas())
 
 	if cfg.Size != nil {
 		pop.Resize(*cfg.Size)

@@ -1,11 +1,8 @@
 package gui
 
 import (
-	"image/color"
-
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
-	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/widget"
 )
@@ -49,26 +46,6 @@ func newPointerSelect(options []string, changed func(string)) *pointerSelect {
 
 func (s *pointerSelect) Cursor() desktop.Cursor {
 	return desktop.PointerCursor
-}
-
-func dialogBordered(content fyne.CanvasObject) fyne.CanvasObject {
-	frame := canvas.NewRectangle(transparent)
-	frame.StrokeColor = borderStrong
-	frame.StrokeWidth = 1
-
-	inner := container.NewBorder(
-		vGap(spaceXL), vGap(spaceXL),
-		hGap(spaceXL), hGap(spaceXL),
-		content,
-	)
-	return container.NewStack(frame, inner)
-}
-
-func borderedBtn(btn fyne.CanvasObject, borderCol color.Color) fyne.CanvasObject {
-	frame := canvas.NewRectangle(transparent)
-	frame.StrokeColor = borderCol
-	frame.StrokeWidth = 1
-	return container.NewStack(frame, btn)
 }
 
 type thinProgress struct {
