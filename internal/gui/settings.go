@@ -114,7 +114,7 @@ func (p *settingsPanel) build() {
 		newFormField("DEVICE", p.deviceSelect),
 		newFormField("THREADS", p.threadsSelect),
 		newFormField("SPEAKERS", p.speakersSelect),
-		newFormField("EXPIRY (DAYS)", p.expirySelect),
+		newFormField("CACHE EXPIRY (DAYS)", p.expirySelect),
 	)
 
 	toggleRow := container.NewGridWithColumns(2,

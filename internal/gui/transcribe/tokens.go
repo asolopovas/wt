@@ -8,9 +8,10 @@ import (
 )
 
 const (
-	spaceMD = decor.SpaceMD
-	spaceLG = decor.SpaceLG
-	spaceXL = decor.SpaceXL
+	spaceMD  = decor.SpaceMD
+	spaceLG  = decor.SpaceLG
+	spaceXL  = decor.SpaceXL
+	spaceXXL = decor.SpaceXXL
 )
 
 const (
