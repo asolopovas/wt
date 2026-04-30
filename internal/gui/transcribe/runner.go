@@ -21,6 +21,14 @@ import (
 	whisper "github.com/ggerganov/whisper.cpp/bindings/go/pkg/whisper"
 )
 
+func notify(title, body string) {
+	app := fyne.CurrentApp()
+	if app == nil {
+		return
+	}
+	app.SendNotification(&fyne.Notification{Title: title, Content: body})
+}
+
 func formatETA(secs float64) string {
 	if secs < 0 {
 		secs = 0

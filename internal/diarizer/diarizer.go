@@ -24,6 +24,10 @@ type Backend interface {
 	Diarize(ctx context.Context, wavPath string, numSpeakers int, audioDurSec float64, progress ProgressFunc) ([]Segment, error)
 }
 
+func SupportsExternalBackend() bool {
+	return true
+}
+
 func New(numSpeakers int) (Backend, error) {
 	return NewWithPreference(numSpeakers, false)
 }
