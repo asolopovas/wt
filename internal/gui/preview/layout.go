@@ -1,14 +1,22 @@
-//go:build !android
-
 package preview
 
-import "fyne.io/fyne/v2"
+import (
+	"runtime"
+
+	"fyne.io/fyne/v2"
+)
 
 func ScrollMinSize() fyne.Size {
+	if runtime.GOOS == "android" {
+		return fyne.NewSize(300, 220)
+	}
 	return fyne.NewSize(640, 280)
 }
 
 func DialogSize() (fyne.Size, bool) {
+	if runtime.GOOS == "android" {
+		return fyne.Size{}, false
+	}
 	return fyne.NewSize(760, 460), true
 }
 
