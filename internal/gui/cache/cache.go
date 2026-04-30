@@ -117,6 +117,21 @@ func SetRecordedAt(key string, t time.Time) error {
 	return fmt.Errorf("entry %s not found", key)
 }
 
+func SetSource(key, sourcePath, sourceName string) error {
+	entries, err := loadManifest()
+	if err != nil {
+		return err
+	}
+	for i := range entries {
+		if entries[i].Key == key {
+			entries[i].SourcePath = sourcePath
+			entries[i].SourceName = sourceName
+			return saveManifest(entries)
+		}
+	}
+	return fmt.Errorf("entry %s not found", key)
+}
+
 type KeyParams struct {
 	SourcePath string
 	MtimeNs    int64

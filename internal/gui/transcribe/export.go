@@ -245,13 +245,8 @@ func (p *Panel) OpenPreview(item ExportItem, onClose func()) {
 		}
 	})
 
-	aiNameBtn := newSecondaryButton("AUTO-NAME", func() {
-		p.AISuggestRename(item, start)
-	})
-
-	buttons := container.NewGridWithColumns(4,
+	buttons := container.NewGridWithColumns(3,
 		wrapAction(closeBtn),
-		wrapAction(aiNameBtn),
 		wrapAction(exportBtn),
 		wrapAction(editBtn),
 	)

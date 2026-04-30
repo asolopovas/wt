@@ -191,6 +191,15 @@ func (h *historyPanel) showRowMenu(e cache.Entry, recorded time.Time, anchor fyn
 					RecordedAt: recorded,
 				}})
 			}),
+			fyne.NewMenuItem("Auto-name", func() {
+				h.transcribe.AIRenameInBackground(transcribe.ExportItem{
+					CachePath:  cache.TranscriptPathForKey(e.Key),
+					SourceName: e.SourceName,
+					SourcePath: e.SourcePath,
+					CacheKey:   e.Key,
+					RecordedAt: recorded,
+				}, recorded, h.Refresh)
+			}),
 		)
 	}
 

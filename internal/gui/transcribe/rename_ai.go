@@ -13,9 +13,72 @@ import (
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/widget"
 
+	"github.com/asolopovas/wt/internal/gui/cache"
 	"github.com/asolopovas/wt/internal/namer"
 	"github.com/asolopovas/wt/internal/transcriber"
 )
+
+func (p *Panel) AIRenameInBackground(item ExportItem, fallback time.Time, onDone func()) {
+	tr, err := loadTranscript(item.CachePath)
+	if err != nil {
+		showError(p.window, fmt.Errorf("loading %s: %w", item.SourceName, err))
+		return
+	}
+	text := transcriptToText(tr)
+	if strings.TrimSpace(text) == "" {
+		showNotice(p.window, notifyInfo, "Auto-name", "Transcript is empty.")
+		return
+	}
+	if fallback.IsZero() {
+		fallback = time.Now()
+	}
+	if item.SourcePath == "" {
+		showError(p.window, fmt.Errorf("source path missing for %s", item.SourceName))
+		return
+	}
+
+	showNotice(p.window, notifyInfo, "Auto-name", "Generating filename for "+item.SourceName+"…")
+
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		defer cancel()
+		s, err := namer.Suggest(ctx, text, fallback)
+		fyne.Do(func() {
+			if err != nil {
+				showError(p.window, err)
+				return
+			}
+			srcExt := filepath.Ext(item.SourcePath)
+			if srcExt == "" {
+				srcExt = filepath.Ext(item.SourceName)
+			}
+			suggested := s.Filename(srcExt)
+			dst := filepath.Join(filepath.Dir(item.SourcePath), suggested)
+			if dst == item.SourcePath {
+				showNotice(p.window, notifyInfo, "Auto-name", "Already named: "+suggested)
+				return
+			}
+			if _, err := os.Stat(dst); err == nil {
+				showError(p.window, fmt.Errorf("destination exists: %s", suggested))
+				return
+			}
+			if err := os.Rename(item.SourcePath, dst); err != nil {
+				showError(p.window, fmt.Errorf("rename: %w", err))
+				return
+			}
+			if item.CacheKey != "" {
+				if err := cache.SetSource(item.CacheKey, dst, suggested); err != nil {
+					showError(p.window, fmt.Errorf("update cache: %w", err))
+					return
+				}
+			}
+			showNotice(p.window, notifyInfo, "Auto-name", "Renamed to "+suggested)
+			if onDone != nil {
+				onDone()
+			}
+		})
+	}()
+}
 
 func (p *Panel) AISuggestRename(item ExportItem, fallback time.Time) {
 	tr, err := loadTranscript(item.CachePath)
