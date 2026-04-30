@@ -29,6 +29,9 @@ func (p *ThinProgress) SetValue(v float64) {
 	if v > 1 {
 		v = 1
 	}
+	if v == p.value {
+		return
+	}
 	p.value = v
 	p.Refresh()
 }

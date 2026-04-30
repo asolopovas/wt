@@ -15,6 +15,7 @@ type fileChip struct {
 	onClose  func()
 	label    *canvas.Text
 	closeBtn *pointerButton
+	spinner  *widget.Activity
 	bg       *canvas.Rectangle
 }
 
@@ -28,6 +29,9 @@ func newFileChip(name string, onClose func()) *fileChip {
 	c.closeBtn = newPointerButtonWithIcon("", theme.CancelIcon(), onClose)
 	c.closeBtn.Importance = widget.LowImportance
 
+	c.spinner = widget.NewActivity()
+	c.spinner.Hide()
+
 	c.bg = canvas.NewRectangle(surfaceRaised)
 	c.bg.StrokeColor = colPrimaryFaint
 	c.bg.StrokeWidth = 1
@@ -40,9 +44,24 @@ func (c *fileChip) Cursor() desktop.Cursor {
 	return desktop.PointerCursor
 }
 
+func (c *fileChip) SetProcessing(processing bool) {
+	if processing {
+		c.spinner.Show()
+		c.spinner.Start()
+		c.closeBtn.Hide()
+	} else {
+		c.spinner.Stop()
+		c.spinner.Hide()
+		c.closeBtn.Show()
+	}
+	c.Refresh()
+}
+
 func (c *fileChip) CreateRenderer() fyne.WidgetRenderer {
 	closeBtnWrap := container.NewGridWrap(fyne.NewSize(28, 28), c.closeBtn)
-	inner := container.NewHBox(c.label, closeBtnWrap)
+	spinnerWrap := container.NewGridWrap(fyne.NewSize(28, 28), c.spinner)
+	trailing := container.NewStack(closeBtnWrap, spinnerWrap)
+	inner := container.NewHBox(c.label, trailing)
 	content := container.NewStack(c.bg, container.NewPadded(inner))
 	return &fileChipRenderer{chip: c, content: content}
 }

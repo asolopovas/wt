@@ -206,6 +206,23 @@ func (p *Panel) onClearCache() {
 	p.setStatus("Cache cleared.")
 }
 
+func (p *Panel) setChipProcessing(filename string, processing bool) {
+	fyne.Do(func() {
+		if p.fileChips == nil {
+			return
+		}
+		for _, obj := range p.fileChips.Objects {
+			chip, ok := obj.(*fileChip)
+			if !ok {
+				continue
+			}
+			if chip.name == filename {
+				chip.SetProcessing(processing)
+			}
+		}
+	})
+}
+
 func (p *Panel) RebuildChips() {
 	p.fileChips.Objects = nil
 	for i, f := range p.files {
@@ -221,6 +238,7 @@ func (p *Panel) RebuildChips() {
 func (p *Panel) onClearLog() {
 	p.logBufMu.Lock()
 	p.logBuf = nil
+	p.logLines = nil
 	p.logBufMu.Unlock()
 	fyne.Do(func() {
 		if p.LogEntry != nil {

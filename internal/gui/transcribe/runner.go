@@ -177,8 +177,11 @@ func (p *Panel) runTranscription(files []string) {
 		p.setStatus(fmt.Sprintf("[%d/%d] %s", i+1, total, filename))
 		p.setLocalProgress(0)
 		p.AppendLog(fmt.Sprintf("[%d/%d] %s", i+1, total, filename))
+		p.setChipProcessing(filename, true)
 
-		if err := p.transcribeFile(model, path, modelSize, deviceLabel, language, threads, speakers, noDiarize); err != nil {
+		err := p.transcribeFile(model, path, modelSize, deviceLabel, language, threads, speakers, noDiarize)
+		p.setChipProcessing(filename, false)
+		if err != nil {
 			if p.cancelled.Load() {
 				p.AppendLog("Cancelled by user.")
 				p.setStatus("Cancelled.")

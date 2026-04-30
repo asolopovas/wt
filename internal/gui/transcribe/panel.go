@@ -58,6 +58,7 @@ type Panel struct {
 	LogEntry     *widget.Entry
 	logBufMu     sync.Mutex
 	logBuf       []string
+	logLines     []string
 	logFlushCh   chan struct{}
 	logFlushStop chan struct{}
 
@@ -107,7 +108,7 @@ func (p *Panel) startSmoothUpdates() {
 	stop := make(chan struct{})
 	p.smoothStop = stop
 	go func() {
-		ticker := time.NewTicker(50 * time.Millisecond)
+		ticker := time.NewTicker(100 * time.Millisecond)
 		defer ticker.Stop()
 		var current float64
 		var lastStatus string
@@ -189,7 +190,7 @@ func New(window fyne.Window, settings Settings) *Panel {
 func (p *Panel) startLogFlusher() {
 	p.logFlushStop = make(chan struct{})
 	go func() {
-		ticker := time.NewTicker(100 * time.Millisecond)
+		ticker := time.NewTicker(250 * time.Millisecond)
 		defer ticker.Stop()
 		for {
 			select {
@@ -210,32 +211,29 @@ func (p *Panel) flushLogBuffer() {
 		p.logBufMu.Unlock()
 		return
 	}
-	pending := p.logBuf
-	p.logBuf = nil
+	p.logLines = append(p.logLines, p.logBuf...)
+	p.logBuf = p.logBuf[:0]
+	if extra := len(p.logLines) - maxLogLines; extra > 0 {
+		p.logLines = append(p.logLines[:0], p.logLines[extra:]...)
+	}
+	text := strings.Join(p.logLines, "\n")
+	lastNL := strings.LastIndex(text, "\n")
+	lineCount := len(p.logLines)
 	p.logBufMu.Unlock()
 
-	chunk := strings.Join(pending, "\n")
 	autoScroll := p.autoScroll.Load()
 	fyne.Do(func() {
 		if p.LogEntry == nil {
 			return
 		}
-		text := p.LogEntry.Text
-		if text == "" {
-			text = chunk
-		} else {
-			text = text + "\n" + chunk
-		}
-		if newlines := strings.Count(text, "\n") + 1; newlines > maxLogLines {
-			lines := strings.Split(text, "\n")
-			lines = lines[len(lines)-maxLogLines:]
-			text = strings.Join(lines, "\n")
-		}
 		p.LogEntry.SetText(text)
 		if autoScroll {
-			p.LogEntry.CursorRow = strings.Count(text, "\n")
-			p.LogEntry.CursorColumn = len(text) - strings.LastIndex(text, "\n") - 1
-			p.LogEntry.Refresh()
+			p.LogEntry.CursorRow = lineCount - 1
+			if lastNL < 0 {
+				p.LogEntry.CursorColumn = len(text)
+			} else {
+				p.LogEntry.CursorColumn = len(text) - lastNL - 1
+			}
 		}
 	})
 }
