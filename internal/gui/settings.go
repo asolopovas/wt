@@ -171,7 +171,7 @@ func (p *settingsPanel) updateDebugLabel() {
 	}
 }
 
-func (p *settingsPanel) debug() bool {
+func (p *settingsPanel) Debug() bool {
 	return p.debugState
 }
 
@@ -228,10 +228,10 @@ func (p *settingsPanel) writeConfig() error {
 	}
 
 	cfg.Model = p.modelSelect.Selected
-	cfg.Language = p.language()
+	cfg.Language = p.Language()
 	cfg.Device = p.deviceSelect.Selected
-	cfg.Threads = p.threads()
-	cfg.Speakers = p.speakers()
+	cfg.Threads = p.Threads()
+	cfg.Speakers = p.Speakers()
 	cfg.NoDiarize = p.noDiarizeState
 	cfg.CacheExpiryDays = p.cacheExpiryDays()
 
@@ -242,11 +242,11 @@ func (p *settingsPanel) writeConfig() error {
 	return nil
 }
 
-func (p *settingsPanel) modelSize() string {
+func (p *settingsPanel) ModelSize() string {
 	return p.modelSelect.Selected
 }
 
-func (p *settingsPanel) language() string {
+func (p *settingsPanel) Language() string {
 	lang := p.langSelect.inner.Selected
 	if lang == "auto" {
 		return ""
@@ -254,11 +254,11 @@ func (p *settingsPanel) language() string {
 	return lang
 }
 
-func (p *settingsPanel) device() string {
+func (p *settingsPanel) Device() string {
 	return p.deviceSelect.Selected
 }
 
-func (p *settingsPanel) threads() int {
+func (p *settingsPanel) Threads() int {
 	n, err := strconv.Atoi(p.threadsSelect.inner.Selected)
 	if err != nil || n < 1 {
 		return runtime.NumCPU()
@@ -266,7 +266,7 @@ func (p *settingsPanel) threads() int {
 	return n
 }
 
-func (p *settingsPanel) speakers() int {
+func (p *settingsPanel) Speakers() int {
 	sel := p.speakersSelect.Selected
 	if sel == "auto" || sel == "" {
 		return 0
@@ -278,6 +278,6 @@ func (p *settingsPanel) speakers() int {
 	return n
 }
 
-func (p *settingsPanel) noDiarize() bool {
+func (p *settingsPanel) NoDiarize() bool {
 	return p.noDiarizeState
 }

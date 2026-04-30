@@ -78,7 +78,7 @@ func (h *historyPanel) build() {
 	)
 }
 
-func (h *historyPanel) refresh() {
+func (h *historyPanel) Refresh() {
 	fyne.Do(h.rebuild)
 }
 
@@ -218,7 +218,7 @@ func (h *historyPanel) showRowMenu(e cacheEntry, recorded time.Time, anchor fyne
 					showError(h.window, err)
 					return
 				}
-				h.refresh()
+				h.Refresh()
 			})
 		}),
 	)
@@ -241,7 +241,7 @@ func (h *historyPanel) editRecordedAt(key string, current time.Time) {
 				showError(h.window, err)
 				return
 			}
-			h.refresh()
+			h.Refresh()
 		})
 	})
 }

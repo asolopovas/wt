@@ -161,7 +161,7 @@ func (p *transcribePanel) addLocalFile(path string) bool {
 		p.appendLog("warn: could not record pending entry: " + err.Error())
 	}
 	if p.history != nil {
-		p.history.refresh()
+		p.history.Refresh()
 	}
 	return true
 }

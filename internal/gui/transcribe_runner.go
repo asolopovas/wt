@@ -112,12 +112,12 @@ func (p *transcribePanel) runTranscription(files []string) {
 
 	notify("wt", fmt.Sprintf("Transcribing %d file(s)…", len(files)))
 
-	modelSize := p.settings.modelSize()
-	device := p.settings.device()
-	threads := p.settings.threads()
-	language := p.settings.language()
-	speakers := p.settings.speakers()
-	noDiarize := p.settings.noDiarize()
+	modelSize := p.settings.ModelSize()
+	device := p.settings.Device()
+	threads := p.settings.Threads()
+	language := p.settings.Language()
+	speakers := p.settings.Speakers()
+	noDiarize := p.settings.NoDiarize()
 
 	p.appendLog(fmt.Sprintf("Loading model: %s (%s)...", modelSize, device))
 	p.setStatus("Loading model...")
@@ -252,7 +252,7 @@ func (p *transcribePanel) transcribeFile(model whisper.Model, path, modelSize, d
 			p.appendLog(fmt.Sprintf("  Cached transcript reused for %s", sourceName))
 			p.setLocalProgress(1.0)
 			if p.history != nil {
-				p.history.refresh()
+				p.history.Refresh()
 			}
 			return nil
 		}
@@ -464,7 +464,7 @@ func (p *transcribePanel) transcribeFile(model whisper.Model, path, modelSize, d
 	p.appendLog(fmt.Sprintf("  Transcript ready (%d segments)", len(transcript.Utterances)))
 
 	if p.history != nil {
-		p.history.refresh()
+		p.history.Refresh()
 	}
 	return nil
 }

@@ -130,7 +130,7 @@ func (p *transcribePanel) toggleAutoScroll() {
 }
 
 func (p *transcribePanel) debugLog(msg string) {
-	if !p.settings.debug() {
+	if !p.settings.Debug() {
 		return
 	}
 	p.appendLog("  [debug] " + msg)

@@ -34,14 +34,14 @@ func Run(version string) error {
 		history.headerRight.Objects = []fyne.CanvasObject{transcribe.statsLine, transcribe.timerText}
 		history.headerRight.Refresh()
 	}
-	settings.onCacheCleared = history.refresh
+	settings.onCacheCleared = history.Refresh
 
 	if cacheGC(cfg.CacheExpiryDays) > 0 {
 		history.rebuild()
 	}
 	go func() {
 		if cacheBackfillDurations() > 0 {
-			fyne.Do(history.refresh)
+			fyne.Do(history.Refresh)
 		}
 	}()
 

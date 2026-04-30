@@ -28,14 +28,14 @@ func Run(version string) error {
 	history := newHistoryPanel(w, transcribe)
 	transcribe.history = history
 	transcribe.attachLibrary(history)
-	settings.onCacheCleared = history.refresh
+	settings.onCacheCleared = history.Refresh
 
 	if cacheGC(cfg.CacheExpiryDays) > 0 {
 		history.rebuild()
 	}
 	go func() {
 		if cacheBackfillDurations() > 0 {
-			fyne.Do(history.refresh)
+			fyne.Do(history.Refresh)
 		}
 	}()
 
