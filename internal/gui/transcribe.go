@@ -47,11 +47,10 @@ func (p *transcribePanel) build() {
 	p.statsLine = widget.NewLabel("")
 	p.statsLine.TextStyle = fyne.TextStyle{Monospace: true}
 
-	p.logText = widget.NewRichText()
-	p.logText.Wrapping = fyne.TextWrapWord
-	appendLogInit(p.logText)
-
-	p.logScroll = container.NewVScroll(p.logText)
+	p.logEntry = widget.NewMultiLineEntry()
+	p.logEntry.TextStyle = fyne.TextStyle{Monospace: true}
+	p.logEntry.Wrapping = fyne.TextWrapWord
+	p.logEntry.Disable()
 
 	p.copyLogBtn = newPointerButtonWithIcon("", theme.ContentCopyIcon(), p.onCopyLog)
 	p.copyLogBtn.Importance = widget.LowImportance
@@ -64,10 +63,7 @@ func (p *transcribePanel) build() {
 	p.autoBtn.Importance = widget.HighImportance
 	p.autoBtn.OnTapped = p.toggleAutoScroll
 
-	expandBtn := newPointerButtonWithIcon("", expandIconResource, p.openLogDialog)
-	expandBtn.Importance = widget.LowImportance
+	appendLogInit(p)
 
-	logPanel := buildLogPanel(p.logScroll, p.statsLine, nil, nil, expandBtn)
-
-	p.container = container.New(newResponsiveColumns(8), p.dropArea, logPanel)
+	p.container = container.New(newResponsiveColumns(8), p.dropArea)
 }

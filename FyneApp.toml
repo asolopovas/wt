@@ -1,0 +1,6 @@
+[Details]
+Icon = "internal/gui/icon_256.png"
+Name = "wt"
+ID = "com.lyntouch.wt"
+Version = "1.0.0"
+Build = 1

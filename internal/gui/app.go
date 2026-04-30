@@ -38,13 +38,17 @@ func Run(version string) error {
 	deviceInfo := detectDevice()
 
 	transcodeTab := buildTranscodeTab(transcribe)
+	logTab := buildLogTab(transcribe)
 	settingsTab := buildSettingsTab(settings, deviceInfo)
 
 	tabs := container.NewAppTabs(
 		container.NewTabItemWithIcon("TRANSCODE", theme.MediaRecordIcon(), transcodeTab),
+		container.NewTabItemWithIcon("LOG", theme.DocumentIcon(), logTab),
 		container.NewTabItemWithIcon("SETTINGS", theme.SettingsIcon(), settingsTab),
 	)
 	tabs.SetTabLocation(container.TabLocationBottom)
+
+	setupTray(a, w, transcribe)
 
 	w.SetContent(tabs)
 	w.ShowAndRun()
@@ -81,15 +85,6 @@ func buildSidebar(tp *transcribePanel, addBtn *pointerButton) fyne.CanvasObject 
 		),
 	)
 
-	logBlock := container.NewVBox(
-		sidebarHeader("LOG"),
-		container.New(newCappedGrid(3, 6, 36),
-			borderedBtn(tp.autoBtn, colDialogBorder),
-			borderedBtn(tp.copyLogBtn, colDialogBorder),
-			borderedBtn(tp.clearLogBtn, colDialogBorder),
-		),
-	)
-
 	statusRow := container.NewBorder(nil, nil, tp.statusText, tp.timerText)
 	statusBlock := container.NewVBox(
 		sidebarHeader("STATUS"),
@@ -101,8 +96,6 @@ func buildSidebar(tp *transcribePanel, addBtn *pointerButton) fyne.CanvasObject 
 		optionsBlock,
 		sidebarDivider(),
 		actionsBlock,
-		sidebarDivider(),
-		logBlock,
 		sidebarDivider(),
 		statusBlock,
 	)

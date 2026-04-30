@@ -59,8 +59,7 @@ func (p *transcribePanel) startTranscription(files []string) {
 	if len(files) == 0 {
 		return
 	}
-	p.logText.Segments = nil
-	p.logText.Refresh()
+	p.onClearLog()
 	p.cancelled.Store(false)
 	go p.runTranscription(files)
 }
@@ -139,6 +138,8 @@ func (p *transcribePanel) runTranscription(files []string) {
 	p.results = nil
 	p.resetSpeakerRenames()
 
+	notify("wt", fmt.Sprintf("Transcribing %d file(s)…", len(files)))
+
 	modelSize := p.settings.modelSize()
 	device := p.settings.device()
 	threads := p.settings.threads()
@@ -192,6 +193,7 @@ func (p *transcribePanel) runTranscription(files []string) {
 		if p.cancelled.Load() {
 			p.appendLog("Cancelled by user.")
 			p.setStatus("Cancelled.")
+			notify("wt", "Cancelled.")
 			return
 		}
 
@@ -207,6 +209,7 @@ func (p *transcribePanel) runTranscription(files []string) {
 			if p.cancelled.Load() {
 				p.appendLog("Cancelled by user.")
 				p.setStatus("Cancelled.")
+				notify("wt", "Cancelled.")
 				return
 			}
 			p.appendLog(fmt.Sprintf("  Error: %v", err))
@@ -217,18 +220,17 @@ func (p *transcribePanel) runTranscription(files []string) {
 
 	p.setProgress(1.0)
 
+	var summary string
 	if errCount > 0 {
-		msg := fmt.Sprintf("Done: %d/%d transcribed, %d failed.", total-errCount, total, errCount)
-		p.appendLog(msg)
-		p.setStatus(msg)
+		summary = fmt.Sprintf("Done: %d/%d transcribed, %d failed.", total-errCount, total, errCount)
 	} else if total == 1 {
-		p.appendLog("Transcription complete.")
-		p.setStatus("Transcription complete.")
+		summary = "Transcription complete."
 	} else {
-		msg := fmt.Sprintf("All %d files transcribed.", total)
-		p.appendLog(msg)
-		p.setStatus(msg)
+		summary = fmt.Sprintf("All %d files transcribed.", total)
 	}
+	p.appendLog(summary)
+	p.setStatus(summary)
+	notify("wt", summary)
 }
 
 func (p *transcribePanel) loadModel(modelSize string) (whisper.Model, error) {

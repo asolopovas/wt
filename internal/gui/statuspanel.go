@@ -2,6 +2,7 @@ package gui
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"fyne.io/fyne/v2"
@@ -127,7 +128,12 @@ func (p *transcribePanel) toggleAutoScroll() {
 	fyne.Do(func() {
 		if on {
 			p.autoBtn.Importance = widget.HighImportance
-			p.logScroll.ScrollToBottom()
+			if p.logEntry != nil {
+				text := p.logEntry.Text
+				p.logEntry.CursorRow = strings.Count(text, "\n")
+				p.logEntry.CursorColumn = len(text) - strings.LastIndex(text, "\n") - 1
+				p.logEntry.Refresh()
+			}
 		} else {
 			p.autoBtn.Importance = widget.LowImportance
 		}

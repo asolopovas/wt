@@ -13,8 +13,7 @@ import (
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/layout"
-	"fyne.io/fyne/v2/theme"
-	"fyne.io/fyne/v2/widget"
+	"fyne.io/fyne/v2/storage"
 
 	shared "github.com/asolopovas/wt/internal"
 	whisper "github.com/ggerganov/whisper.cpp/bindings/go/pkg/whisper"
@@ -49,7 +48,7 @@ func extensionSet(extensions []string) map[string]bool {
 	return set
 }
 
-func buildLogPanel(scroll *container.Scroll, leftHeader fyne.CanvasObject, copyBtn, clearLogBtn *pointerButton, extraBtns ...*pointerButton) fyne.CanvasObject {
+func buildLogPanel(content fyne.CanvasObject, leftHeader fyne.CanvasObject, copyBtn, clearLogBtn *pointerButton, extraBtns ...*pointerButton) fyne.CanvasObject {
 	bg := canvas.NewRectangle(colSurfLowest)
 	bg.StrokeColor = colGhostBorder
 	bg.StrokeWidth = 1
@@ -78,25 +77,13 @@ func buildLogPanel(scroll *container.Scroll, leftHeader fyne.CanvasObject, copyB
 	headerContent := container.NewHBox(headerObjs...)
 	header := container.NewStack(headerBg, container.NewPadded(headerContent))
 
-	inner := container.NewBorder(header, nil, nil, nil, scroll)
+	inner := container.NewBorder(header, nil, nil, nil, content)
 	return container.NewStack(bg, inner)
 }
 
-func appendLogInit(logText *widget.RichText) {
-	entries := []string{
-		"Initializing Whisper Core ...",
-		"Ready.",
-	}
-	for _, msg := range entries {
-		ts := time.Now().Format("[15:04:05]")
-		logText.Segments = append(logText.Segments, &widget.TextSegment{
-			Text: ts + "  " + msg,
-			Style: widget.RichTextStyle{
-				ColorName: theme.ColorNamePrimary,
-				TextStyle: fyne.TextStyle{Monospace: true},
-			},
-		})
-	}
+func appendLogInit(p *transcribePanel) {
+	p.appendLog("Initializing Whisper Core ...")
+	p.appendLog("Ready.")
 }
 
 func clearCache(window fyne.Window, appendLog func(string)) {
@@ -225,8 +212,7 @@ func (p *transcribePanel) onClear() {
 	p.files = nil
 	p.rebuildChips()
 	p.updateDropLabel()
-	p.logText.Segments = nil
-	p.logText.Refresh()
+	p.onClearLog()
 	p.setStatus("Ready")
 	p.progress.Hide()
 	p.results = nil
@@ -251,51 +237,57 @@ func (p *transcribePanel) rebuildChips() {
 }
 
 func (p *transcribePanel) onClearLog() {
+	p.logBufMu.Lock()
+	p.logBuf = nil
+	p.logBufMu.Unlock()
 	fyne.Do(func() {
-		p.logText.Segments = nil
-		p.logText.Refresh()
-		if p.logMirror != nil {
-			p.logMirror.Segments = nil
-			p.logMirror.Refresh()
+		if p.logEntry != nil {
+			p.logEntry.SetText("")
 		}
 	})
 }
 
 func (p *transcribePanel) onCopyLog() {
-	var sb strings.Builder
-	for _, seg := range p.logText.Segments {
-		if ts, ok := seg.(*widget.TextSegment); ok {
-			sb.WriteString(ts.Text)
-			sb.WriteByte('\n')
+	if p.logEntry == nil {
+		return
+	}
+	fyne.CurrentApp().Clipboard().SetContent(p.logEntry.Text)
+}
+
+func (p *transcribePanel) onShareLog() {
+	if p.logEntry == nil {
+		return
+	}
+	content := p.logEntry.Text
+	if strings.TrimSpace(content) == "" {
+		return
+	}
+	defaultName := "wt-log-" + time.Now().Format("20060102-150405") + ".txt"
+	saveDialog := dialog.NewFileSave(func(w fyne.URIWriteCloser, err error) {
+		if err != nil || w == nil {
+			return
+		}
+		defer func() { _ = w.Close() }()
+		_, _ = w.Write([]byte(content))
+	}, p.window)
+	saveDialog.SetFileName(defaultName)
+	if home, herr := os.UserHomeDir(); herr == nil {
+		if uri, lerr := storage.ListerForURI(storage.NewFileURI(filepath.Clean(home))); lerr == nil {
+			saveDialog.SetLocation(uri)
 		}
 	}
-	fyne.CurrentApp().Clipboard().SetContent(sb.String())
+	saveDialog.Show()
 }
 
 func (p *transcribePanel) appendLog(msg string) {
-	fyne.Do(func() {
-		ts := time.Now().Format("[15:04:05]")
-		seg := &widget.TextSegment{
-			Text: ts + "  " + msg,
-			Style: widget.RichTextStyle{
-				ColorName: theme.ColorNamePrimary,
-				TextStyle: fyne.TextStyle{Monospace: true},
-			},
-		}
-		p.logText.Segments = append(p.logText.Segments, seg)
-		p.logText.Refresh()
-		if p.autoScroll.Load() {
-			p.logScroll.ScrollToBottom()
-		}
-		if p.logMirror != nil {
-			mseg := &widget.TextSegment{Text: seg.Text, Style: seg.Style}
-			p.logMirror.Segments = append(p.logMirror.Segments, mseg)
-			p.logMirror.Refresh()
-			if p.logMirrorScr != nil && p.autoScroll.Load() {
-				p.logMirrorScr.ScrollToBottom()
-			}
-		}
-	})
+	line := time.Now().Format("[15:04:05]") + "  " + msg
+	p.logBufMu.Lock()
+	p.logBuf = append(p.logBuf, line)
+	p.logBufMu.Unlock()
+	select {
+	case p.logFlushCh <- struct{}{}:
+	default:
+	}
 }
 
 func (p *transcribePanel) setStatus(msg string) {

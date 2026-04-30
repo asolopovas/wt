@@ -3,15 +3,17 @@ package gui
 import (
 	"context"
 	"math"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
-	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/widget"
 )
+
+const maxLogLines = 5000
 
 type transcribePanel struct {
 	window   fyne.Window
@@ -34,17 +36,20 @@ type transcribePanel struct {
 	timerText  *canvas.Text
 	statsLine  *widget.Label
 
-	runStart     time.Time
-	timerStop    chan struct{}
-	timerStopMu  sync.Mutex
-	logText      *widget.RichText
-	logScroll    *container.Scroll
-	logMirror    *widget.RichText
-	logMirrorScr *container.Scroll
-	autoScroll   atomic.Bool
-	autoBtn      *pointerButton
-	copyLogBtn   *pointerButton
-	clearLogBtn  *pointerButton
+	runStart    time.Time
+	timerStop   chan struct{}
+	timerStopMu sync.Mutex
+
+	logEntry     *widget.Entry
+	logBufMu     sync.Mutex
+	logBuf       []string
+	logFlushCh   chan struct{}
+	logFlushStop chan struct{}
+
+	autoScroll  atomic.Bool
+	autoBtn     *pointerButton
+	copyLogBtn  *pointerButton
+	clearLogBtn *pointerButton
 
 	lastCSVPath string
 	results     []exportItem
@@ -154,14 +159,70 @@ func (p *transcribePanel) stopSmoothUpdates() {
 
 func newTranscribePanel(window fyne.Window, settings *settingsPanel) *transcribePanel {
 	p := &transcribePanel{
-		window:   window,
-		settings: settings,
+		window:     window,
+		settings:   settings,
+		logFlushCh: make(chan struct{}, 1),
 	}
 	p.build()
+	p.startLogFlusher()
 	p.setupDragDrop()
 	p.restorePendingFiles()
 	p.startStats()
 	return p
+}
+
+func (p *transcribePanel) startLogFlusher() {
+	p.logFlushStop = make(chan struct{})
+	go func() {
+		ticker := time.NewTicker(100 * time.Millisecond)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-p.logFlushStop:
+				return
+			case <-p.logFlushCh:
+				p.flushLogBuffer()
+			case <-ticker.C:
+				p.flushLogBuffer()
+			}
+		}
+	}()
+}
+
+func (p *transcribePanel) flushLogBuffer() {
+	p.logBufMu.Lock()
+	if len(p.logBuf) == 0 {
+		p.logBufMu.Unlock()
+		return
+	}
+	pending := p.logBuf
+	p.logBuf = nil
+	p.logBufMu.Unlock()
+
+	chunk := strings.Join(pending, "\n")
+	autoScroll := p.autoScroll.Load()
+	fyne.Do(func() {
+		if p.logEntry == nil {
+			return
+		}
+		text := p.logEntry.Text
+		if text == "" {
+			text = chunk
+		} else {
+			text = text + "\n" + chunk
+		}
+		if newlines := strings.Count(text, "\n") + 1; newlines > maxLogLines {
+			lines := strings.Split(text, "\n")
+			lines = lines[len(lines)-maxLogLines:]
+			text = strings.Join(lines, "\n")
+		}
+		p.logEntry.SetText(text)
+		if autoScroll {
+			p.logEntry.CursorRow = strings.Count(text, "\n")
+			p.logEntry.CursorColumn = len(text) - strings.LastIndex(text, "\n") - 1
+			p.logEntry.Refresh()
+		}
+	})
 }
 
 func (p *transcribePanel) setupDragDrop() {
