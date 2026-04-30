@@ -1,15 +1,15 @@
 //go:build android
 
-package gui
+package platsvc
 
 import "time"
 
-func pollPermission(id string, onChange func()) {
-	initial := checkPermission(id)
+func PollPermission(id string, onChange func()) {
+	initial := CheckPermission(id)
 	deadline := time.Now().Add(30 * time.Second)
 	for time.Now().Before(deadline) {
 		time.Sleep(500 * time.Millisecond)
-		now := checkPermission(id)
+		now := CheckPermission(id)
 		if now != initial {
 			if onChange != nil {
 				onChange()

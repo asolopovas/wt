@@ -1,6 +1,6 @@
 //go:build android
 
-package gui
+package platsvc
 
 /*
 #cgo LDFLAGS: -llog
@@ -194,41 +194,41 @@ import (
 )
 
 const (
-	permRecordAudio    = "android.permission.RECORD_AUDIO"
-	permReadMediaAudio = "android.permission.READ_MEDIA_AUDIO"
-	permReadStorage    = "android.permission.READ_EXTERNAL_STORAGE"
-	permPostNotif      = "android.permission.POST_NOTIFICATIONS"
+	PermRecordAudio    = "android.permission.RECORD_AUDIO"
+	PermReadMediaAudio = "android.permission.READ_MEDIA_AUDIO"
+	PermReadStorage    = "android.permission.READ_EXTERNAL_STORAGE"
+	PermPostNotif      = "android.permission.POST_NOTIFICATIONS"
 )
 
-type permissionInfo struct {
-	id      string
-	label   string
-	purpose string
-	granted bool
+type PermissionInfo struct {
+	ID      string
+	Label   string
+	Purpose string
+	Granted bool
 }
 
 func runtimePermissions() []string {
-	if androidSDKInt() >= 33 {
-		return []string{permRecordAudio, permReadMediaAudio, permPostNotif}
+	if AndroidSDKInt() >= 33 {
+		return []string{PermRecordAudio, PermReadMediaAudio, PermPostNotif}
 	}
-	return []string{permRecordAudio, permReadStorage}
+	return []string{PermRecordAudio, PermReadStorage}
 }
 
 func permissionLabel(id string) (string, string) {
 	switch id {
-	case permRecordAudio:
+	case PermRecordAudio:
 		return "MICROPHONE", "Record audio."
-	case permReadMediaAudio:
+	case PermReadMediaAudio:
 		return "AUDIO FILES", "Import audio."
-	case permReadStorage:
+	case PermReadStorage:
 		return "STORAGE", "Import audio."
-	case permPostNotif:
+	case PermPostNotif:
 		return "NOTIFICATIONS", "Background progress."
 	}
 	return id, ""
 }
 
-func checkPermission(id string) bool {
+func CheckPermission(id string) bool {
 	granted := false
 	cID := C.CString(id)
 	defer C.free(unsafe.Pointer(cID))
@@ -243,7 +243,7 @@ func checkPermission(id string) bool {
 	return granted
 }
 
-func requestPermissions(ids []string) {
+func RequestPermissions(ids []string) {
 	if len(ids) == 0 {
 		return
 	}
@@ -267,7 +267,7 @@ func requestPermissions(ids []string) {
 	})
 }
 
-func openAppSettings() {
+func OpenAppSettings() {
 	_ = driver.RunNative(func(ctx any) error {
 		ac, ok := ctx.(*driver.AndroidContext)
 		if !ok || ac == nil || ac.Env == 0 || ac.Ctx == 0 {
@@ -278,7 +278,7 @@ func openAppSettings() {
 	})
 }
 
-func openBatteryOptimizationSettings() {
+func OpenBatteryOptimizationSettings() {
 	_ = driver.RunNative(func(ctx any) error {
 		ac, ok := ctx.(*driver.AndroidContext)
 		if !ok || ac == nil || ac.Env == 0 || ac.Ctx == 0 {
@@ -289,7 +289,7 @@ func openBatteryOptimizationSettings() {
 	})
 }
 
-func isIgnoringBatteryOptimizations() bool {
+func IsIgnoringBatteryOptimizations() bool {
 	out := false
 	_ = driver.RunNative(func(ctx any) error {
 		ac, ok := ctx.(*driver.AndroidContext)
@@ -302,26 +302,26 @@ func isIgnoringBatteryOptimizations() bool {
 	return out
 }
 
-func collectPermissionInfos() []permissionInfo {
+func CollectPermissionInfos() []PermissionInfo {
 	ids := runtimePermissions()
-	out := make([]permissionInfo, 0, len(ids))
+	out := make([]PermissionInfo, 0, len(ids))
 	for _, id := range ids {
 		label, purpose := permissionLabel(id)
-		out = append(out, permissionInfo{
-			id:      id,
-			label:   label,
-			purpose: purpose,
-			granted: checkPermission(id),
+		out = append(out, PermissionInfo{
+			ID:      id,
+			Label:   label,
+			Purpose: purpose,
+			Granted: CheckPermission(id),
 		})
 	}
 	return out
 }
 
-func missingPermissions() []string {
+func MissingPermissions() []string {
 	var out []string
-	for _, p := range collectPermissionInfos() {
-		if !p.granted {
-			out = append(out, p.id)
+	for _, p := range CollectPermissionInfos() {
+		if !p.Granted {
+			out = append(out, p.ID)
 		}
 	}
 	return out

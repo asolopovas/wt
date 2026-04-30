@@ -310,6 +310,7 @@ import (
 	"fyne.io/fyne/v2/driver"
 
 	shared "github.com/asolopovas/wt/internal"
+	"github.com/asolopovas/wt/internal/gui/platsvc"
 )
 
 var (
@@ -380,7 +381,7 @@ func publishRecordingToDocuments(srcPath string) error {
 	defer C.free(unsafe.Pointer(cName))
 	defer C.free(unsafe.Pointer(cMime))
 
-	sdk := androidSDKInt()
+	sdk := platsvc.AndroidSDKInt()
 	ok := false
 	_ = driver.RunNative(func(ctx any) error {
 		ac, valid := ctx.(*driver.AndroidContext)

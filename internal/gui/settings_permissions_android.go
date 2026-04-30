@@ -7,6 +7,8 @@ import (
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/widget"
+
+	"github.com/asolopovas/wt/internal/gui/platsvc"
 )
 
 type permissionsSection struct {
@@ -31,10 +33,10 @@ func (s *permissionsSection) refresh() {
 	s.rows.Objects = nil
 
 	cells := []fyne.CanvasObject{}
-	for _, p := range collectPermissionInfos() {
+	for _, p := range platsvc.CollectPermissionInfos() {
 		cells = append(cells, s.buildRow(p))
 	}
-	cells = append(cells, s.buildBatteryRow(isIgnoringBatteryOptimizations()))
+	cells = append(cells, s.buildBatteryRow(platsvc.IsIgnoringBatteryOptimizations()))
 
 	for i := 0; i < len(cells); i += 2 {
 		left := cells[i]
@@ -49,15 +51,15 @@ func (s *permissionsSection) refresh() {
 	s.container.Refresh()
 }
 
-func (s *permissionsSection) buildRow(p permissionInfo) fyne.CanvasObject {
+func (s *permissionsSection) buildRow(p platsvc.PermissionInfo) fyne.CanvasObject {
 	statusColor := colError
 	statusText := "DISABLED"
-	if p.granted {
+	if p.Granted {
 		statusColor = colSuccess
 		statusText = "ENABLED"
 	}
 
-	desc := widget.NewLabel(p.purpose)
+	desc := widget.NewLabel(p.Purpose)
 	desc.TextStyle = fyne.TextStyle{Monospace: true}
 	desc.Wrapping = fyne.TextWrapWord
 
@@ -66,17 +68,17 @@ func (s *permissionsSection) buildRow(p permissionInfo) fyne.CanvasObject {
 	status.TextStyle = fyne.TextStyle{Bold: true, Monospace: true}
 	status.Alignment = fyne.TextAlignCenter
 
-	id := p.id
-	granted := p.granted
-	btn := newPointerButton(p.label, func() {
+	id := p.ID
+	granted := p.Granted
+	btn := newPointerButton(p.Label, func() {
 		if granted {
-			openAppSettings()
+			platsvc.OpenAppSettings()
 			return
 		}
-		requestPermissions([]string{id})
+		platsvc.RequestPermissions([]string{id})
 
 		go func() {
-			pollPermission(id, func() { fyne.Do(s.refresh) })
+			platsvc.PollPermission(id, func() { fyne.Do(s.refresh) })
 		}()
 	})
 	if granted {
@@ -107,7 +109,7 @@ func (s *permissionsSection) buildBatteryRow(ignoring bool) fyne.CanvasObject {
 	status.Alignment = fyne.TextAlignCenter
 
 	btn := newPointerButton("BATTERY", func() {
-		openBatteryOptimizationSettings()
+		platsvc.OpenBatteryOptimizationSettings()
 	})
 	if ignoring {
 		btn.Importance = widget.LowImportance

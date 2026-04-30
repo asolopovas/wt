@@ -1,6 +1,6 @@
 //go:build android
 
-package gui
+package platsvc
 
 /*
 #cgo LDFLAGS: -llog
@@ -37,7 +37,6 @@ static void wt_wake_acquire(uintptr_t env_p, uintptr_t ctx_p) {
 	if (!mNewWL) { (*env)->DeleteLocalRef(env, cPM); (*env)->DeleteLocalRef(env, pm); return; }
 
 	jstring jTag = (*env)->NewStringUTF(env, "wt:transcribe");
-	// PARTIAL_WAKE_LOCK = 1
 	jobject wl = (*env)->CallObjectMethod(env, pm, mNewWL, (jint)1, jTag);
 	(*env)->DeleteLocalRef(env, jTag);
 	(*env)->DeleteLocalRef(env, cPM);
@@ -83,7 +82,7 @@ import (
 	"fyne.io/fyne/v2/driver"
 )
 
-func acquireWakeLock() {
+func AcquireWakeLock() {
 	_ = driver.RunNative(func(ctx any) error {
 		ac, ok := ctx.(*driver.AndroidContext)
 		if !ok || ac == nil || ac.Env == 0 || ac.Ctx == 0 {
@@ -94,7 +93,7 @@ func acquireWakeLock() {
 	})
 }
 
-func releaseWakeLock() {
+func ReleaseWakeLock() {
 	_ = driver.RunNative(func(ctx any) error {
 		ac, ok := ctx.(*driver.AndroidContext)
 		if !ok || ac == nil || ac.Env == 0 {

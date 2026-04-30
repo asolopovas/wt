@@ -1,6 +1,6 @@
 //go:build android
 
-package gui
+package platsvc
 
 /*
 #include <jni.h>
@@ -27,7 +27,7 @@ import (
 
 var cachedSDKInt atomic.Int32
 
-func androidSDKInt() int {
+func AndroidSDKInt() int {
 	if v := cachedSDKInt.Load(); v > 0 {
 		return int(v)
 	}

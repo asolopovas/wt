@@ -1,6 +1,6 @@
 //go:build android
 
-package gui
+package platsvc
 
 /*
 #cgo LDFLAGS: -llog
@@ -316,9 +316,9 @@ var (
 	shareOnce  sync.Mutex
 )
 
-func shareIntakeChan() <-chan string { return shareInbox }
+func ShareIntakeChan() <-chan string { return shareInbox }
 
-func pollShareIntent() {
+func PollShareIntent() {
 	shareOnce.Lock()
 	defer shareOnce.Unlock()
 

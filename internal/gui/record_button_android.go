@@ -7,6 +7,8 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/widget"
+
+	"github.com/asolopovas/wt/internal/gui/platsvc"
 )
 
 func (p *transcribePanel) onToggleRecord(btn *pointerButton) {
@@ -40,11 +42,11 @@ func (p *transcribePanel) onToggleRecord(btn *pointerButton) {
 		return
 	}
 
-	if !checkPermission(permRecordAudio) {
+	if !platsvc.CheckPermission(platsvc.PermRecordAudio) {
 		showConfirm(p.window, "Microphone permission",
 			"Recording requires microphone access. Grant now?",
 			func() {
-				requestPermissions([]string{permRecordAudio})
+				platsvc.RequestPermissions([]string{platsvc.PermRecordAudio})
 			})
 		return
 	}

@@ -7,6 +7,7 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/widget"
 
+	"github.com/asolopovas/wt/internal/gui/platsvc"
 	"github.com/asolopovas/wt/internal/transcriber"
 )
 
@@ -74,11 +75,11 @@ func (p *transcribePanel) setRunning(running bool) {
 		p.statusTarget.Store(nil)
 		p.startSmoothUpdates()
 		p.startRunTimer()
-		acquireWakeLock()
+		platsvc.AcquireWakeLock()
 	} else {
 		p.stopSmoothUpdates()
 		p.stopRunTimer()
-		releaseWakeLock()
+		platsvc.ReleaseWakeLock()
 	}
 
 	fyne.Do(func() {

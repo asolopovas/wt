@@ -12,6 +12,7 @@ import (
 	"fyne.io/fyne/v2/widget"
 
 	shared "github.com/asolopovas/wt/internal"
+	"github.com/asolopovas/wt/internal/gui/platsvc"
 )
 
 func Run(version string) error {
@@ -50,10 +51,10 @@ func Run(version string) error {
 	logTab := buildLogTab(transcribe)
 	settingsTab := buildSettingsTab(settings, deviceInfo)
 
-	if missing := missingPermissions(); len(missing) > 0 {
+	if missing := platsvc.MissingPermissions(); len(missing) > 0 {
 		go func(p []string) {
 			time.Sleep(600 * time.Millisecond)
-			fyne.Do(func() { requestPermissions(p) })
+			fyne.Do(func() { platsvc.RequestPermissions(p) })
 		}(missing)
 	}
 
@@ -78,7 +79,7 @@ func Run(version string) error {
 
 func wireShareIntake(tp *transcribePanel, tabs *container.AppTabs) {
 	go func() {
-		for path := range shareIntakeChan() {
+		for path := range platsvc.ShareIntakeChan() {
 			path := path
 			fyne.Do(func() {
 				if tp.addLocalFile(path) {
@@ -92,12 +93,12 @@ func wireShareIntake(tp *transcribePanel, tabs *container.AppTabs) {
 			})
 		}
 	}()
-	pollShareIntent()
+	platsvc.PollShareIntent()
 	go func() {
 		ticker := time.NewTicker(750 * time.Millisecond)
 		defer ticker.Stop()
 		for range ticker.C {
-			pollShareIntent()
+			platsvc.PollShareIntent()
 		}
 	}()
 }
