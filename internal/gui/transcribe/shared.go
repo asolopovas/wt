@@ -9,14 +9,13 @@ import (
 	"time"
 
 	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
-	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/storage"
 
 	shared "github.com/asolopovas/wt/internal"
 	"github.com/asolopovas/wt/internal/gui/cache"
+	"github.com/asolopovas/wt/internal/gui/decor"
 )
 
 var baseAudioExtensions = []string{
@@ -53,22 +52,20 @@ func buildLogPanel(content fyne.CanvasObject, leftHeader fyne.CanvasObject, copy
 		leftHeader = newCaptionText("SYSTEM LOG")
 	}
 
-	headerBg := canvas.NewRectangle(surfaceRaised)
-	headerObjs := []fyne.CanvasObject{leftHeader, layout.NewSpacer()}
+	right := make([]fyne.CanvasObject, 0, len(extraBtns)+2)
 	for _, b := range extraBtns {
 		if b == nil {
 			continue
 		}
-		headerObjs = append(headerObjs, b)
+		right = append(right, b)
 	}
 	if copyBtn != nil {
-		headerObjs = append(headerObjs, copyBtn)
+		right = append(right, copyBtn)
 	}
 	if clearLogBtn != nil {
-		headerObjs = append(headerObjs, clearLogBtn)
+		right = append(right, clearLogBtn)
 	}
-	headerContent := container.NewHBox(headerObjs...)
-	header := container.NewStack(headerBg, container.NewPadded(headerContent))
+	header := decor.NewPanelHeader(leftHeader, right...)
 
 	themed := container.NewThemeOverride(content, &logEntryTheme{})
 	inner := container.NewBorder(header, nil, nil, nil, themed)

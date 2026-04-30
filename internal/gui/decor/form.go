@@ -4,7 +4,24 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/layout"
 )
+
+const panelHeaderMinHeight = SpaceXXL * 2
+
+func NewPanelHeader(left fyne.CanvasObject, right ...fyne.CanvasObject) fyne.CanvasObject {
+	bg := canvas.NewRectangle(SurfaceRaised)
+	bg.SetMinSize(fyne.NewSize(0, panelHeaderMinHeight))
+
+	row := []fyne.CanvasObject{left, layout.NewSpacer()}
+	for _, obj := range right {
+		if obj == nil {
+			continue
+		}
+		row = append(row, obj)
+	}
+	return container.NewStack(bg, container.NewPadded(container.NewHBox(row...)))
+}
 
 func NewSectionHeader(label string) fyne.CanvasObject {
 	t := canvas.NewText(label, TextMuted)

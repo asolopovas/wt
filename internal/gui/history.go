@@ -12,6 +12,7 @@ import (
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/asolopovas/wt/internal/gui/cache"
+	"github.com/asolopovas/wt/internal/gui/decor"
 	"github.com/asolopovas/wt/internal/gui/player"
 	"github.com/asolopovas/wt/internal/gui/transcribe"
 	"github.com/asolopovas/wt/internal/transcriber"
@@ -49,15 +50,8 @@ func (h *historyPanel) build() {
 
 	scroll := container.NewVScroll(h.list)
 
-	header := newCaptionText("RECENT")
-
 	h.headerRight = container.NewHBox()
-	headerContent := container.NewBorder(nil, nil, header, h.headerRight)
-
-	headerBar := container.NewStack(
-		canvas.NewRectangle(surfaceRaised),
-		container.NewPadded(headerContent),
-	)
+	headerBar := decor.NewPanelHeader(newCaptionText("RECENT"), h.headerRight)
 
 	h.container = container.NewStack(
 		newPanelBackground(),
