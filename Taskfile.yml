@@ -442,7 +442,7 @@ tasks:
       - cmd: 'task android-apk'
         if: '[ -z "{{.IS_LINUX}}" ]'
       - |
-        ver=$(awk -F"'" '/^[[:space:]]+VERSION:/ {print $2; exit}' Taskfile.yml)
+        ver=$(sed -nE "s/^[[:space:]]+VERSION:[[:space:]]+'([^']+)'.*/\1/p" Taskfile.yml | head -1)
         tag="v$ver"
         echo "Releasing $tag"
 
@@ -491,7 +491,7 @@ tasks:
       - cmd: 'task android-apk'
         if: '[ -z "{{.IS_LINUX}}" ]'
       - |
-        ver=$(awk -F"'" '/^[[:space:]]+VERSION:/ {print $2; exit}' Taskfile.yml)
+        ver="{{.VERSION}}"
         sha=$(git rev-parse --short HEAD)
         tag="rolling"
         echo "Updating $tag to $sha (version $ver)"
