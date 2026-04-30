@@ -4,8 +4,6 @@ package preview
 
 import (
 	"fyne.io/fyne/v2"
-
-	"github.com/asolopovas/wt/internal/gui/decor"
 )
 
 func ScrollMinSize() fyne.Size {
@@ -16,5 +14,5 @@ func DialogSize() (fyne.Size, bool) {
 	return fyne.Size{}, false
 }
 
-func TopInset() float32    { return decor.SpaceXXL*2 + decor.SpaceSM }
-func BottomInset() float32 { return decor.SpaceXXL*3 + decor.SpaceLG }
+func TopInset() float32    { return 0 }
+func BottomInset() float32 { return 0 }

@@ -15,6 +15,7 @@ import (
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
+	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/storage"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
@@ -182,6 +183,8 @@ func (p *Panel) OpenPreview(item ExportItem, onClose func()) {
 
 	scroll := container.NewScroll(content)
 	scroll.SetMinSize(preview.ScrollMinSize())
+	scrollBg := canvas.NewRectangle(surfaceRaised)
+	scrollPanel := container.NewStack(scrollBg, scroll)
 
 	editing := false
 	editBtn := newSecondaryButton("RENAME", nil)
@@ -199,6 +202,34 @@ func (p *Panel) OpenPreview(item ExportItem, onClose func()) {
 			editBtn.SetText("RENAME")
 		}
 	}
+
+	buildPlainText := func() string {
+		var sb strings.Builder
+		for _, u := range tr.Utterances {
+			fmt.Fprintf(&sb, "[%s] %s: %s\n",
+				formatAbsoluteTimestamp(u.Start, start),
+				p.displayName(u.Speaker),
+				strings.TrimSpace(u.Text))
+		}
+		return sb.String()
+	}
+
+	copyBtn := newPointerButtonWithIcon("", theme.ContentCopyIcon(), nil)
+	copyBtn.Importance = widget.LowImportance
+	copyBtn.OnTapped = func() {
+		fyne.CurrentApp().Clipboard().SetContent(buildPlainText())
+		copyBtn.SetIcon(theme.ConfirmIcon())
+		go func() {
+			time.Sleep(900 * time.Millisecond)
+			fyne.Do(func() { copyBtn.SetIcon(theme.ContentCopyIcon()) })
+		}()
+	}
+
+	copyRow := container.NewGridWithColumns(3,
+		layout.NewSpacer(),
+		layout.NewSpacer(),
+		container.NewHBox(layout.NewSpacer(), copyBtn),
+	)
 
 	var hidePreview func()
 	exportBtn := newSecondaryButton("EXPORT", func() {
@@ -221,7 +252,7 @@ func (p *Panel) OpenPreview(item ExportItem, onClose func()) {
 	)
 	bottomGap := canvas.NewRectangle(transparent)
 	bottomGap.SetMinSize(fyne.NewSize(0, preview.BottomInset()))
-	actionRow := container.NewVBox(buttons, bottomGap)
+	actionRow := container.NewVBox(copyRow, buttons, bottomGap)
 
 	stampText := canvas.NewText(start.Format(startTimeLayout), colMuted)
 	stampText.TextSize = textBody
@@ -239,31 +270,7 @@ func (p *Panel) OpenPreview(item ExportItem, onClose func()) {
 
 	render()
 
-	buildPlainText := func() string {
-		var sb strings.Builder
-		for _, u := range tr.Utterances {
-			fmt.Fprintf(&sb, "[%s] %s: %s\n",
-				formatAbsoluteTimestamp(u.Start, start),
-				p.displayName(u.Speaker),
-				strings.TrimSpace(u.Text))
-		}
-		return sb.String()
-	}
-
-	copyBtn := newPointerButtonWithIcon("", theme.ContentCopyIcon(), nil)
-	copyBtn.Importance = widget.HighImportance
-	copyBtn.OnTapped = func() {
-		fyne.CurrentApp().Clipboard().SetContent(buildPlainText())
-		copyBtn.SetIcon(theme.ConfirmIcon())
-		go func() {
-			time.Sleep(900 * time.Millisecond)
-			fyne.Do(func() { copyBtn.SetIcon(theme.ContentCopyIcon()) })
-		}()
-	}
-
-	floating := container.New(newTopRightFloater(spaceXL, spaceXL), copyBtn)
-	bodyInner := container.NewBorder(top, actionRow, nil, nil, scroll)
-	body := container.NewStack(bodyInner, floating)
+	body := container.NewBorder(top, actionRow, nil, nil, scrollPanel)
 	hidePreview = preview.ShowTranscript(item.SourceName, body, p.window, onClose)
 }
 
