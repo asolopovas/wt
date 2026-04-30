@@ -200,6 +200,13 @@ func (h *historyPanel) showRowMenu(e cache.Entry, recorded time.Time, anchor fyn
 					RecordedAt: recorded,
 				}, recorded, h.Refresh)
 			}),
+			fyne.NewMenuItem("Re-diarize", func() {
+				if e.SourcePath == "" {
+					showError(h.window, fmt.Errorf("source file path missing"))
+					return
+				}
+				h.transcribe.StartTranscription([]string{e.SourcePath})
+			}),
 		)
 	}
 

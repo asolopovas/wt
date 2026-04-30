@@ -56,11 +56,22 @@ const (
 
 func SherpaModelPaths() (string, string) {
 	root := shared.ModelsDir()
+	catSeg := filepath.Join(root, "sherpa-onnx-pyannote-segmentation-3-0", "model.onnx")
+	catEmb := filepath.Join(root, "titanet_large.onnx")
 	if runtime.GOOS == "android" {
-		return filepath.Join(root, "seg.onnx"), filepath.Join(root, "emb.onnx")
+		legacySeg := filepath.Join(root, "seg.onnx")
+		legacyEmb := filepath.Join(root, "emb.onnx")
+		seg := catSeg
+		if !fileExists(catSeg) && fileExists(legacySeg) {
+			seg = legacySeg
+		}
+		emb := catEmb
+		if !fileExists(catEmb) && fileExists(legacyEmb) {
+			emb = legacyEmb
+		}
+		return seg, emb
 	}
-	return filepath.Join(root, "sherpa-onnx-pyannote-segmentation-3-0", "model.onnx"),
-		filepath.Join(root, "titanet_large.onnx")
+	return catSeg, catEmb
 }
 
 func EnsureSherpaModels(progress func(name string, downloaded, total int64)) error {
