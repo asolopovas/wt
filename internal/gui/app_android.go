@@ -34,6 +34,10 @@ func Run(version string) error {
 	history := newHistoryPanel(w, tp)
 	tp.History = history
 	attachLibrary(tp, history)
+	if history.headerRight != nil {
+		history.headerRight.Objects = []fyne.CanvasObject{tp.StatsLine, tp.TimerText}
+		history.headerRight.Refresh()
+	}
 	settings.onCacheCleared = history.Refresh
 
 	if cache.GC(cfg.CacheExpiryDays) > 0 {
@@ -125,10 +129,9 @@ func buildTranscodeTabAndroid(tp *transcribe.Panel, settings *settingsPanel) fyn
 		wrapAction(cancelBtn),
 	)
 
-	statsRight := container.NewHBox(tp.StatsLine, tp.TimerText)
 	bottomBar := container.NewVBox(
 		tp.Progress,
-		container.NewBorder(nil, nil, tp.StatusText, statsRight),
+		container.NewBorder(nil, nil, tp.StatusText, nil),
 		settingsRow,
 		actionRow,
 		vGap(spaceMD),
