@@ -61,14 +61,6 @@ func Run(version string) error {
 	return nil
 }
 
-func attachLibrary(p *transcribe.Panel, h transcribe.History) {
-	if p.LibraryHost == nil {
-		return
-	}
-	p.LibraryHost.Objects = []fyne.CanvasObject{h.Container()}
-	p.LibraryHost.Refresh()
-}
-
 func buildTranscodeTab(tp *transcribe.Panel, settings *settingsPanel) fyne.CanvasObject {
 	addBtn := newSecondaryButton("ADD FILES", tp.OnBrowse)
 
