@@ -34,6 +34,11 @@ func Run(version string) error {
 	if cacheGC(cfg.CacheExpiryDays) > 0 {
 		history.rebuild()
 	}
+	go func() {
+		if cacheBackfillDurations() > 0 {
+			fyne.Do(history.refresh)
+		}
+	}()
 
 	deviceInfo := detectDevice()
 

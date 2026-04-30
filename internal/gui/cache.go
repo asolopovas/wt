@@ -12,6 +12,7 @@ import (
 
 	shared "github.com/asolopovas/wt/internal"
 	"github.com/asolopovas/wt/internal/diarizer"
+	"github.com/asolopovas/wt/internal/transcriber"
 )
 
 func rawTranscriptDir() string {
@@ -271,12 +272,37 @@ func cacheStorePending(sourcePath string) error {
 		Key:        key,
 		SourcePath: abs,
 		SourceName: filepath.Base(abs),
+		DurationMs: transcriber.ProbeDurationMs(abs),
 		CreatedAt:  time.Now(),
 		RecordedAt: recordedAt,
 		SizeBytes:  size,
 		Pending:    true,
 	})
 	return saveManifest(entries)
+}
+
+func cacheBackfillDurations() int {
+	entries, err := loadManifest()
+	if err != nil || len(entries) == 0 {
+		return 0
+	}
+	changed := 0
+	for i := range entries {
+		if entries[i].DurationMs > 0 || entries[i].SourcePath == "" {
+			continue
+		}
+		if _, err := os.Stat(entries[i].SourcePath); err != nil {
+			continue
+		}
+		if ms := transcriber.ProbeDurationMs(entries[i].SourcePath); ms > 0 {
+			entries[i].DurationMs = ms
+			changed++
+		}
+	}
+	if changed > 0 {
+		_ = saveManifest(entries)
+	}
+	return changed
 }
 
 func cacheGC(expiryDays int) int {

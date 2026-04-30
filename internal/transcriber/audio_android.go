@@ -170,6 +170,33 @@ static int decode_audio_to_pcm(int fd, off64_t offset, off64_t length,
 	*out_num_samples = (int)pcm_len;
 	return (int)pcm_len;
 }
+
+static int64_t probe_audio_duration_us(int fd, off64_t offset, off64_t length) {
+	AMediaExtractor *ex = AMediaExtractor_new();
+	if (!ex) return -1;
+	if (AMediaExtractor_setDataSourceFd(ex, fd, offset, length) != AMEDIA_OK) {
+		AMediaExtractor_delete(ex);
+		return -1;
+	}
+	int64_t duration_us = -1;
+	size_t num_tracks = AMediaExtractor_getTrackCount(ex);
+	for (size_t i = 0; i < num_tracks; i++) {
+		AMediaFormat *fmt = AMediaExtractor_getTrackFormat(ex, i);
+		const char *mime = NULL;
+		AMediaFormat_getString(fmt, AMEDIAFORMAT_KEY_MIME, &mime);
+		if (mime && strncmp(mime, "audio/", 6) == 0) {
+			int64_t d = 0;
+			if (AMediaFormat_getInt64(fmt, AMEDIAFORMAT_KEY_DURATION, &d) && d > 0) {
+				duration_us = d;
+			}
+			AMediaFormat_delete(fmt);
+			break;
+		}
+		AMediaFormat_delete(fmt);
+	}
+	AMediaExtractor_delete(ex);
+	return duration_us;
+}
 */
 import "C"
 
@@ -184,6 +211,23 @@ import (
 
 func findFFmpeg() string {
 	return ""
+}
+
+func ProbeDurationMs(path string) int64 {
+	f, err := os.Open(path)
+	if err != nil {
+		return 0
+	}
+	defer func() { _ = f.Close() }()
+	info, err := f.Stat()
+	if err != nil {
+		return 0
+	}
+	us := C.probe_audio_duration_us(C.int(f.Fd()), C.off64_t(0), C.off64_t(info.Size()))
+	if us <= 0 {
+		return 0
+	}
+	return int64(us) / 1000
 }
 
 func LoadAudioSamples(path string) ([]float32, error) {

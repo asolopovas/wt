@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -16,9 +17,91 @@ import (
 )
 
 var (
-	ffmpegOnce sync.Once
-	ffmpegPath string
+	ffmpegOnce  sync.Once
+	ffmpegPath  string
+	ffprobeOnce sync.Once
+	ffprobePath string
 )
+
+func findFFprobe() string {
+	ffprobeOnce.Do(func() {
+		if p, err := exec.LookPath("ffprobe"); err == nil {
+			ffprobePath = p
+			return
+		}
+		ff := findFFmpeg()
+		if ff == "" {
+			return
+		}
+		dir := filepath.Dir(ff)
+		candidate := filepath.Join(dir, "ffprobe")
+		if runtime.GOOS == "windows" {
+			candidate += ".exe"
+		}
+		if _, err := os.Stat(candidate); err == nil {
+			ffprobePath = candidate
+		}
+	})
+	return ffprobePath
+}
+
+func ProbeDurationMs(path string) int64 {
+	if probe := findFFprobe(); probe != "" {
+		cmd := exec.Command(probe,
+			"-v", "error",
+			"-show_entries", "format=duration",
+			"-of", "default=noprint_wrappers=1:nokey=1",
+			path,
+		)
+		shared.HideWindow(cmd)
+		out, err := cmd.Output()
+		if err == nil {
+			s := strings.TrimSpace(string(out))
+			if sec, err := strconv.ParseFloat(s, 64); err == nil && sec > 0 {
+				return int64(sec * 1000)
+			}
+		}
+	}
+	if ff := findFFmpeg(); ff != "" {
+		cmd := exec.Command(ff, "-i", path)
+		shared.HideWindow(cmd)
+		var stderr bytes.Buffer
+		cmd.Stderr = &stderr
+		_ = cmd.Run()
+		if ms := parseFFmpegDuration(stderr.String()); ms > 0 {
+			return ms
+		}
+	}
+	return 0
+}
+
+func parseFFmpegDuration(stderr string) int64 {
+	idx := strings.Index(stderr, "Duration:")
+	if idx < 0 {
+		return 0
+	}
+	rest := stderr[idx+len("Duration:"):]
+	end := strings.IndexByte(rest, ',')
+	if end < 0 {
+		return 0
+	}
+	hms := strings.TrimSpace(rest[:end])
+	parts := strings.Split(hms, ":")
+	if len(parts) != 3 {
+		return 0
+	}
+	h, err1 := strconv.Atoi(parts[0])
+	m, err2 := strconv.Atoi(parts[1])
+	s, err3 := strconv.ParseFloat(parts[2], 64)
+	if err1 != nil || err2 != nil || err3 != nil {
+		return 0
+	}
+	total := float64(h*3600+m*60) + s
+	if total <= 0 {
+		return 0
+	}
+	return int64(total * 1000)
+}
 
 func findFFmpeg() string {
 	ffmpegOnce.Do(func() {
