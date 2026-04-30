@@ -6,6 +6,58 @@ import (
 	"testing"
 )
 
+func TestParseFFmpegDuration(t *testing.T) {
+	tests := []struct {
+		name   string
+		stderr string
+		want   int64
+	}{
+		{
+			"typical ffmpeg -i output",
+			"Input #0, mov,mp4,m4a, ...\n  Duration: 00:01:23.45, start: 0.000000, bitrate: 128 kb/s\n",
+			83450,
+		},
+		{
+			"hours scale",
+			"Duration: 02:30:00.00, start: ...",
+			(2*3600 + 30*60) * 1000,
+		},
+		{
+			"missing duration line",
+			"Input #0, mov\n  bitrate: 128 kb/s",
+			0,
+		},
+		{
+			"malformed hms",
+			"Duration: 1:2, ...",
+			0,
+		},
+		{
+			"non-numeric components",
+			"Duration: aa:bb:cc.dd, ...",
+			0,
+		},
+		{
+			"zero duration",
+			"Duration: 00:00:00.00, ...",
+			0,
+		},
+		{
+			"no comma terminator",
+			"Duration: 00:01:23.45 start: 0",
+			0,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := parseFFmpegDuration(tt.stderr)
+			if got != tt.want {
+				t.Errorf("got %d, want %d", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestLoadAudioSamples_FileNotFound(t *testing.T) {
 	_, err := LoadAudioSamples("/nonexistent/path/audio.wav")
 	if err == nil {
