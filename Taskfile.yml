@@ -904,6 +904,9 @@ tasks:
           ndk_libcxx="{{.NDK_ROOT}}/toolchains/llvm/prebuilt/windows-x86_64/sysroot/usr/lib/aarch64-linux-android/libc++_shared.so"
           ndk_libomp="{{.NDK_ROOT}}/toolchains/llvm/prebuilt/windows-x86_64/lib/clang/18/lib/linux/aarch64/libomp.so"
           sherpa_bin="dist/sherpa/sherpa-diar-android"
+          if [ ! -f "$sherpa_bin" ]; then
+            echo "WARNING: $sherpa_bin missing — APK will lack on-device diarization (transcripts collapse to 1 speaker)" >&2
+          fi
           sherpa_seg="dist/sherpa/models/sherpa-onnx-pyannote-segmentation-3-0/model.onnx"
           sherpa_emb="dist/sherpa/models/titanet_large.onnx"
           llama_bin="dist/llama/llama-cli-android-arm64"

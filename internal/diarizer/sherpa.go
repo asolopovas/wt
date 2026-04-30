@@ -366,20 +366,11 @@ func (d *sherpaDiarizer) Diarize(ctx context.Context, wavPath string, numSpeaker
 		}()
 	}
 
-	var (
-		segments []Segment
-		started  bool
-	)
+	var segments []Segment
 	scanner := bufio.NewScanner(sp.Stdout)
 	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
 	for scanner.Scan() {
 		line := strings.TrimRight(scanner.Text(), "\r")
-		if !started {
-			if strings.HasPrefix(strings.TrimSpace(line), "Started") {
-				started = true
-			}
-			continue
-		}
 		m := sherpaSegRE.FindStringSubmatch(line)
 		if m == nil {
 			continue

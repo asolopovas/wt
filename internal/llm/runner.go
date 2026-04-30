@@ -83,6 +83,8 @@ func (r *Runner) Generate(ctx context.Context, opts Options) (string, error) {
 		"--temp", fmt.Sprintf("%.2f", opts.Temp),
 		"--no-display-prompt",
 		"--log-disable",
+		"--no-conversation",
+		"--no-warmup",
 	}
 
 	if opts.Grammar != "" {
@@ -102,6 +104,7 @@ func (r *Runner) Generate(ctx context.Context, opts Options) (string, error) {
 
 	cmd := exec.CommandContext(rctx, r.BinaryPath, args...)
 	cmd.Env = os.Environ()
+	cmd.Stdin = strings.NewReader("")
 	shared.HideWindow(cmd)
 
 	stdout, err := cmd.StdoutPipe()
