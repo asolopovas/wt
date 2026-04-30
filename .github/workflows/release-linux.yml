@@ -3,6 +3,11 @@ name: Release Linux .deb
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing release tag (e.g. v0.0.2)'
+        required: true
 
 permissions:
   contents: write
@@ -12,6 +17,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
 
       - uses: actions/setup-go@v5
         with:
@@ -52,5 +59,6 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          version="${GITHUB_REF_NAME#v}"
-          gh release upload "$GITHUB_REF_NAME" "dist/wt_${version}_amd64.deb" --clobber
+          tag="${{ inputs.tag || github.ref_name }}"
+          version="${tag#v}"
+          gh release upload "$tag" "dist/wt_${version}_amd64.deb" --clobber
