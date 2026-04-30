@@ -23,7 +23,7 @@ func (t *logEntryTheme) base() fyne.Theme {
 }
 
 func (t *logEntryTheme) Color(name fyne.ThemeColorName, variant fyne.ThemeVariant) color.Color {
-	if name == theme.ColorNameInputBackground || name == theme.ColorNameDisabled {
+	if name == theme.ColorNameInputBackground {
 		return decor.SurfacePanel
 	}
 	return t.base().Color(name, variant)
