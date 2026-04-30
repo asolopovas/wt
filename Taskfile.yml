@@ -474,6 +474,54 @@ tasks:
         gh release upload "$tag" $artifacts --clobber
         echo "Released $tag: https://github.com/asolopovas/wt/releases/tag/$tag"
 
+  release-latest:
+    desc: 'Rolling release: build current main and update the "rolling" tag + GitHub prerelease (no version bump)'
+    cmds:
+      - |
+        if ! command -v gh >/dev/null 2>&1; then
+          echo "ERROR: gh CLI not found. Install via: winget install GitHub.cli"
+          exit 1
+        fi
+        if [ -n "$(git status --porcelain)" ]; then
+          echo "ERROR: working tree has uncommitted changes; commit or stash first."
+          git status --short
+          exit 1
+        fi
+      - task: build
+      - cmd: 'task android-apk'
+        if: '[ -z "{{.IS_LINUX}}" ]'
+      - |
+        ver=$(awk -F"'" '/^[[:space:]]+VERSION:/ {print $2; exit}' Taskfile.yml)
+        sha=$(git rev-parse --short HEAD)
+        tag="rolling"
+        echo "Updating $tag to $sha (version $ver)"
+
+        git push origin HEAD
+
+        git tag -f "$tag" HEAD
+        git push origin "$tag" --force
+
+        if gh release view "$tag" >/dev/null 2>&1; then
+          gh release delete "$tag" --yes --cleanup-tag=false
+        fi
+        gh release create "$tag" \
+          --title "Rolling (main @ $sha)" \
+          --prerelease \
+          --notes "Rolling build of main. Commit \`$sha\`, version $ver. Updated automatically; not a stable release."
+
+        artifacts=""
+        for f in \
+          "dist/wt-setup-$ver.exe" \
+          "dist/wt-$ver.apk" \
+          "dist/wt_${ver}_amd64.deb"; do
+          [ -f "$f" ] && artifacts="$artifacts $f"
+        done
+        if [ -z "$artifacts" ]; then
+          echo "ERROR: no artifacts found to upload"; exit 1
+        fi
+        gh release upload "$tag" $artifacts --clobber
+        echo "Rolling release: https://github.com/asolopovas/wt/releases/tag/$tag"
+
   bump:
     desc: Bump patch version, build, install, verify, and commit
     vars:
