@@ -81,10 +81,12 @@ Module: `github.com/asolopovas/wt` (Go 1.26). Key deps: `fyne.io/fyne/v2`, `pter
 - Layout: `newSectionHeader`, `newSectionDivider`, `newFormField(label, widget)`, `newCaptionText`, `newPanelBackground`.
 - Modals: `showDialog(dialogConfig{Parent, Title, Body, Actions, WidthFrac/Size})` — replaces all hand-rolled `widget.NewModalPopUp` + `dialogBordered` + title/button boilerplate. Actions auto-hide before invoking `OnTap`.
 
-**Notifications** (`notify_ui.go`): use `setStatusText(t, level, msg)` / `setStatusStyle(t, level)` for inline status; `showNotice(win, level, title, msg)`, `showError(win, err)`, `showConfirm(win, title, body, onConfirm)` for popups. **Never** call `dialog.ShowError` / `dialog.ShowInformation` / `dialog.ShowConfirm` directly — only `dialog.NewFileOpen` / `NewFileSave` / `NewFolderOpen` (system pickers) bypass the helpers.
+**Notifications** (re-exported from `decor` in `aliases.go`): use `showNotice(win, level, title, msg)`, `showError(win, err)`, `showConfirm(win, title, body, onConfirm)` for popups. **Never** call `dialog.ShowError` / `dialog.ShowInformation` / `dialog.ShowConfirm` directly — only `dialog.NewFileOpen` / `NewFileSave` / `NewFolderOpen` (system pickers) bypass the helpers.
+
+**Aliases** (`aliases.go`): single file holds package-local re-exports of `decor` types/vars (`pointerButton`, `newPointerSelect`, `showConfirm`, …), `assets` icons (`appIcon`, `playIconResource`, …), the platform-aware `validModels` slice, and the `attachLibrary` helper. Add new shims here rather than spawning a new file per concern.
 
 **Never:**
-- Hardcode colors (`colOutline`, `colPrimary`, `colDialogBorder`, …) outside `tokens.go` / `components.go` / `notify_ui.go`. Use the semantic alias.
+- Hardcode colors (`colOutline`, `colPrimary`, `colDialogBorder`, …) outside `tokens.go` / `components.go` / `aliases.go`. Use the semantic alias.
 - Reintroduce `settingsField`, `sidebarHeader`, `sidebarDivider`, or per-call `borderedBtn(b, colX)` — they are deliberately gone.
 - Mix toggle borders. Toggles always use `wrapGhost`; one-shot actions always use `wrapAction`.
 

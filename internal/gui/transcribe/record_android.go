@@ -9,8 +9,11 @@ import (
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/asolopovas/wt/internal/gui/assets"
+	"github.com/asolopovas/wt/internal/gui/decor"
 	"github.com/asolopovas/wt/internal/gui/platsvc"
 )
+
+var showConfirm = decor.ShowConfirm
 
 func (p *Panel) OnToggleRecord(btn *pointerButton) {
 	if isRecording() {
