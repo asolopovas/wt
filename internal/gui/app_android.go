@@ -145,11 +145,19 @@ func buildTranscodeTabAndroid(tp *transcribe.Panel, settings *settingsPanel) fyn
 
 var permsSection *permissionsSection
 
+func inlineField(label string, w fyne.CanvasObject) fyne.CanvasObject {
+	lbl := canvas.NewText(label, decor.TextMuted)
+	lbl.TextSize = textCaption
+	lbl.TextStyle = fyne.TextStyle{Bold: true, Monospace: true}
+	left := container.New(&fixedWidthLayout{width: 90}, lbl)
+	return container.NewBorder(nil, nil, left, nil, w)
+}
+
 func buildSettingsTab(sp *settingsPanel, deviceInfo string) fyne.CanvasObject {
-	settingsGrid := container.NewGridWithColumns(2,
-		newFormField("DEVICE", sp.deviceSelect),
-		newFormField("THREADS", sp.threadsSelect),
-		newFormField("EXPIRY (DAYS)", sp.expirySelect),
+	settingsGrid := container.NewVBox(
+		inlineField("DEVICE", sp.deviceSelect),
+		inlineField("THREADS", sp.threadsSelect),
+		inlineField("EXPIRY", sp.expirySelect),
 	)
 
 	header := canvas.NewText("SETTINGS", colMuted)
@@ -157,11 +165,14 @@ func buildSettingsTab(sp *settingsPanel, deviceInfo string) fyne.CanvasObject {
 	header.TextStyle = fyne.TextStyle{Bold: true}
 	header.Alignment = fyne.TextAlignCenter
 
-	deviceHeader := newCaptionText("DEVICE")
-	deviceHeader.TextStyle = fyne.TextStyle{Monospace: true, Bold: true}
-	deviceLabel := widget.NewLabel(deviceInfo)
-	deviceLabel.TextStyle = fyne.TextStyle{Monospace: true}
-	deviceLabel.Wrapping = fyne.TextWrapWord
+	_ = deviceInfo
+	statsBlock := container.NewVBox()
+	for _, st := range deviceStats() {
+		val := widget.NewLabel(st.Value)
+		val.TextStyle = fyne.TextStyle{Monospace: true}
+		val.Wrapping = fyne.TextWrapWord
+		statsBlock.Add(inlineField(st.Label, val))
+	}
 
 	if permsSection == nil {
 		permsSection = newPermissionsSection()
@@ -170,11 +181,10 @@ func buildSettingsTab(sp *settingsPanel, deviceInfo string) fyne.CanvasObject {
 	topSection := container.NewVBox(
 		vGap(spaceXL),
 		header,
-		vGap(spaceXXL),
-		settingsGrid,
+		vGap(spaceMD),
+		statsBlock,
 		vGap(spaceXL),
-		deviceHeader,
-		deviceLabel,
+		settingsGrid,
 		vGap(spaceXXL),
 		permsSection.container,
 	)
@@ -184,27 +194,29 @@ func buildSettingsTab(sp *settingsPanel, deviceInfo string) fyne.CanvasObject {
 		wrapGhost(sp.debugBtn),
 	)
 
-	clearCacheBtn := newSecondaryButton("CLEAR CACHE", sp.onClearCache)
-	clearTranscriptsBtn := newSecondaryButton("CLEAR TEXT", sp.onClearTranscripts)
+	clearCacheBtn := newSecondaryButton("CACHE", sp.onClearCache)
+	clearTranscriptsBtn := newSecondaryButton("TEXT", sp.onClearTranscripts)
 
-	cacheRow := container.NewGridWithColumns(2,
+	cacheRow := container.NewGridWithColumns(3,
 		wrapAction(clearCacheBtn),
 		wrapAction(clearTranscriptsBtn),
-	)
-
-	actionRow := container.NewGridWithColumns(1,
 		wrapAction(sp.saveBtn),
 	)
 
 	bottomSection := container.NewVBox(
+		vGap(spaceMD),
 		toggleRow,
+		vGap(spaceMD),
 		cacheRow,
-		actionRow,
 		vGap(spaceMD),
 	)
 
+	pad := func(o fyne.CanvasObject) fyne.CanvasObject {
+		return container.New(&insetLayout{padX: spaceXL, padY: 0}, o)
+	}
+
 	return container.NewBorder(
-		nil, bottomSection, nil, nil,
-		container.NewVScroll(topSection),
+		nil, pad(bottomSection), nil, nil,
+		container.NewVScroll(pad(topSection)),
 	)
 }

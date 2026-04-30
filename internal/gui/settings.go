@@ -103,7 +103,7 @@ func (p *settingsPanel) build() {
 	p.debugBtn = newPointerButton("", p.onToggleDebug)
 	p.updateDebugLabel()
 
-	p.saveBtn = newPrimaryButton("SAVE CONFIG", p.onSave)
+	p.saveBtn = newPrimaryButton("SAVE", p.onSave)
 
 	clearCacheBtn := newSecondaryButton("CLEAR CACHE", p.onClearCache)
 	clearTranscriptsBtn := newSecondaryButton("CLEAR TEXT", p.onClearTranscripts)

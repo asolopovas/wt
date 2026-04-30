@@ -3,9 +3,12 @@
 package gui
 
 import (
+	"image/color"
+
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/asolopovas/wt/internal/gui/platsvc"
@@ -23,7 +26,7 @@ func newPermissionsSection() *permissionsSection {
 	header.Alignment = fyne.TextAlignCenter
 
 	rows := container.NewVBox()
-	root := container.NewVBox(header, vGap(spaceLG), rows)
+	root := container.NewVBox(header, vGap(spaceMD), rows)
 	s := &permissionsSection{container: root, rows: rows}
 	s.refresh()
 	return s
@@ -32,91 +35,111 @@ func newPermissionsSection() *permissionsSection {
 func (s *permissionsSection) refresh() {
 	s.rows.Objects = nil
 
-	cells := []fyne.CanvasObject{}
-	for _, p := range platsvc.CollectPermissionInfos() {
-		cells = append(cells, s.buildRow(p))
-	}
-	cells = append(cells, s.buildBatteryRow(platsvc.IsIgnoringBatteryOptimizations()))
-
-	for i := 0; i < len(cells); i += 2 {
-		left := cells[i]
-		var right fyne.CanvasObject = canvas.NewRectangle(transparent)
-		if i+1 < len(cells) {
-			right = cells[i+1]
+	first := true
+	addRow := func(row fyne.CanvasObject) {
+		if !first {
+			s.rows.Add(vGap(spaceXS))
 		}
-		s.rows.Add(container.NewGridWithColumns(2, left, right))
+		s.rows.Add(row)
+		first = false
 	}
+
+	for _, p := range platsvc.CollectPermissionInfos() {
+		addRow(s.buildRow(p))
+	}
+	addRow(s.buildBatteryRow(platsvc.IsIgnoringBatteryOptimizations()))
 
 	s.rows.Refresh()
 	s.container.Refresh()
 }
 
 func (s *permissionsSection) buildRow(p platsvc.PermissionInfo) fyne.CanvasObject {
-	statusColor := colError
-	statusText := "DISABLED"
-	if p.Granted {
-		statusColor = colSuccess
-		statusText = "ENABLED"
-	}
-
-	desc := widget.NewLabel(p.Purpose)
-	desc.TextStyle = fyne.TextStyle{Monospace: true}
-	desc.Wrapping = fyne.TextWrapWord
-
-	status := canvas.NewText(statusText, statusColor)
-	status.TextSize = textBody
-	status.TextStyle = fyne.TextStyle{Bold: true, Monospace: true}
-	status.Alignment = fyne.TextAlignCenter
-
 	id := p.ID
 	granted := p.Granted
-	btn := newPointerButton(p.Label, func() {
-		if granted {
+	return s.assembleRow(p.Label, granted, func(want bool) {
+		if want {
+			platsvc.RequestPermissions([]string{id})
+			go func() {
+				platsvc.PollPermission(id, func() { fyne.Do(s.refresh) })
+			}()
+		} else {
 			platsvc.OpenAppSettings()
-			return
 		}
-		platsvc.RequestPermissions([]string{id})
-
-		go func() {
-			platsvc.PollPermission(id, func() { fyne.Do(s.refresh) })
-		}()
 	})
-	if granted {
-		btn.Importance = widget.LowImportance
-	} else {
-		btn.Importance = widget.HighImportance
-	}
-
-	row := container.NewVBox(status, desc, wrapAction(btn))
-	return container.NewPadded(row)
 }
 
 func (s *permissionsSection) buildBatteryRow(ignoring bool) fyne.CanvasObject {
-	statusColor := colError
-	statusText := "RESTRICTED"
-	if ignoring {
-		statusColor = colSuccess
-		statusText = "UNRESTRICTED"
-	}
-
-	desc := widget.NewLabel("Skip Doze battery limit.")
-	desc.TextStyle = fyne.TextStyle{Monospace: true}
-	desc.Wrapping = fyne.TextWrapWord
-
-	status := canvas.NewText(statusText, statusColor)
-	status.TextSize = textBody
-	status.TextStyle = fyne.TextStyle{Bold: true, Monospace: true}
-	status.Alignment = fyne.TextAlignCenter
-
-	btn := newPointerButton("BATTERY", func() {
+	return s.assembleRow("BATTERY", ignoring, func(bool) {
 		platsvc.OpenBatteryOptimizationSettings()
 	})
-	if ignoring {
+}
+
+func (s *permissionsSection) assembleRow(label string, ok bool, action func(want bool)) fyne.CanvasObject {
+	title := canvas.NewText(label, color.White)
+	title.TextSize = textBody
+	title.TextStyle = fyne.TextStyle{Bold: true, Monospace: true}
+
+	btnLabel := "OFF"
+	if ok {
+		btnLabel = "ON"
+	}
+	btn := newPointerButton(btnLabel, func() {
+		action(!ok)
+		fyne.Do(s.refresh)
+	})
+	if ok {
 		btn.Importance = widget.LowImportance
 	} else {
 		btn.Importance = widget.HighImportance
 	}
+	action_ := container.New(&fixedWidthLayout{width: 70}, wrapAction(btn))
 
-	row := container.NewVBox(status, desc, wrapAction(btn))
-	return container.NewPadded(row)
+	return container.New(layout.NewHBoxLayout(), title, layout.NewSpacer(), action_)
+}
+
+type fixedWidthLayout struct {
+	width float32
+}
+
+func (l *fixedWidthLayout) Layout(objs []fyne.CanvasObject, size fyne.Size) {
+	for _, o := range objs {
+		o.Move(fyne.NewPos(0, 0))
+		o.Resize(fyne.NewSize(l.width, size.Height))
+	}
+}
+
+func (l *fixedWidthLayout) MinSize(objs []fyne.CanvasObject) fyne.Size {
+	var h float32
+	for _, o := range objs {
+		m := o.MinSize()
+		if m.Height > h {
+			h = m.Height
+		}
+	}
+	return fyne.NewSize(l.width, h)
+}
+
+type insetLayout struct {
+	padX, padY float32
+}
+
+func (l *insetLayout) Layout(objs []fyne.CanvasObject, size fyne.Size) {
+	for _, o := range objs {
+		o.Move(fyne.NewPos(l.padX, l.padY))
+		o.Resize(fyne.NewSize(size.Width-2*l.padX, size.Height-2*l.padY))
+	}
+}
+
+func (l *insetLayout) MinSize(objs []fyne.CanvasObject) fyne.Size {
+	var w, h float32
+	for _, o := range objs {
+		m := o.MinSize()
+		if m.Width > w {
+			w = m.Width
+		}
+		if m.Height > h {
+			h = m.Height
+		}
+	}
+	return fyne.NewSize(w+2*l.padX, h+2*l.padY)
 }
