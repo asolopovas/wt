@@ -16,6 +16,7 @@ import (
 	"fyne.io/fyne/v2/storage"
 
 	shared "github.com/asolopovas/wt/internal"
+	"github.com/asolopovas/wt/internal/gui/cache"
 	whisper "github.com/ggerganov/whisper.cpp/bindings/go/pkg/whisper"
 )
 
@@ -157,7 +158,7 @@ func (p *transcribePanel) addLocalFile(path string) bool {
 		return false
 	}
 	p.files = append(p.files, path)
-	if err := cacheStorePending(path); err != nil {
+	if err := cache.StorePending(path); err != nil {
 		p.appendLog("warn: could not record pending entry: " + err.Error())
 	}
 	if p.history != nil {
@@ -167,12 +168,12 @@ func (p *transcribePanel) addLocalFile(path string) bool {
 }
 
 func (p *transcribePanel) restorePendingFiles() {
-	for _, e := range cacheEntriesByRecent() {
+	for _, e := range cache.EntriesByRecent() {
 		if !e.Pending {
 			continue
 		}
 		if _, err := os.Stat(e.SourcePath); err != nil {
-			_ = cacheDelete(e.Key)
+			_ = cache.Delete(e.Key)
 			continue
 		}
 		if p.hasFile(e.SourcePath) {

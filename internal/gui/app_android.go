@@ -13,6 +13,7 @@ import (
 
 	shared "github.com/asolopovas/wt/internal"
 	"github.com/asolopovas/wt/internal/gui/assets"
+	"github.com/asolopovas/wt/internal/gui/cache"
 	"github.com/asolopovas/wt/internal/gui/decor"
 	"github.com/asolopovas/wt/internal/gui/platsvc"
 )
@@ -38,11 +39,11 @@ func Run(version string) error {
 	}
 	settings.onCacheCleared = history.Refresh
 
-	if cacheGC(cfg.CacheExpiryDays) > 0 {
+	if cache.GC(cfg.CacheExpiryDays) > 0 {
 		history.rebuild()
 	}
 	go func() {
-		if cacheBackfillDurations() > 0 {
+		if cache.BackfillDurations() > 0 {
 			fyne.Do(history.Refresh)
 		}
 	}()

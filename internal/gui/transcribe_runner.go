@@ -15,6 +15,7 @@ import (
 
 	shared "github.com/asolopovas/wt/internal"
 	"github.com/asolopovas/wt/internal/diarizer"
+	"github.com/asolopovas/wt/internal/gui/cache"
 	"github.com/asolopovas/wt/internal/progress"
 	"github.com/asolopovas/wt/internal/transcriber"
 	whisper "github.com/ggerganov/whisper.cpp/bindings/go/pkg/whisper"
@@ -242,11 +243,11 @@ func (p *transcribePanel) transcribeFile(model whisper.Model, path, modelSize, d
 
 	sourceName := filepath.Base(absPath)
 
-	params, keyErr := buildCacheParams(absPath, modelSize, language, speakers, noDiarize)
+	params, keyErr := cache.BuildKeyParams(absPath, modelSize, language, speakers, noDiarize)
 	var cacheKey string
 	if keyErr == nil {
-		cacheKey = computeCacheKey(params)
-		if hitPath, _, ok := cacheLookup(cacheKey); ok {
+		cacheKey = cache.ComputeKey(params)
+		if hitPath, _, ok := cache.Lookup(cacheKey); ok {
 			p.lastCSVPath = hitPath
 			p.results = append(p.results, exportItem{cachePath: hitPath, sourceName: sourceName, sourcePath: absPath, cacheKey: cacheKey})
 			p.appendLog(fmt.Sprintf("  Cached transcript reused for %s", sourceName))
@@ -283,8 +284,8 @@ func (p *transcribePanel) transcribeFile(model whisper.Model, path, modelSize, d
 		rawHit   bool
 	)
 	if keyErr == nil {
-		rawKey = computeRawKey(params.SourcePath, params.MtimeNs, modelSize, language)
-		if cached, ok := loadRawSegments(rawKey); ok {
+		rawKey = cache.ComputeRawKey(params.SourcePath, params.MtimeNs, modelSize, language)
+		if cached, ok := cache.LoadRawSegments(rawKey); ok {
 			segs = cached
 			rawHit = true
 			detected = language
@@ -372,8 +373,8 @@ func (p *transcribePanel) transcribeFile(model whisper.Model, path, modelSize, d
 			p.debugLog(fmt.Sprintf("dedup: removed %d repeated segments", dropped))
 		}
 		if rawKey != "" {
-			if ok, reason := rawCacheSafe(segs, audioDurSec, p.cancelled.Load()); ok {
-				if err := saveRawSegments(rawKey, segs); err != nil {
+			if ok, reason := cache.RawCacheSafe(segs, audioDurSec, p.cancelled.Load()); ok {
+				if err := cache.SaveRawSegments(rawKey, segs); err != nil {
 					p.debugLog(fmt.Sprintf("could not save raw transcript cache: %v", err))
 				}
 			} else {
@@ -431,7 +432,7 @@ func (p *transcribePanel) transcribeFile(model whisper.Model, path, modelSize, d
 	data = append(data, '\n')
 
 	if cacheKey == "" {
-		cacheKey = computeCacheKey(cacheKeyParams{
+		cacheKey = cache.ComputeKey(cache.KeyParams{
 			SourcePath: absPath,
 			MtimeNs:    time.Now().UnixNano(),
 			Model:      modelSize,
@@ -441,7 +442,7 @@ func (p *transcribePanel) transcribeFile(model whisper.Model, path, modelSize, d
 		})
 	}
 
-	entry := cacheEntry{
+	entry := cache.Entry{
 		Key:        cacheKey,
 		SourcePath: absPath,
 		SourceName: sourceName,
@@ -453,7 +454,7 @@ func (p *transcribePanel) transcribeFile(model whisper.Model, path, modelSize, d
 		DurationMs: audioDurMs,
 		CreatedAt:  time.Now(),
 	}
-	storedPath, storeErr := cacheStore(entry, data)
+	storedPath, storeErr := cache.Store(entry, data)
 	if storeErr != nil {
 		return fmt.Errorf("storing transcript: %w", storeErr)
 	}

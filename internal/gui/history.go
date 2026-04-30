@@ -11,6 +11,7 @@ import (
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
+	"github.com/asolopovas/wt/internal/gui/cache"
 	"github.com/asolopovas/wt/internal/gui/player"
 	"github.com/asolopovas/wt/internal/transcriber"
 )
@@ -83,7 +84,7 @@ func (h *historyPanel) Refresh() {
 }
 
 func (h *historyPanel) rebuild() {
-	entries := cacheEntriesByRecent()
+	entries := cache.EntriesByRecent()
 	h.list.Objects = nil
 	if len(entries) == 0 {
 		h.list.Add(container.NewCenter(h.empty))
@@ -102,12 +103,12 @@ func formatDurationCompact(ms int64) string {
 	return transcriber.FormatHMS(time.Duration(ms) * time.Millisecond)
 }
 
-func (h *historyPanel) buildRow(e cacheEntry) fyne.CanvasObject {
+func (h *historyPanel) buildRow(e cache.Entry) fyne.CanvasObject {
 	nameText := canvas.NewText(e.SourceName, colForeground)
 	nameText.TextSize = textRow
 	nameText.TextStyle = fyne.TextStyle{Bold: true}
 
-	recorded := recordedAtOrFallback(e)
+	recorded := cache.RecordedAtOrFallback(e)
 	metaText := canvas.NewText(
 		recorded.Format(startTimeLayout)+"   "+formatDurationCompact(e.DurationMs),
 		colMuted,
@@ -163,7 +164,7 @@ func (h *historyPanel) buildRow(e cacheEntry) fyne.CanvasObject {
 	return container.NewStack(rowBg, container.NewPadded(row))
 }
 
-func (h *historyPanel) showRowMenu(e cacheEntry, recorded time.Time, anchor fyne.CanvasObject) {
+func (h *historyPanel) showRowMenu(e cache.Entry, recorded time.Time, anchor fyne.CanvasObject) {
 	items := []*fyne.MenuItem{
 		fyne.NewMenuItem("Transcribe", func() {
 			if e.SourcePath == "" {
@@ -178,7 +179,7 @@ func (h *historyPanel) showRowMenu(e cacheEntry, recorded time.Time, anchor fyne
 		items = append(items,
 			fyne.NewMenuItem("Preview", func() {
 				h.transcribe.openPreview(exportItem{
-					cachePath:  transcriptPathForKey(e.Key),
+					cachePath:  cache.TranscriptPathForKey(e.Key),
 					sourceName: e.SourceName,
 					sourcePath: e.SourcePath,
 					cacheKey:   e.Key,
@@ -187,7 +188,7 @@ func (h *historyPanel) showRowMenu(e cacheEntry, recorded time.Time, anchor fyne
 			}),
 			fyne.NewMenuItem("Export", func() {
 				h.transcribe.exportTranscript([]exportItem{{
-					cachePath:  transcriptPathForKey(e.Key),
+					cachePath:  cache.TranscriptPathForKey(e.Key),
 					sourceName: e.SourceName,
 					sourcePath: e.SourcePath,
 					cacheKey:   e.Key,
@@ -214,7 +215,7 @@ func (h *historyPanel) showRowMenu(e cacheEntry, recorded time.Time, anchor fyne
 						return
 					}
 				}
-				if err := cacheDelete(e.Key); err != nil {
+				if err := cache.Delete(e.Key); err != nil {
 					showError(h.window, err)
 					return
 				}
@@ -237,7 +238,7 @@ func (h *historyPanel) editRecordedAt(key string, current time.Time) {
 	showDatePicker(h.window, current, func(d time.Time) {
 		showTimePicker(h.window, current, func(hh, mm, ss int) {
 			combined := time.Date(d.Year(), d.Month(), d.Day(), hh, mm, ss, 0, time.Local)
-			if err := cacheSetRecordedAt(key, combined); err != nil {
+			if err := cache.SetRecordedAt(key, combined); err != nil {
 				showError(h.window, err)
 				return
 			}

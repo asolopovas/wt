@@ -1,4 +1,4 @@
-package gui
+package cache
 
 import (
 	"crypto/sha256"
@@ -19,7 +19,7 @@ func rawTranscriptDir() string {
 	return filepath.Join(shared.CacheDir(), "raw")
 }
 
-func computeRawKey(sourcePath string, mtimeNs int64, model, language string) string {
+func ComputeRawKey(sourcePath string, mtimeNs int64, model, language string) string {
 	s := fmt.Sprintf("%s\x00%d\x00%s\x00%s", sourcePath, mtimeNs, model, language)
 	sum := sha256.Sum256([]byte(s))
 	return hex.EncodeToString(sum[:])[:32]
@@ -29,7 +29,7 @@ func rawTranscriptPath(key string) string {
 	return filepath.Join(rawTranscriptDir(), key+".json")
 }
 
-func loadRawSegments(key string) ([]diarizer.TranscriptSegment, bool) {
+func LoadRawSegments(key string) ([]diarizer.TranscriptSegment, bool) {
 	data, err := os.ReadFile(rawTranscriptPath(key))
 	if err != nil {
 		return nil, false
@@ -41,7 +41,7 @@ func loadRawSegments(key string) ([]diarizer.TranscriptSegment, bool) {
 	return segs, true
 }
 
-func rawCacheSafe(segs []diarizer.TranscriptSegment, audioDurSec float64, cancelled bool) (bool, string) {
+func RawCacheSafe(segs []diarizer.TranscriptSegment, audioDurSec float64, cancelled bool) (bool, string) {
 	if cancelled {
 		return false, "transcription cancelled"
 	}
@@ -64,7 +64,7 @@ func rawCacheSafe(segs []diarizer.TranscriptSegment, audioDurSec float64, cancel
 	return true, ""
 }
 
-func saveRawSegments(key string, segs []diarizer.TranscriptSegment) error {
+func SaveRawSegments(key string, segs []diarizer.TranscriptSegment) error {
 	if err := os.MkdirAll(rawTranscriptDir(), 0o755); err != nil {
 		return err
 	}
@@ -75,7 +75,7 @@ func saveRawSegments(key string, segs []diarizer.TranscriptSegment) error {
 	return os.WriteFile(rawTranscriptPath(key), data, 0o644)
 }
 
-type cacheEntry struct {
+type Entry struct {
 	Key        string    `json:"key"`
 	SourcePath string    `json:"source_path"`
 	SourceName string    `json:"source_name"`
@@ -91,7 +91,7 @@ type cacheEntry struct {
 	Pending    bool      `json:"pending,omitempty"`
 }
 
-func recordedAtOrFallback(e cacheEntry) time.Time {
+func RecordedAtOrFallback(e Entry) time.Time {
 	if !e.RecordedAt.IsZero() {
 		return e.RecordedAt
 	}
@@ -103,7 +103,7 @@ func recordedAtOrFallback(e cacheEntry) time.Time {
 	return e.CreatedAt
 }
 
-func cacheSetRecordedAt(key string, t time.Time) error {
+func SetRecordedAt(key string, t time.Time) error {
 	entries, err := loadManifest()
 	if err != nil {
 		return err
@@ -117,7 +117,7 @@ func cacheSetRecordedAt(key string, t time.Time) error {
 	return fmt.Errorf("entry %s not found", key)
 }
 
-type cacheKeyParams struct {
+type KeyParams struct {
 	SourcePath string
 	MtimeNs    int64
 	Model      string
@@ -134,27 +134,27 @@ func transcriptIndexPath() string {
 	return filepath.Join(transcriptCacheDir(), "index.json")
 }
 
-func transcriptPathForKey(key string) string {
+func TranscriptPathForKey(key string) string {
 	return filepath.Join(transcriptCacheDir(), key+".json")
 }
 
-func computeCacheKey(p cacheKeyParams) string {
+func ComputeKey(p KeyParams) string {
 	s := fmt.Sprintf("%s\x00%d\x00%s\x00%s\x00%d\x00%v",
 		p.SourcePath, p.MtimeNs, p.Model, p.Language, p.Speakers, p.NoDiarize)
 	sum := sha256.Sum256([]byte(s))
 	return hex.EncodeToString(sum[:])[:32]
 }
 
-func buildCacheParams(sourcePath, model, language string, speakers int, noDiarize bool) (cacheKeyParams, error) {
+func BuildKeyParams(sourcePath, model, language string, speakers int, noDiarize bool) (KeyParams, error) {
 	abs, err := filepath.Abs(sourcePath)
 	if err != nil {
-		return cacheKeyParams{}, err
+		return KeyParams{}, err
 	}
 	info, err := os.Stat(abs)
 	if err != nil {
-		return cacheKeyParams{}, err
+		return KeyParams{}, err
 	}
-	return cacheKeyParams{
+	return KeyParams{
 		SourcePath: abs,
 		MtimeNs:    info.ModTime().UnixNano(),
 		Model:      model,
@@ -164,7 +164,7 @@ func buildCacheParams(sourcePath, model, language string, speakers int, noDiariz
 	}, nil
 }
 
-func loadManifest() ([]cacheEntry, error) {
+func loadManifest() ([]Entry, error) {
 	data, err := os.ReadFile(transcriptIndexPath())
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -172,14 +172,14 @@ func loadManifest() ([]cacheEntry, error) {
 		}
 		return nil, err
 	}
-	var entries []cacheEntry
+	var entries []Entry
 	if err := json.Unmarshal(data, &entries); err != nil {
 		return nil, err
 	}
 	return entries, nil
 }
 
-func saveManifest(entries []cacheEntry) error {
+func saveManifest(entries []Entry) error {
 	if err := os.MkdirAll(transcriptCacheDir(), 0o755); err != nil {
 		return err
 	}
@@ -190,8 +190,8 @@ func saveManifest(entries []cacheEntry) error {
 	return os.WriteFile(transcriptIndexPath(), data, 0o644)
 }
 
-func cacheLookup(key string) (string, *cacheEntry, bool) {
-	path := transcriptPathForKey(key)
+func Lookup(key string) (string, *Entry, bool) {
+	path := TranscriptPathForKey(key)
 	if _, err := os.Stat(path); err != nil {
 		return "", nil, false
 	}
@@ -204,11 +204,11 @@ func cacheLookup(key string) (string, *cacheEntry, bool) {
 	return path, nil, true
 }
 
-func cacheStore(entry cacheEntry, transcriptJSON []byte) (string, error) {
+func Store(entry Entry, transcriptJSON []byte) (string, error) {
 	if err := os.MkdirAll(transcriptCacheDir(), 0o755); err != nil {
 		return "", err
 	}
-	dst := transcriptPathForKey(entry.Key)
+	dst := TranscriptPathForKey(entry.Key)
 	if err := os.WriteFile(dst, transcriptJSON, 0o644); err != nil {
 		return "", err
 	}
@@ -248,7 +248,7 @@ func pendingCacheKey(absPath string) string {
 	return hex.EncodeToString(sum[:])[:32]
 }
 
-func cacheStorePending(sourcePath string) error {
+func StorePending(sourcePath string) error {
 	abs, err := filepath.Abs(sourcePath)
 	if err != nil {
 		return err
@@ -268,7 +268,7 @@ func cacheStorePending(sourcePath string) error {
 			return nil
 		}
 	}
-	entries = append(entries, cacheEntry{
+	entries = append(entries, Entry{
 		Key:        key,
 		SourcePath: abs,
 		SourceName: filepath.Base(abs),
@@ -281,7 +281,7 @@ func cacheStorePending(sourcePath string) error {
 	return saveManifest(entries)
 }
 
-func cacheBackfillDurations() int {
+func BackfillDurations() int {
 	entries, err := loadManifest()
 	if err != nil || len(entries) == 0 {
 		return 0
@@ -305,7 +305,7 @@ func cacheBackfillDurations() int {
 	return changed
 }
 
-func cacheGC(expiryDays int) int {
+func GC(expiryDays int) int {
 	if expiryDays <= 0 {
 		return 0
 	}
@@ -314,11 +314,11 @@ func cacheGC(expiryDays int) int {
 		return 0
 	}
 	cutoff := time.Now().Add(-time.Duration(expiryDays) * 24 * time.Hour)
-	kept := make([]cacheEntry, 0, len(entries))
+	kept := make([]Entry, 0, len(entries))
 	removed := 0
 	for _, e := range entries {
 		if e.CreatedAt.Before(cutoff) {
-			_ = os.Remove(transcriptPathForKey(e.Key))
+			_ = os.Remove(TranscriptPathForKey(e.Key))
 			_ = os.Remove(speakerRenamesPath(e.Key))
 			removed++
 			continue
@@ -331,12 +331,12 @@ func cacheGC(expiryDays int) int {
 	return removed
 }
 
-func cacheDelete(key string) error {
+func Delete(key string) error {
 	entries, _ := loadManifest()
 	kept := entries[:0]
 	for _, e := range entries {
 		if e.Key == key {
-			_ = os.Remove(transcriptPathForKey(e.Key))
+			_ = os.Remove(TranscriptPathForKey(e.Key))
 			_ = os.Remove(speakerRenamesPath(e.Key))
 			continue
 		}
@@ -345,7 +345,7 @@ func cacheDelete(key string) error {
 	return saveManifest(kept)
 }
 
-func cacheClear() error {
+func Clear() error {
 	dir := transcriptCacheDir()
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -364,7 +364,7 @@ func speakerRenamesPath(key string) string {
 	return filepath.Join(transcriptCacheDir(), key+"_speakers.json")
 }
 
-func loadSpeakerRenames(key string) map[string]string {
+func LoadSpeakerRenames(key string) map[string]string {
 	if key == "" {
 		return nil
 	}
@@ -379,7 +379,7 @@ func loadSpeakerRenames(key string) map[string]string {
 	return m
 }
 
-func saveSpeakerRenames(key string, m map[string]string) error {
+func SaveSpeakerRenames(key string, m map[string]string) error {
 	if key == "" {
 		return nil
 	}
@@ -398,14 +398,14 @@ func saveSpeakerRenames(key string, m map[string]string) error {
 	return os.WriteFile(path, data, 0o644)
 }
 
-func cacheEntriesByRecent() []cacheEntry {
+func EntriesByRecent() []Entry {
 	entries, _ := loadManifest()
 	sort.Slice(entries, func(i, j int) bool {
 		return entries[i].CreatedAt.After(entries[j].CreatedAt)
 	})
 
 	seenPath := make(map[string]int, len(entries))
-	deduped := make([]cacheEntry, 0, len(entries))
+	deduped := make([]Entry, 0, len(entries))
 	for _, e := range entries {
 		path := e.SourcePath
 		if path == "" {

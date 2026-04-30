@@ -12,6 +12,7 @@ import (
 	"fyne.io/fyne/v2/widget"
 
 	shared "github.com/asolopovas/wt/internal"
+	"github.com/asolopovas/wt/internal/gui/cache"
 )
 
 var languages = []string{
@@ -184,7 +185,7 @@ func (p *settingsPanel) onClearTranscripts() {
 	showConfirm(p.window, "Clear transcripts",
 		"Remove all cached transcripts? This cannot be undone.",
 		func() {
-			if err := cacheClear(); err != nil {
+			if err := cache.Clear(); err != nil {
 				showError(p.window, err)
 				return
 			}

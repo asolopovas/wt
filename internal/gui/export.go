@@ -20,6 +20,7 @@ import (
 	"fyne.io/fyne/v2/widget"
 	"github.com/xuri/excelize/v2"
 
+	"github.com/asolopovas/wt/internal/gui/cache"
 	"github.com/asolopovas/wt/internal/gui/preview"
 	"github.com/asolopovas/wt/internal/transcriber"
 )
@@ -70,7 +71,7 @@ func (p *transcribePanel) openPreview(item exportItem, onClose func()) {
 	}
 
 	p.speakerRenames = map[string]string{}
-	for k, v := range loadSpeakerRenames(item.cacheKey) {
+	for k, v := range cache.LoadSpeakerRenames(item.cacheKey) {
 		p.speakerRenames[k] = v
 	}
 
@@ -162,7 +163,7 @@ func (p *transcribePanel) openPreview(item exportItem, onClose func()) {
 			} else {
 				p.speakerRenames[speaker] = s
 			}
-			_ = saveSpeakerRenames(item.cacheKey, p.speakerRenames)
+			_ = cache.SaveSpeakerRenames(item.cacheKey, p.speakerRenames)
 			render()
 		}
 		label := canvas.NewText(speaker, colMuted)

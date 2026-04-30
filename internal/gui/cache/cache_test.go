@@ -1,4 +1,4 @@
-package gui
+package cache
 
 import (
 	"os"
@@ -22,37 +22,37 @@ func redirectAppDir(t *testing.T) string {
 }
 
 func TestComputeRawKey_StableAndDistinguishing(t *testing.T) {
-	a := computeRawKey("/x/y", 1, "tiny", "en")
-	b := computeRawKey("/x/y", 1, "tiny", "en")
+	a := ComputeRawKey("/x/y", 1, "tiny", "en")
+	b := ComputeRawKey("/x/y", 1, "tiny", "en")
 	if a != b {
 		t.Errorf("not deterministic: %s vs %s", a, b)
 	}
 	if len(a) != 32 {
 		t.Errorf("len=%d want 32", len(a))
 	}
-	if computeRawKey("/x/y", 2, "tiny", "en") == a {
+	if ComputeRawKey("/x/y", 2, "tiny", "en") == a {
 		t.Error("mtime change should alter key")
 	}
-	if computeRawKey("/x/y", 1, "small", "en") == a {
+	if ComputeRawKey("/x/y", 1, "small", "en") == a {
 		t.Error("model change should alter key")
 	}
-	if computeRawKey("/x/y", 1, "tiny", "fr") == a {
+	if ComputeRawKey("/x/y", 1, "tiny", "fr") == a {
 		t.Error("language change should alter key")
 	}
 }
 
 func TestComputeCacheKey_HonorsAllFields(t *testing.T) {
-	base := cacheKeyParams{SourcePath: "/a", MtimeNs: 1, Model: "tiny", Language: "en", Speakers: 0, NoDiarize: false}
-	k := computeCacheKey(base)
+	base := KeyParams{SourcePath: "/a", MtimeNs: 1, Model: "tiny", Language: "en", Speakers: 0, NoDiarize: false}
+	k := ComputeKey(base)
 
 	mod := base
 	mod.Speakers = 2
-	if computeCacheKey(mod) == k {
+	if ComputeKey(mod) == k {
 		t.Error("speakers should affect key")
 	}
 	mod = base
 	mod.NoDiarize = true
-	if computeCacheKey(mod) == k {
+	if ComputeKey(mod) == k {
 		t.Error("noDiarize should affect key")
 	}
 }
@@ -72,7 +72,7 @@ func TestRawCacheSafe(t *testing.T) {
 		{"good coverage", []diarizer.TranscriptSegment{{End: 80 * time.Second}}, 100, false, true},
 	}
 	for _, tt := range tests {
-		ok, _ := rawCacheSafe(tt.segs, tt.dur, tt.cancelled)
+		ok, _ := RawCacheSafe(tt.segs, tt.dur, tt.cancelled)
 		if ok != tt.safe {
 			t.Errorf("%s: safe=%v want %v", tt.name, ok, tt.safe)
 		}
@@ -97,24 +97,24 @@ func TestRawSegmentsRoundTrip(t *testing.T) {
 		{Start: 0, End: time.Second, Text: "hi"},
 		{Start: time.Second, End: 2 * time.Second, Text: "yo"},
 	}
-	if err := saveRawSegments("k1", segs); err != nil {
+	if err := SaveRawSegments("k1", segs); err != nil {
 		t.Fatalf("save: %v", err)
 	}
-	got, ok := loadRawSegments("k1")
+	got, ok := LoadRawSegments("k1")
 	if !ok {
-		t.Fatal("loadRawSegments not ok")
+		t.Fatal("LoadRawSegments not ok")
 	}
 	if len(got) != 2 || got[0].Text != "hi" || got[1].Text != "yo" {
 		t.Errorf("round-trip mismatch: %+v", got)
 	}
-	if _, ok := loadRawSegments("missing"); ok {
+	if _, ok := LoadRawSegments("missing"); ok {
 		t.Error("missing key should not load")
 	}
 }
 
 func TestCacheStoreLookupAndDelete(t *testing.T) {
 	redirectAppDir(t)
-	entry := cacheEntry{
+	entry := Entry{
 		Key:        "abc",
 		SourcePath: "/some/file",
 		SourceName: "file.m4a",
@@ -123,21 +123,21 @@ func TestCacheStoreLookupAndDelete(t *testing.T) {
 		Utterances: 5,
 		CreatedAt:  time.Now(),
 	}
-	dst, err := cacheStore(entry, []byte(`{"language":"en"}`))
+	dst, err := Store(entry, []byte(`{"language":"en"}`))
 	if err != nil {
-		t.Fatalf("cacheStore: %v", err)
+		t.Fatalf("Store: %v", err)
 	}
 	if _, statErr := os.Stat(dst); statErr != nil {
 		t.Fatalf("transcript file missing: %v", statErr)
 	}
-	path, e, ok := cacheLookup("abc")
+	path, e, ok := Lookup("abc")
 	if !ok || e == nil || e.Key != "abc" || path != dst {
 		t.Errorf("lookup mismatch: ok=%v e=%+v path=%q", ok, e, path)
 	}
-	if err := cacheDelete("abc"); err != nil {
+	if err := Delete("abc"); err != nil {
 		t.Fatalf("delete: %v", err)
 	}
-	if _, _, ok := cacheLookup("abc"); ok {
+	if _, _, ok := Lookup("abc"); ok {
 		t.Error("lookup should fail after delete")
 	}
 }
@@ -148,7 +148,7 @@ func TestCacheStore_ReplacesPendingForSamePath(t *testing.T) {
 	if err := os.WriteFile(srcPath, []byte("x"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := cacheStorePending(srcPath); err != nil {
+	if err := StorePending(srcPath); err != nil {
 		t.Fatalf("pending: %v", err)
 	}
 	entries, _ := loadManifest()
@@ -157,8 +157,8 @@ func TestCacheStore_ReplacesPendingForSamePath(t *testing.T) {
 	}
 
 	abs, _ := filepath.Abs(srcPath)
-	entry := cacheEntry{Key: "real", SourcePath: abs, SourceName: "audio.m4a", CreatedAt: time.Now()}
-	if _, err := cacheStore(entry, []byte("{}")); err != nil {
+	entry := Entry{Key: "real", SourcePath: abs, SourceName: "audio.m4a", CreatedAt: time.Now()}
+	if _, err := Store(entry, []byte("{}")); err != nil {
 		t.Fatalf("store: %v", err)
 	}
 	entries, _ = loadManifest()
@@ -169,25 +169,25 @@ func TestCacheStore_ReplacesPendingForSamePath(t *testing.T) {
 
 func TestCacheGC_RemovesExpired(t *testing.T) {
 	redirectAppDir(t)
-	old := cacheEntry{Key: "old", SourcePath: "/o", CreatedAt: time.Now().Add(-48 * time.Hour)}
-	fresh := cacheEntry{Key: "new", SourcePath: "/n", CreatedAt: time.Now()}
-	if _, err := cacheStore(old, []byte("{}")); err != nil {
+	old := Entry{Key: "old", SourcePath: "/o", CreatedAt: time.Now().Add(-48 * time.Hour)}
+	fresh := Entry{Key: "new", SourcePath: "/n", CreatedAt: time.Now()}
+	if _, err := Store(old, []byte("{}")); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := cacheStore(fresh, []byte("{}")); err != nil {
+	if _, err := Store(fresh, []byte("{}")); err != nil {
 		t.Fatal(err)
 	}
-	removed := cacheGC(1)
+	removed := GC(1)
 	if removed != 1 {
 		t.Errorf("removed=%d want 1", removed)
 	}
-	if _, _, ok := cacheLookup("old"); ok {
+	if _, _, ok := Lookup("old"); ok {
 		t.Error("old should be gone")
 	}
-	if _, _, ok := cacheLookup("new"); !ok {
+	if _, _, ok := Lookup("new"); !ok {
 		t.Error("new should remain")
 	}
-	if cacheGC(0) != 0 {
+	if GC(0) != 0 {
 		t.Error("expiryDays=0 should be a no-op")
 	}
 }
@@ -195,14 +195,14 @@ func TestCacheGC_RemovesExpired(t *testing.T) {
 func TestCacheEntriesByRecent_DedupesPrefersReal(t *testing.T) {
 	redirectAppDir(t)
 	now := time.Now()
-	entries := []cacheEntry{
+	entries := []Entry{
 		{Key: "p", SourcePath: "/x", CreatedAt: now.Add(-time.Hour), Pending: true},
 		{Key: "r", SourcePath: "/x", CreatedAt: now.Add(-2 * time.Hour)},
 	}
 	if err := saveManifest(entries); err != nil {
 		t.Fatal(err)
 	}
-	got := cacheEntriesByRecent()
+	got := EntriesByRecent()
 	if len(got) != 1 {
 		t.Fatalf("len=%d want 1", len(got))
 	}
@@ -213,17 +213,17 @@ func TestCacheEntriesByRecent_DedupesPrefersReal(t *testing.T) {
 
 func TestSpeakerRenamesRoundTrip(t *testing.T) {
 	redirectAppDir(t)
-	if err := saveSpeakerRenames("k", map[string]string{"S1": "Alice"}); err != nil {
+	if err := SaveSpeakerRenames("k", map[string]string{"S1": "Alice"}); err != nil {
 		t.Fatal(err)
 	}
-	got := loadSpeakerRenames("k")
+	got := LoadSpeakerRenames("k")
 	if got["S1"] != "Alice" {
 		t.Errorf("got=%v", got)
 	}
-	if err := saveSpeakerRenames("k", map[string]string{}); err != nil {
+	if err := SaveSpeakerRenames("k", map[string]string{}); err != nil {
 		t.Fatal(err)
 	}
-	if got := loadSpeakerRenames("k"); got != nil {
+	if got := LoadSpeakerRenames("k"); got != nil {
 		t.Errorf("empty map should remove file; loaded=%v", got)
 	}
 }

@@ -10,6 +10,7 @@ import (
 	"fyne.io/fyne/v2/theme"
 
 	shared "github.com/asolopovas/wt/internal"
+	"github.com/asolopovas/wt/internal/gui/cache"
 )
 
 func Run(version string) error {
@@ -30,11 +31,11 @@ func Run(version string) error {
 	transcribe.attachLibrary(history)
 	settings.onCacheCleared = history.Refresh
 
-	if cacheGC(cfg.CacheExpiryDays) > 0 {
+	if cache.GC(cfg.CacheExpiryDays) > 0 {
 		history.rebuild()
 	}
 	go func() {
-		if cacheBackfillDurations() > 0 {
+		if cache.BackfillDurations() > 0 {
 			fyne.Do(history.Refresh)
 		}
 	}()
