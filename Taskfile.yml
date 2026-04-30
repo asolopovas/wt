@@ -164,7 +164,7 @@ tasks:
             exit 1
           fi
         if: '[ -z "{{.IS_LINUX}}" ] && [ -z "{{.ONLY}}" ]'
-      - cmd: '"{{.ISCC_PATH}}" scripts/installer.iss'
+      - cmd: '"{{.ISCC_PATH}}" /DMyAppVersion={{.VERSION}} scripts/installer.iss'
         if: '[ -z "{{.IS_LINUX}}" ] && [ -z "{{.ONLY}}" ]'
       - cmd: 'ls -l dist/wt-setup-{{.VERSION}}.exe'
         if: '[ -z "{{.IS_LINUX}}" ] && [ -z "{{.ONLY}}" ]'
@@ -555,12 +555,11 @@ tasks:
         new="{{.NEW_VERSION}}"
         echo "Bumping version: $cur -> $new"
         powershell -NoProfile -Command "(Get-Content Taskfile.yml -Raw) -replace \"VERSION: '$cur'\",\"VERSION: '$new'\" | Set-Content Taskfile.yml -NoNewline"
-        powershell -NoProfile -Command "(Get-Content scripts/installer.iss -Raw) -replace '#define MyAppVersion \"$cur\"','#define MyAppVersion \"$new\"' | Set-Content scripts/installer.iss -NoNewline"
       - cmd: task install
       - |
         cur="{{.VERSION}}"
         new="{{.NEW_VERSION}}"
-        git add Taskfile.yml scripts/installer.iss
+        git add Taskfile.yml
         git commit -m "Bump version $cur -> $new"
 
   test:

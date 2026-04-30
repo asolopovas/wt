@@ -41,7 +41,7 @@ Requires Go 1.26+, GCC/MinGW, CMake, ffmpeg, [Task](https://taskfile.dev/). CGo 
 
 ## Boundaries
 
-**Always:** run `task build ONLY=gui` for GUI compile checks; keep `Taskfile.yml VERSION` and `scripts/installer.iss MyAppVersion` in sync.
+**Always:** run `task build ONLY=gui` for GUI compile checks. `Taskfile.yml VERSION` is the single source of truth — `scripts/installer.iss` receives `MyAppVersion` via ISCC `/D` at build time, with the in-file `#define` only as a fallback for manual `iscc` runs. No manual sync.
 
 **Before every commit (MUST):** run `task lint`, `task test`, and `task vet`. Bare `go vet` / `go test` outside the Task env fails because the whisper.cpp CGo bindings need `CGO_LDFLAGS` from the Taskfile (manifests as `undefined: whisper.SampleBits` etc., not the gopls go-gl warning). Always invoke through `task`. If any fail, fix the failures first — never commit or push with red checks. No `--no-verify`, no skipping. Applies to every commit, not just user-facing changes.
 
