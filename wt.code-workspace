@@ -29,6 +29,12 @@
         "type": "shell",
         "command": "task install-android",
         "problemMatcher": ["$go"]
+      },
+      {
+        "label": "build & install-android",
+        "type": "shell",
+        "command": "task build && task install-android",
+        "problemMatcher": ["$go"]
       }
     ]
   }
