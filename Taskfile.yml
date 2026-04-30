@@ -641,7 +641,7 @@ tasks:
             "{{.ANDROID_BUILD}}/ggml/src/ggml-vulkan/libvulkan.so"
 
   android-apk:
-    internal: true
+    desc: 'Build Android APK (dist/wt-{{.VERSION}}.apk)'
     deps: [android-whisper-lib]
     vars:
       NDK_ROOT:

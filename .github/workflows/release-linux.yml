@@ -1,0 +1,56 @@
+name: Release Linux .deb
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  deb:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            cmake gcc g++ libgl1-mesa-dev xorg-dev \
+            dpkg-dev fakeroot
+
+      - name: Install Task
+        uses: arduino/setup-task@v2
+        with:
+          version: 3.x
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Cache whisper.cpp build
+        uses: actions/cache@v4
+        with:
+          path: third_party/whisper.cpp
+          key: whisper-cpp-linux-${{ hashFiles('Taskfile.yml') }}
+
+      - name: Cache uv-linux
+        uses: actions/cache@v4
+        with:
+          path: dist/deps
+          key: uv-deps-linux-${{ hashFiles('Taskfile.yml') }}
+
+      - name: Build Linux binaries
+        run: task build
+
+      - name: Build .deb
+        run: task linux-deb
+
+      - name: Upload .deb to release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          gh release upload "$GITHUB_REF_NAME" "dist/wt_${version}_amd64.deb" --clobber
