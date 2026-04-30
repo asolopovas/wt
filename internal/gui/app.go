@@ -108,7 +108,7 @@ func buildSidebar(tp *transcribe.Panel, settings *settingsPanel, addBtn *pointer
 
 func buildSettingsTab(sp *settingsPanel, deviceInfo string) fyne.CanvasObject {
 	deviceHeader := newCaptionText("DEVICE")
-	deviceHeader.TextStyle = fyne.TextStyle{Monospace: true, Bold: true}
+	deviceHeader.TextStyle = monoBoldStyle
 	deviceLabel := canvas.NewText(deviceInfo, colSecondary)
 	deviceLabel.TextSize = textBody
 	deviceLabel.TextStyle = fyne.TextStyle{Monospace: true}

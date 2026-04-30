@@ -195,27 +195,15 @@ func runDiarizeOnly(audioPath string, speakers int) {
 }
 
 func resolveModel(size, path string) string {
-	if path != "" {
-		if _, err := os.Stat(path); err != nil {
-			fatal("model not found: %v", err)
-		}
-		return path
-	}
-
-	modelsDir := shared.ModelsDir()
-
-	if size != "" {
-		filename, ok := transcriber.ModelFiles[size]
-		if !ok {
-			fatal("unknown model size %q", size)
-		}
-		p := filepath.Join(modelsDir, filename)
-		if _, err := os.Stat(p); err != nil {
-			fatal("model %s not found at %s", size, p)
+	if path != "" || size != "" {
+		p, err := transcriber.ResolveModelPathLocal(size, path)
+		if err != nil {
+			fatal("%v", err)
 		}
 		return p
 	}
 
+	modelsDir := shared.ModelsDir()
 	entries, _ := os.ReadDir(modelsDir)
 	fmt.Printf("ModelsDir: %s\n", modelsDir)
 	for _, e := range entries {

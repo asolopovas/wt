@@ -16,11 +16,11 @@ func (p *Panel) buildSharedControls() {
 
 	p.StatusText = canvas.NewText("READY", colMuted)
 	p.StatusText.TextSize = textBody
-	p.StatusText.TextStyle = fyne.TextStyle{Monospace: true, Bold: true}
+	p.StatusText.TextStyle = monoBoldStyle
 
 	p.TimerText = canvas.NewText("", colMuted)
 	p.TimerText.TextSize = textBody
-	p.TimerText.TextStyle = fyne.TextStyle{Monospace: true, Bold: true}
+	p.TimerText.TextStyle = monoBoldStyle
 	p.TimerText.Alignment = fyne.TextAlignTrailing
 
 	p.StatsLine = widget.NewLabel("")

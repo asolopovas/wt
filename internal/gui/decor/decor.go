@@ -33,7 +33,7 @@ func DialogBordered(content fyne.CanvasObject) fyne.CanvasObject {
 	return container.NewStack(frame, inner)
 }
 
-func BorderedBtn(btn fyne.CanvasObject, borderCol color.Color) fyne.CanvasObject {
+func borderedBtn(btn fyne.CanvasObject, borderCol color.Color) fyne.CanvasObject {
 	frame := canvas.NewRectangle(Transparent)
 	frame.StrokeColor = borderCol
 	frame.StrokeWidth = 1

@@ -1,8 +1,6 @@
 package transcribe
 
 import (
-	"image/color"
-
 	"github.com/asolopovas/wt/internal/gui/decor"
 	"github.com/asolopovas/wt/internal/gui/preview"
 )
@@ -19,16 +17,16 @@ const (
 	textBody    = decor.TextBody
 )
 
-var (
-	surfaceRaised = decor.SurfaceRaised
-)
+var surfaceRaised = decor.SurfaceRaised
 
 var (
-	colMuted                    = decor.TextMuted
-	colPrimary                  = decor.ActionPrimary
-	colPrimaryFaint color.Color = color.NRGBA{R: 143, G: 205, B: 255, A: 102}
-	transparent                 = decor.Transparent
+	colMuted        = decor.TextMuted
+	colPrimary      = decor.ActionPrimary
+	colPrimaryFaint = decor.ActionPrimaryFaint
+	transparent     = decor.Transparent
 )
+
+var monoBoldStyle = decor.MonoBoldStyle
 
 var (
 	newPrimaryButton         = decor.NewPrimaryButton
@@ -41,11 +39,15 @@ var (
 	newThinProgress          = decor.NewThinProgress
 )
 
-type pointerButton = decor.PointerButton
-type thinProgress = decor.ThinProgress
+type (
+	pointerButton = decor.PointerButton
+	thinProgress  = decor.ThinProgress
+)
 
-type dialogAction = decor.DialogAction
-type dialogConfig = decor.DialogConfig
+type (
+	dialogAction = decor.DialogAction
+	dialogConfig = decor.DialogConfig
+)
 
 const (
 	kindSecondary = decor.KindSecondary

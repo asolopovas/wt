@@ -5,13 +5,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
 	"os/exec"
 	"strings"
-	"sync"
+	"sync/atomic"
 	"time"
-
-	shared "github.com/asolopovas/wt/internal"
 )
 
 type nemoDiarizer struct {
@@ -53,111 +50,34 @@ type jsonSegment struct {
 
 func runPythonDiarizer(ctx context.Context, pythonExe string, args []string, name string, audioDurSec float64, progress ProgressFunc) ([]Segment, error) {
 	cmd := exec.CommandContext(ctx, pythonExe, args...)
-	cmd.Env = os.Environ()
-	shared.HideWindow(cmd)
 
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		return nil, fmt.Errorf("creating stdout pipe: %w", err)
-	}
-
-	stderr, err := cmd.StderrPipe()
-	if err != nil {
-		return nil, fmt.Errorf("creating stderr pipe: %w", err)
-	}
-
-	if err := cmd.Start(); err != nil {
-		return nil, fmt.Errorf("starting %s: %w", name, err)
-	}
-
-	var mu sync.Mutex
-	var stderrLines []string
-	done := false
-
-	go func() {
-		scanner := bufio.NewScanner(stderr)
-		for scanner.Scan() {
-			line := scanner.Text()
-			mu.Lock()
-			stderrLines = append(stderrLines, line)
-			if strings.HasPrefix(line, "done:") {
-				done = true
-			}
-			mu.Unlock()
+	var done atomic.Bool
+	sp, err := startSubproc(ctx, name, cmd, func(line string) bool {
+		if strings.HasPrefix(line, "done:") {
+			done.Store(true)
 		}
-	}()
+		return false
+	})
+	if err != nil {
+		return nil, err
+	}
 
-	doneCh := make(chan struct{})
-	lastReported := 0.0
+	progStop := make(chan struct{})
 	if progress != nil {
-		go func() {
-			start := time.Now()
-			ticker := time.NewTicker(500 * time.Millisecond)
-			defer ticker.Stop()
-			for {
-				select {
-				case <-doneCh:
-					return
-				case <-ticker.C:
-					mu.Lock()
-					finished := done
-					mu.Unlock()
-
-					if finished {
-						if lastReported < 95 {
-							lastReported = 95
-							progress(95)
-						}
-						continue
-					}
-
-					elapsed := time.Since(start).Seconds()
-					estTotal := audioDurSec * 0.15
-					if estTotal < 3 {
-						estTotal = 3
-					}
-					if estTotal <= 0 {
-						estTotal = 60
-					}
-					pct := elapsed / estTotal * 90
-					if pct > 90 {
-						pct = 90
-					}
-					if pct > lastReported {
-						lastReported = pct
-						progress(pct)
-					}
-				}
-			}
-		}()
+		go runTimeBasedProgress(progStop, &done, audioDurSec, progress)
 	}
 
 	var rawJSON []byte
-	scanner := bufio.NewScanner(stdout)
+	scanner := bufio.NewScanner(sp.Stdout)
 	scanner.Buffer(make([]byte, 0, 1024*1024), 10*1024*1024)
 	for scanner.Scan() {
 		rawJSON = append(rawJSON, scanner.Bytes()...)
 	}
 
-	if err := cmd.Wait(); err != nil {
-		close(doneCh)
-		if ctx.Err() != nil {
-			return nil, fmt.Errorf("diarization cancelled")
-		}
-		mu.Lock()
-		captured := stderrLines
-		mu.Unlock()
-		if len(captured) > 0 {
-			tail := captured
-			if len(tail) > 20 {
-				tail = tail[len(tail)-20:]
-			}
-			return nil, fmt.Errorf("%s failed:\n%s", name, strings.Join(tail, "\n"))
-		}
-		return nil, fmt.Errorf("%s exited with error: %w", name, err)
+	close(progStop)
+	if err := sp.wait(ctx); err != nil {
+		return nil, err
 	}
-
-	close(doneCh)
 
 	var parsed []jsonSegment
 	if err := json.Unmarshal(rawJSON, &parsed); err != nil {
@@ -184,6 +104,39 @@ func runPythonDiarizer(ctx context.Context, pythonExe string, args []string, nam
 	if progress != nil {
 		progress(100)
 	}
-
 	return segments, nil
+}
+
+func runTimeBasedProgress(stop <-chan struct{}, done *atomic.Bool, audioDurSec float64, progress ProgressFunc) {
+	start := time.Now()
+	ticker := time.NewTicker(500 * time.Millisecond)
+	defer ticker.Stop()
+	lastReported := 0.0
+	for {
+		select {
+		case <-stop:
+			return
+		case <-ticker.C:
+			if done.Load() {
+				if lastReported < 95 {
+					lastReported = 95
+					progress(95)
+				}
+				continue
+			}
+			elapsed := time.Since(start).Seconds()
+			estTotal := audioDurSec * 0.15
+			if estTotal < 3 {
+				estTotal = 3
+			}
+			pct := elapsed / estTotal * 90
+			if pct > 90 {
+				pct = 90
+			}
+			if pct > lastReported {
+				lastReported = pct
+				progress(pct)
+			}
+		}
+	}
 }

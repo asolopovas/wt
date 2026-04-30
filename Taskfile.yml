@@ -569,10 +569,52 @@ tasks:
     cmds:
       - cmd: 'export PATH="{{.EXTRA_PATH}};$PATH" LD_LIBRARY_PATH="{{.WHISPER_BUILD}}/src:{{.WHISPER_BUILD}}/ggml/src:{{.WHISPER_BUILD}}/ggml/src/ggml-cuda${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" && go test -v ./...'
 
+  fetch-samples:
+    desc: Download diarization test samples (sherpa-onnx clips + VoxConverse RTTMs)
+    cmds:
+      - cmd: |
+          set -e
+          dest="{{.ROOT_DIR | toSlash}}/samples/diarization"
+          mkdir -p "$dest/sherpa" "$dest/voxconverse"
+
+          base="https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-segmentation-models"
+          for f in 0-four-speakers-zh.wav 1-two-speakers-en.wav 2-two-speakers-en.wav 3-two-speakers-en.wav; do
+            out="$dest/sherpa/$f"
+            if [ -s "$out" ]; then
+              echo "skip (exists): $f"
+            else
+              echo "fetch: $f"
+              curl -fsSL --retry 3 -o "$out" "$base/$f"
+            fi
+          done
+
+          rttm_base="https://raw.githubusercontent.com/joonson/voxconverse/master/dev"
+          for id in abjxc afjiv; do
+            out="$dest/voxconverse/$id.rttm"
+            if [ -s "$out" ]; then
+              echo "skip (exists): $id.rttm"
+            else
+              echo "fetch: $id.rttm"
+              curl -fsSL --retry 3 -o "$out" "$rttm_base/$id.rttm"
+            fi
+          done
+
+          echo
+          echo "Sherpa clips (speaker count in filename):  $dest/sherpa"
+          echo "VoxConverse RTTMs (audio is 2 GB zip — fetch separately if needed):"
+          echo "  https://www.robots.ox.ac.uk/~vgg/data/voxconverse/data/voxconverse_dev_wav.zip"
+          echo "  $dest/voxconverse"
+
   test-unit:
     desc: Run unit tests (no CGo / model required)
     cmds:
       - cmd: 'export PATH="{{.EXTRA_PATH}};$PATH" && go test -v -short ./...'
+
+  test-integration:
+    desc: Run diarization integration tests (downloads samples on demand)
+    deps: [whisper-lib]
+    cmds:
+      - cmd: 'export PATH="{{.EXTRA_PATH}};$PATH" LD_LIBRARY_PATH="{{.WHISPER_BUILD}}/src:{{.WHISPER_BUILD}}/ggml/src:{{.WHISPER_BUILD}}/ggml/src/ggml-cuda${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" && go test -v -tags=integration ./internal/diarizer/...'
 
   vet:
     desc: Run go vet with the right CGo env

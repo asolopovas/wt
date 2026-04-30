@@ -119,4 +119,3 @@ func readMemTotal() string {
 	}
 	return "—"
 }
-

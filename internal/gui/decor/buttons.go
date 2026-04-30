@@ -52,14 +52,14 @@ func NewDangerButton(label string, onTap func()) *PointerButton {
 }
 
 func WrapAction(b *PointerButton) fyne.CanvasObject {
-	return BorderedBtn(b, BorderColorFor(b))
+	return borderedBtn(b, borderColorFor(b))
 }
 
 func WrapGhost(b *PointerButton) fyne.CanvasObject {
-	return BorderedBtn(b, BorderAccent)
+	return borderedBtn(b, BorderAccent)
 }
 
-func BorderColorFor(b *PointerButton) color.Color {
+func borderColorFor(b *PointerButton) color.Color {
 	switch b.Importance {
 	case widget.HighImportance:
 		return ActionPrimary

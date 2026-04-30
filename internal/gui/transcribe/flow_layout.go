@@ -112,4 +112,3 @@ func (f *flowLayout) Layout(objects []fyne.CanvasObject, containerSize fyne.Size
 		}
 	}
 }
-

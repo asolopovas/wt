@@ -56,6 +56,27 @@ func ResolveModelPath(modelSize, modelPath string) (string, error) {
 	return ResolveModelPathWithProgress(modelSize, modelPath, nil)
 }
 
+func ResolveModelPathLocal(modelSize, modelPath string) (string, error) {
+	if modelPath != "" {
+		if _, err := os.Stat(modelPath); err != nil {
+			return "", fmt.Errorf("model file not found: %s", modelPath)
+		}
+		return modelPath, nil
+	}
+	if modelSize == "" {
+		return "", fmt.Errorf("model size or path required")
+	}
+	filename, ok := ModelFiles[modelSize]
+	if !ok {
+		return "", fmt.Errorf("unknown model size %q", modelSize)
+	}
+	path := filepath.Join(shared.ModelsDir(), filename)
+	if _, err := os.Stat(path); err != nil {
+		return "", fmt.Errorf("model %s not found at %s", modelSize, path)
+	}
+	return path, nil
+}
+
 func ResolveModelPathWithProgress(modelSize, modelPath string, prog DownloadProgress) (string, error) {
 	if modelPath != "" {
 		if _, err := os.Stat(modelPath); err != nil {

@@ -140,4 +140,3 @@ func (c *cappedGrid) Layout(objects []fyne.CanvasObject, size fyne.Size) {
 		o.Resize(fyne.NewSize(cellW, h))
 	}
 }
-

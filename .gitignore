@@ -31,6 +31,9 @@ ggml-vulkan-shaders.hpp
 samples/*.json
 *.csv
 
+# Downloaded test fixtures
+samples/diarization/
+
 # Logs
 *.log
 

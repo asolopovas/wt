@@ -25,6 +25,8 @@ var (
 
 const notifyInfo = decor.NotifyInfo
 
+var monoBoldStyle = decor.MonoBoldStyle
+
 var (
 	showNotice  = decor.ShowNotice
 	showError   = decor.ShowError

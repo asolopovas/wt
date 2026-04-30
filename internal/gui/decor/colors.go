@@ -27,8 +27,9 @@ var (
 )
 
 var (
-	ActionPrimary color.Color = palettePrimary
-	ActionDanger  color.Color = paletteError
+	ActionPrimary      color.Color = palettePrimary
+	ActionPrimaryFaint color.Color = color.NRGBA{R: 143, G: 205, B: 255, A: 102}
+	ActionDanger       color.Color = paletteError
 )
 
 var (
@@ -38,6 +39,7 @@ var (
 )
 
 var (
+	TextPrimary   color.Color = color.White
 	TextMuted     color.Color = paletteMuted
 	TextSecondary color.Color = paletteSecondary
 	StatusSuccess color.Color = paletteSuccess

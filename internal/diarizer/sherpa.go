@@ -303,30 +303,11 @@ func (d *sherpaDiarizer) Diarize(ctx context.Context, wavPath string, numSpeaker
 	args = append(args, wavPath)
 
 	cmd := exec.CommandContext(ctx, d.binPath, args...)
-	cmd.Env = os.Environ()
-	shared.HideWindow(cmd)
-
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		return nil, fmt.Errorf("creating stdout pipe: %w", err)
-	}
-	stderr, err := cmd.StderrPipe()
-	if err != nil {
-		return nil, fmt.Errorf("creating stderr pipe: %w", err)
-	}
-
-	if err := cmd.Start(); err != nil {
-		return nil, fmt.Errorf("starting sherpa-onnx: %w", err)
-	}
 
 	var (
-		mu          sync.Mutex
-		stderrLines []string
-		segments    []Segment
-		started     bool
-		lastPct     float64
+		mu      sync.Mutex
+		lastPct float64
 	)
-
 	report := func(p float64) {
 		if progress == nil {
 			return
@@ -344,24 +325,18 @@ func (d *sherpaDiarizer) Diarize(ctx context.Context, wavPath string, numSpeaker
 		mu.Unlock()
 	}
 
-	stderrDone := make(chan struct{})
-	go func() {
-		defer close(stderrDone)
-		scanner := bufio.NewScanner(stderr)
-		scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
-		for scanner.Scan() {
-			line := scanner.Text()
-			if m := sherpaProgRE.FindStringSubmatch(line); m != nil {
-				if v, err := strconv.ParseFloat(m[1], 64); err == nil {
-					report(v)
-				}
-				continue
+	sp, err := startSubproc(ctx, "sherpa-onnx", cmd, func(line string) bool {
+		if m := sherpaProgRE.FindStringSubmatch(line); m != nil {
+			if v, err := strconv.ParseFloat(m[1], 64); err == nil {
+				report(v)
 			}
-			mu.Lock()
-			stderrLines = append(stderrLines, line)
-			mu.Unlock()
+			return true
 		}
-	}()
+		return false
+	})
+	if err != nil {
+		return nil, err
+	}
 
 	tickerDone := make(chan struct{})
 	if progress != nil {
@@ -391,7 +366,11 @@ func (d *sherpaDiarizer) Diarize(ctx context.Context, wavPath string, numSpeaker
 		}()
 	}
 
-	scanner := bufio.NewScanner(stdout)
+	var (
+		segments []Segment
+		started  bool
+	)
+	scanner := bufio.NewScanner(sp.Stdout)
 	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
 	for scanner.Scan() {
 		line := strings.TrimRight(scanner.Text(), "\r")
@@ -415,20 +394,9 @@ func (d *sherpaDiarizer) Diarize(ctx context.Context, wavPath string, numSpeaker
 		})
 	}
 
-	<-stderrDone
 	close(tickerDone)
-	if err := cmd.Wait(); err != nil {
-		if ctx.Err() != nil {
-			return nil, fmt.Errorf("diarization cancelled")
-		}
-		mu.Lock()
-		captured := stderrLines
-		mu.Unlock()
-		tail := captured
-		if len(tail) > 20 {
-			tail = tail[len(tail)-20:]
-		}
-		return nil, fmt.Errorf("sherpa-onnx failed:\n%s", strings.Join(tail, "\n"))
+	if err := sp.wait(ctx); err != nil {
+		return nil, err
 	}
 
 	if progress != nil {

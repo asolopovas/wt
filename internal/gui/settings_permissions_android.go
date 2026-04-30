@@ -3,8 +3,6 @@
 package gui
 
 import (
-	"image/color"
-
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
@@ -75,9 +73,9 @@ func (s *permissionsSection) buildBatteryRow(ignoring bool) fyne.CanvasObject {
 }
 
 func (s *permissionsSection) assembleRow(label string, ok bool, action func(want bool)) fyne.CanvasObject {
-	title := canvas.NewText(label, color.White)
+	title := canvas.NewText(label, decor.TextPrimary)
 	title.TextSize = textCaption
-	title.TextStyle = fyne.TextStyle{Bold: true, Monospace: true}
+	title.TextStyle = monoBoldStyle
 
 	btnLabel := "OFF"
 	if ok {

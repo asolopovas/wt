@@ -169,7 +169,7 @@ func (p *Panel) OpenPreview(item ExportItem, onClose func()) {
 		}
 		label := canvas.NewText(speaker, colMuted)
 		label.TextSize = textBody
-		label.TextStyle = fyne.TextStyle{Monospace: true, Bold: true}
+		label.TextStyle = monoBoldStyle
 		speakerRows = append(speakerRows,
 			container.NewBorder(nil, nil, container.NewGridWrap(fyne.NewSize(130, 30), container.NewCenter(label)), nil, entry))
 	}
@@ -256,7 +256,7 @@ func (p *Panel) OpenPreview(item ExportItem, onClose func()) {
 
 	stampText := canvas.NewText(start.Format(startTimeLayout), colMuted)
 	stampText.TextSize = textBody
-	stampText.TextStyle = fyne.TextStyle{Monospace: true, Bold: true}
+	stampText.TextStyle = monoBoldStyle
 	stampLabel := newCaptionText("RECORDED")
 	stampRow := container.NewHBox(stampLabel, stampText)
 

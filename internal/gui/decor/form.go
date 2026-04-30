@@ -6,6 +6,8 @@ import (
 	"fyne.io/fyne/v2/container"
 )
 
+var MonoBoldStyle = fyne.TextStyle{Monospace: true, Bold: true}
+
 const panelHeaderMinHeight = SpaceXXL * 3
 
 type panelHeaderLayout struct{}
@@ -55,7 +57,7 @@ func NewPanelHeader(left fyne.CanvasObject, right ...fyne.CanvasObject) fyne.Can
 func NewSectionHeader(label string) fyne.CanvasObject {
 	t := canvas.NewText(label, TextMuted)
 	t.TextSize = TextCaption
-	t.TextStyle = fyne.TextStyle{Monospace: true, Bold: true}
+	t.TextStyle = MonoBoldStyle
 	return container.NewVBox(t, VGap(SpaceXS))
 }
 

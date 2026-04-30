@@ -18,8 +18,10 @@ var (
 	vGap               = decor.VGap
 )
 
-type dialogAction = decor.DialogAction
-type dialogConfig = decor.DialogConfig
+type (
+	dialogAction = decor.DialogAction
+	dialogConfig = decor.DialogConfig
+)
 
 const (
 	kindSecondary = decor.KindSecondary
