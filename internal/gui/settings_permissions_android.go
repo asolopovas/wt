@@ -21,10 +21,12 @@ type permissionsSection struct {
 }
 
 func newPermissionsSection() *permissionsSection {
-	header := decor.NewSectionHeader("PERMISSIONS")
+	header := canvas.NewText("PERMISSIONS", decor.TextMuted)
+	header.TextSize = textHeading
+	header.TextStyle = fyne.TextStyle{Bold: true, Monospace: true}
 
 	rows := container.NewVBox()
-	root := container.NewVBox(header, rows)
+	root := container.NewVBox(header, vGap(spaceXS), rows)
 	s := &permissionsSection{container: root, rows: rows}
 	s.refresh()
 	return s
@@ -74,7 +76,7 @@ func (s *permissionsSection) buildBatteryRow(ignoring bool) fyne.CanvasObject {
 
 func (s *permissionsSection) assembleRow(label string, ok bool, action func(want bool)) fyne.CanvasObject {
 	title := canvas.NewText(label, color.White)
-	title.TextSize = textBody
+	title.TextSize = textCaption
 	title.TextStyle = fyne.TextStyle{Bold: true, Monospace: true}
 
 	btnLabel := "OFF"
