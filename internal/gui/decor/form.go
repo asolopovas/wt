@@ -6,7 +6,7 @@ import (
 	"fyne.io/fyne/v2/container"
 )
 
-const panelHeaderMinHeight = SpaceXXL * 2
+const panelHeaderMinHeight = SpaceXXL * 3
 
 type panelHeaderLayout struct{}
 
