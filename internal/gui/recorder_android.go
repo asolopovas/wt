@@ -301,7 +301,6 @@ func recordingsDir() string {
 	return d
 }
 
-// startRecording begins capture into a cache file. Returns the local path being written.
 func startRecording() (string, error) {
 	recMu.Lock()
 	defer recMu.Unlock()
@@ -329,7 +328,6 @@ func startRecording() (string, error) {
 	return out, nil
 }
 
-// stopRecording stops the active recording and returns the local cache path written.
 func stopRecording() (string, error) {
 	recMu.Lock()
 	path := recCurrent
@@ -351,7 +349,6 @@ func stopRecording() (string, error) {
 	return path, nil
 }
 
-// publishRecordingToDocuments mirrors a finished recording to Documents/wt/<displayName>.
 func publishRecordingToDocuments(srcPath string) error {
 	displayName := filepath.Base(srcPath)
 	cSrc := C.CString(srcPath)

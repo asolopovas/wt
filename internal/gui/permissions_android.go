@@ -108,55 +108,42 @@ static void wt_open_app_settings(uintptr_t envPtr, uintptr_t actPtr) {
 	(*env)->DeleteLocalRef(env, cIntent);
 }
 
-// wt_open_battery_settings launches the per-app battery-optimization exemption dialog.
+// wt_start_action_intent launches Intent(action) with FLAG_ACTIVITY_NEW_TASK.
+// Returns 1 on success.
+static int wt_start_action_intent(JNIEnv* env, jobject act, const char* action) {
+	jclass cIntent = (*env)->FindClass(env, "android/content/Intent");
+	jmethodID mInit = (*env)->GetMethodID(env, cIntent, "<init>", "(Ljava/lang/String;)V");
+	jstring jAction = (*env)->NewStringUTF(env, action);
+	jobject intent = (*env)->NewObject(env, cIntent, mInit, jAction);
+	(*env)->DeleteLocalRef(env, jAction);
+
+	jmethodID mAddFlags = (*env)->GetMethodID(env, cIntent, "addFlags", "(I)Landroid/content/Intent;");
+	jobject _r = (*env)->CallObjectMethod(env, intent, mAddFlags, (jint)0x10000000);
+	if (_r) (*env)->DeleteLocalRef(env, _r);
+
+	jclass cAct = (*env)->GetObjectClass(env, act);
+	jmethodID mStart = (*env)->GetMethodID(env, cAct, "startActivity", "(Landroid/content/Intent;)V");
+	(*env)->CallVoidMethod(env, act, mStart, intent);
+	int ok = 1;
+	if ((*env)->ExceptionCheck(env)) { (*env)->ExceptionClear(env); ok = 0; }
+
+	(*env)->DeleteLocalRef(env, cAct);
+	(*env)->DeleteLocalRef(env, intent);
+	(*env)->DeleteLocalRef(env, cIntent);
+	return ok;
+}
+
+// wt_open_battery_settings opens the system list of battery-optimized apps.
+// ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS works on all Android versions
+// without the package URI (REQUEST_IGNORE_BATTERY_OPTIMIZATIONS is restricted
+// by Google Play policy and silently fails).
 static void wt_open_battery_settings(uintptr_t envPtr, uintptr_t actPtr) {
 	JNIEnv* env = (JNIEnv*)envPtr;
 	jobject act = (jobject)actPtr;
 	if (!env || !act) return;
 
-	jclass cIntent = (*env)->FindClass(env, "android/content/Intent");
-	jmethodID mInit = (*env)->GetMethodID(env, cIntent, "<init>", "(Ljava/lang/String;)V");
-	jstring jAction = (*env)->NewStringUTF(env,
-		"android.settings.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS");
-	jobject intent = (*env)->NewObject(env, cIntent, mInit, jAction);
-	(*env)->DeleteLocalRef(env, jAction);
-
-	jclass cAct = (*env)->GetObjectClass(env, act);
-	jmethodID mGetPkg = (*env)->GetMethodID(env, cAct, "getPackageName", "()Ljava/lang/String;");
-	jstring jPkg = (jstring)(*env)->CallObjectMethod(env, act, mGetPkg);
-
-	jclass cUri = (*env)->FindClass(env, "android/net/Uri");
-	jmethodID mParse = (*env)->GetStaticMethodID(env, cUri, "parse",
-		"(Ljava/lang/String;)Landroid/net/Uri;");
-	const char* prefix = "package:";
-	const char* pkgUtf = (*env)->GetStringUTFChars(env, jPkg, NULL);
-	size_t buflen = strlen(prefix) + strlen(pkgUtf) + 1;
-	char* buf = (char*)malloc(buflen);
-	snprintf(buf, buflen, "%s%s", prefix, pkgUtf);
-	(*env)->ReleaseStringUTFChars(env, jPkg, pkgUtf);
-	jstring jUriStr = (*env)->NewStringUTF(env, buf);
-	free(buf);
-	jobject uri = (*env)->CallStaticObjectMethod(env, cUri, mParse, jUriStr);
-	(*env)->DeleteLocalRef(env, jUriStr);
-	(*env)->DeleteLocalRef(env, jPkg);
-	(*env)->DeleteLocalRef(env, cUri);
-
-	jmethodID mSetData = (*env)->GetMethodID(env, cIntent, "setData", "(Landroid/net/Uri;)Landroid/content/Intent;");
-	jobject _r = (*env)->CallObjectMethod(env, intent, mSetData, uri);
-	if (_r) (*env)->DeleteLocalRef(env, _r);
-	(*env)->DeleteLocalRef(env, uri);
-
-	jmethodID mAddFlags = (*env)->GetMethodID(env, cIntent, "addFlags", "(I)Landroid/content/Intent;");
-	jobject _r2 = (*env)->CallObjectMethod(env, intent, mAddFlags, (jint)0x10000000);
-	if (_r2) (*env)->DeleteLocalRef(env, _r2);
-
-	jmethodID mStart = (*env)->GetMethodID(env, cAct, "startActivity", "(Landroid/content/Intent;)V");
-	(*env)->CallVoidMethod(env, act, mStart, intent);
-	if ((*env)->ExceptionCheck(env)) { (*env)->ExceptionClear(env); }
-
-	(*env)->DeleteLocalRef(env, cAct);
-	(*env)->DeleteLocalRef(env, intent);
-	(*env)->DeleteLocalRef(env, cIntent);
+	if (wt_start_action_intent(env, act, "android.settings.IGNORE_BATTERY_OPTIMIZATION_SETTINGS")) return;
+	wt_start_action_intent(env, act, "android.settings.SETTINGS");
 }
 
 // wt_is_ignoring_battery returns 1 if our package is whitelisted from battery optimizations.

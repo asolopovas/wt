@@ -37,7 +37,6 @@ func (s *permissionsSection) refresh() {
 		s.rows.Add(s.buildRow(p))
 	}
 
-	// Battery optimization (special intent, not a runtime permission).
 	ignore := isIgnoringBatteryOptimizations()
 	s.rows.Add(s.buildBatteryRow(ignore))
 

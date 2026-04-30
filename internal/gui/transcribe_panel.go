@@ -34,17 +34,17 @@ type transcribePanel struct {
 	timerText  *canvas.Text
 	statsLine  *widget.Label
 
-	runStart    time.Time
-	timerStop   chan struct{}
-	timerStopMu sync.Mutex
+	runStart     time.Time
+	timerStop    chan struct{}
+	timerStopMu  sync.Mutex
 	logText      *widget.RichText
 	logScroll    *container.Scroll
 	logMirror    *widget.RichText
 	logMirrorScr *container.Scroll
-	autoScroll  atomic.Bool
-	autoBtn     *pointerButton
-	copyLogBtn  *pointerButton
-	clearLogBtn *pointerButton
+	autoScroll   atomic.Bool
+	autoBtn      *pointerButton
+	copyLogBtn   *pointerButton
+	clearLogBtn  *pointerButton
 
 	lastCSVPath string
 	results     []exportItem

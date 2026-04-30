@@ -46,10 +46,10 @@ func exeExt() string {
 }
 
 type audioPlayer struct {
-	mu      sync.Mutex
-	cmd     *exec.Cmd
-	key     string
-	onStop  func(key string)
+	mu     sync.Mutex
+	cmd    *exec.Cmd
+	key    string
+	onStop func(key string)
 }
 
 func (p *audioPlayer) playing(key string) bool {

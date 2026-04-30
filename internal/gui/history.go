@@ -136,6 +136,9 @@ func (h *historyPanel) buildRow(e cacheEntry) fyne.CanvasObject {
 				if !ok {
 					return
 				}
+				if h.player.playing(e.Key) {
+					h.player.stop()
+				}
 				if e.SourcePath != "" {
 					if err := os.Remove(e.SourcePath); err != nil && !os.IsNotExist(err) {
 						dialog.ShowError(err, h.window)

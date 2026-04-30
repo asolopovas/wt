@@ -4,7 +4,6 @@ package gui
 
 import "time"
 
-// pollPermission watches checkPermission(id) for up to ~30s, calling onChange when state flips.
 func pollPermission(id string, onChange func()) {
 	initial := checkPermission(id)
 	deadline := time.Now().Add(30 * time.Second)
