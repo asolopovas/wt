@@ -1,12 +1,12 @@
 //go:build !linux
 
-package gui
+package sysstats
 
 import "runtime"
 
-func queryProcessCPU() int { return -1 }
+func ProcessCPU() int { return -1 }
 
-func queryProcessRSSMB() int {
+func ProcessRSSMB() int {
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
 	return int(m.Sys / 1024 / 1024)

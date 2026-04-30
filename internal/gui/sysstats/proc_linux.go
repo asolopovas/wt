@@ -1,6 +1,6 @@
 //go:build linux
 
-package gui
+package sysstats
 
 import (
 	"os"
@@ -18,7 +18,7 @@ var (
 
 func clockTicksPerSec() float64 { return 100.0 }
 
-func queryProcessCPU() int {
+func ProcessCPU() int {
 	data, err := os.ReadFile("/proc/self/stat")
 	if err != nil {
 		return -1
@@ -63,7 +63,7 @@ func queryProcessCPU() int {
 	return pct
 }
 
-func queryProcessRSSMB() int {
+func ProcessRSSMB() int {
 	data, err := os.ReadFile("/proc/self/status")
 	if err != nil {
 		return -1

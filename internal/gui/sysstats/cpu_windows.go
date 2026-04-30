@@ -1,6 +1,6 @@
 //go:build windows
 
-package gui
+package sysstats
 
 import (
 	"syscall"
@@ -26,7 +26,7 @@ var (
 	cpuWarmed    bool
 )
 
-func queryCPUUsage() int {
+func CPUUsage() int {
 	var idle, kernel, user cpuFileTime
 	r1, _, _ := procGetSystemTimes.Call(
 		uintptr(unsafe.Pointer(&idle)),

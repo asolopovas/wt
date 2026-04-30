@@ -1,6 +1,6 @@
 //go:build android
 
-package gui
+package sysstats
 
 import (
 	"os"
@@ -9,7 +9,7 @@ import (
 	"strings"
 )
 
-func queryAndroidGPU() int {
+func AndroidGPU() int {
 	candidates := []string{
 		"/sys/class/kgsl/kgsl-3d0/gpu_busy_percentage",
 		"/sys/class/kgsl/kgsl-3d0/devfreq/gpu_load",
@@ -37,7 +37,7 @@ func queryAndroidGPU() int {
 	return -1
 }
 
-func queryAndroidGPUFreqMHz() int {
+func AndroidGPUFreqMHz() int {
 	candidates := []string{
 		"/sys/class/kgsl/kgsl-3d0/gpuclk",
 		"/sys/class/kgsl/kgsl-3d0/devfreq/cur_freq",
@@ -57,7 +57,7 @@ func queryAndroidGPUFreqMHz() int {
 	return -1
 }
 
-func queryAndroidGPUTempC() int {
+func AndroidGPUTempC() int {
 	matches, _ := filepath.Glob("/sys/class/thermal/thermal_zone*")
 	for _, zone := range matches {
 		typ, err := os.ReadFile(filepath.Join(zone, "type"))
@@ -80,7 +80,7 @@ func queryAndroidGPUTempC() int {
 	return -1
 }
 
-func queryAndroidGPUMemMB() int {
+func AndroidGPUMemMB() int {
 	candidates := []string{
 		"/sys/class/kgsl/kgsl-3d0/page_alloc_kb",
 		"/sys/class/kgsl/kgsl-3d0/page_alloc",
