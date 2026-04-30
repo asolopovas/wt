@@ -4,6 +4,8 @@ Go CLI + GUI wrapping whisper.cpp for audio transcription with speaker diarizati
 Desktop default: NeMo sortformer (`scripts/diarize.py`). Fallback / Android / GUI: sherpa-onnx
 (pyannote-3.0 + NeMo TitaNet-Large, threshold 0.75).
 
+@CLAUDE.local.md
+
 ## Commands
 
 ```bash
@@ -23,9 +25,9 @@ task clean-comments      # Strip non-directive comments
 task bump                # Auto-increment version, build, install, verify, commit
 ```
 
-Always compile-check GUI via `task build ONLY=gui`. A bare `go build ./cmd/wt-gui` will
-fail to link: `CGO_LDFLAGS` differs between MinGW (`-lwhisper`) and CUDA/MSVC
-(`whisper.lib`) whisper.cpp builds, and Taskfile picks the right flags.
+**IMPORTANT:** compile-check GUI via `task build ONLY=gui`. Bare `go build ./cmd/wt-gui` fails
+to link — `CGO_LDFLAGS` differs between MinGW (`-lwhisper`) and CUDA/MSVC (`whisper.lib`)
+whisper.cpp builds; only Taskfile picks the right flags.
 
 Requires Go 1.26+, GCC/MinGW, CMake, ffmpeg, [Task](https://taskfile.dev/). CGo env is set by Taskfile.
 
@@ -33,14 +35,14 @@ Requires Go 1.26+, GCC/MinGW, CMake, ffmpeg, [Task](https://taskfile.dev/). CGo 
 
 **Always:** run `task build ONLY=gui` for GUI compile checks; keep `Taskfile.yml VERSION` and `scripts/installer.iss MyAppVersion` in sync.
 
-**Before every commit:** run `task lint`, `task test`, and `task vet`. Bare `go vet` outside the Task env fails on Windows with a `go-gl/gl` CGo constraint error; `task vet` sets the right PATH/CGo env. If any fail, fix the failures first — never commit or push with red checks. No `--no-verify`, no skipping. This applies to every commit, not just user-facing changes.
+**Before every commit (MUST):** run `task lint`, `task test`, and `task vet`. Bare `go vet` outside the Task env fails on Windows with a `go-gl/gl` CGo constraint error; `task vet` sets the right PATH/CGo env. If any fail, fix the failures first — never commit or push with red checks. No `--no-verify`, no skipping. Applies to every commit, not just user-facing changes.
 
 **Ask first:** anything that mutates user state outside the repo (installs, registry, version bumps).
 
 **Never:**
+- **IMPORTANT:** never commit unless explicitly instructed.
+- **IMPORTANT:** never launch the GUI. If you do by accident, `taskkill /F /IM wt-gui.exe` immediately.
 - Bump the version unless the user types "bump" (use `task bump`, scheme `1.0.0 → 1.0.9 → 1.1.0`).
-- Launch the GUI. If you do by accident, `taskkill /F /IM wt-gui.exe` immediately.
-- Commit unless explicitly instructed.
 - Re-add `-tags=android` to `.vscode/settings.json` gopls flags (NDK headers cascade fake `C.xxx` errors on Windows).
 - Re-scope lint to `./...` (picks up vendored cgo bindings that won't compile standalone).
 - Re-run `scripts/diar_sweep.py` to retune diarization (slow; winning params already chosen — see below).
@@ -122,7 +124,7 @@ When the user passes `--speakers N` (N>0), sherpa is forced and `--clustering.nu
 
 ## Self-improvement
 
-When you discover a non-obvious gotcha, footgun, or workflow rule that future sessions would benefit from, propose an AGENTS.md edit before ending the turn. Triggers:
+When you discover a non-obvious gotcha, footgun, or workflow rule that future sessions would benefit from, you **MUST** propose an AGENTS.md edit before ending the turn. Triggers:
 
 - The user corrects an approach you took ("don't do X", "stop Xing").
 - A build/test/tooling failure has a non-obvious fix not documented here.
