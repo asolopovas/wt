@@ -6,7 +6,7 @@
 ; All post-install logic runs natively in [Code] — no PowerShell dependency.
 
 #define MyAppName "wt"
-#define MyAppVersion "0.0.2"
+#define MyAppVersion "0.0.3"
 #define MyAppPublisher "Andrius Solopovas"
 #define MyAppURL "https://github.com/asolopovas/wt"
 #define MyAppExeName "wt.exe"
