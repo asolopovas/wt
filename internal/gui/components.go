@@ -9,6 +9,7 @@ import (
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/asolopovas/wt/internal/gui/decor"
+	"github.com/asolopovas/wt/internal/gui/preview"
 )
 
 func newPrimaryButton(label string, onTap func()) *pointerButton {
@@ -141,14 +142,14 @@ func showDialog(cfg dialogConfig) func() {
 		actionObjs = append(actionObjs, wrapAction(btn))
 	}
 
-	bottomGap := vGap(previewBottomInset())
+	bottomGap := vGap(preview.BottomInset())
 	bottom := bottomGap
 	if len(actionObjs) > 0 {
 		row := container.NewGridWithColumns(len(actionObjs), actionObjs...)
 		bottom = container.NewVBox(row, bottomGap)
 	}
 
-	topGap := vGap(previewTopInset())
+	topGap := vGap(preview.TopInset())
 	top := topGap
 	if cfg.Title != "" {
 		top = container.NewVBox(topGap, container.NewHBox(newSectionHeader(cfg.Title)))

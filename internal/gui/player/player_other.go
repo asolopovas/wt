@@ -1,6 +1,6 @@
 //go:build !android
 
-package gui
+package player
 
 import (
 	"os"
@@ -45,21 +45,21 @@ func exeExt() string {
 	return ""
 }
 
-type audioPlayer struct {
+type Player struct {
 	mu     sync.Mutex
 	cmd    *exec.Cmd
 	key    string
 	onStop func(key string)
 }
 
-func (p *audioPlayer) playing(key string) bool {
+func (p *Player) Playing(key string) bool {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	return p.cmd != nil && p.key == key
 }
 
-func (p *audioPlayer) start(key, path string, onStop func(key string)) error {
-	p.stop()
+func (p *Player) Start(key, path string, onStop func(key string)) error {
+	p.Stop()
 	bin, err := findFfplay()
 	if err != nil {
 		return err
@@ -91,7 +91,7 @@ func (p *audioPlayer) start(key, path string, onStop func(key string)) error {
 	return nil
 }
 
-func (p *audioPlayer) stop() {
+func (p *Player) Stop() {
 	p.mu.Lock()
 	cmd := p.cmd
 	stoppedKey := p.key

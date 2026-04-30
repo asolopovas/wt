@@ -1,6 +1,6 @@
 //go:build !android
 
-package gui
+package preview
 
 import (
 	"fyne.io/fyne/v2"
@@ -9,9 +9,9 @@ import (
 	"github.com/asolopovas/wt/internal/gui/decor"
 )
 
-func showTranscriptPreview(_ string, body fyne.CanvasObject, parent fyne.Window, onClose func()) func() {
+func ShowTranscript(_ string, body fyne.CanvasObject, parent fyne.Window, onClose func()) func() {
 	pop := widget.NewModalPopUp(decor.DialogBordered(body), parent.Canvas())
-	if size, ok := previewDialogSize(); ok {
+	if size, ok := DialogSize(); ok {
 		pop.Resize(size)
 	}
 	pop.Show()

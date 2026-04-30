@@ -11,6 +11,7 @@ import (
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
+	"github.com/asolopovas/wt/internal/gui/player"
 	"github.com/asolopovas/wt/internal/transcriber"
 )
 
@@ -42,7 +43,7 @@ type historyPanel struct {
 	empty       *canvas.Text
 	container   fyne.CanvasObject
 	headerRight *fyne.Container
-	player      audioPlayer
+	player      player.Player
 }
 
 func newHistoryPanel(window fyne.Window, tp *transcribePanel) *historyPanel {
@@ -118,7 +119,7 @@ func (h *historyPanel) buildRow(e cacheEntry) fyne.CanvasObject {
 
 	playBtn := newPointerButtonWithIcon("", playIconResource, nil)
 	playBtn.Importance = widget.LowImportance
-	if h.player.playing(e.Key) {
+	if h.player.Playing(e.Key) {
 		playBtn.SetIcon(pauseIconResource)
 	}
 	playBtn.OnTapped = func() {
@@ -126,12 +127,12 @@ func (h *historyPanel) buildRow(e cacheEntry) fyne.CanvasObject {
 			showError(h.window, fmt.Errorf("source file path missing"))
 			return
 		}
-		if h.player.playing(e.Key) {
-			h.player.stop()
+		if h.player.Playing(e.Key) {
+			h.player.Stop()
 			playBtn.SetIcon(playIconResource)
 			return
 		}
-		err := h.player.start(e.Key, e.SourcePath, func(string) {
+		err := h.player.Start(e.Key, e.SourcePath, func(string) {
 			fyne.Do(func() { playBtn.SetIcon(playIconResource) })
 		})
 		if err != nil {
@@ -204,8 +205,8 @@ func (h *historyPanel) showRowMenu(e cacheEntry, recorded time.Time, anchor fyne
 		fyne.NewMenuItem("Delete", func() {
 			msg := fmt.Sprintf("Delete %s? This will remove the source file and any cached transcript.", e.SourceName)
 			showConfirm(h.window, "Delete", msg, func() {
-				if h.player.playing(e.Key) {
-					h.player.stop()
+				if h.player.Playing(e.Key) {
+					h.player.Stop()
 				}
 				if e.SourcePath != "" {
 					if err := os.Remove(e.SourcePath); err != nil && !os.IsNotExist(err) {

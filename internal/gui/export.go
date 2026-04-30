@@ -20,6 +20,7 @@ import (
 	"fyne.io/fyne/v2/widget"
 	"github.com/xuri/excelize/v2"
 
+	"github.com/asolopovas/wt/internal/gui/preview"
 	"github.com/asolopovas/wt/internal/transcriber"
 )
 
@@ -179,7 +180,7 @@ func (p *transcribePanel) openPreview(item exportItem, onClose func()) {
 	}
 
 	scroll := container.NewScroll(content)
-	scroll.SetMinSize(previewScrollMinSize())
+	scroll.SetMinSize(preview.ScrollMinSize())
 
 	editing := false
 	editBtn := newSecondaryButton("RENAME", nil)
@@ -218,7 +219,7 @@ func (p *transcribePanel) openPreview(item exportItem, onClose func()) {
 		wrapAction(editBtn),
 	)
 	bottomGap := canvas.NewRectangle(transparent)
-	bottomGap.SetMinSize(fyne.NewSize(0, previewBottomInset()))
+	bottomGap.SetMinSize(fyne.NewSize(0, preview.BottomInset()))
 	actionRow := container.NewVBox(buttons, bottomGap)
 
 	stampText := canvas.NewText(start.Format(startTimeLayout), colMuted)
@@ -228,7 +229,7 @@ func (p *transcribePanel) openPreview(item exportItem, onClose func()) {
 	stampRow := container.NewHBox(stampLabel, stampText)
 
 	topGap := canvas.NewRectangle(transparent)
-	topGap.SetMinSize(fyne.NewSize(0, previewTopInset()))
+	topGap.SetMinSize(fyne.NewSize(0, preview.TopInset()))
 
 	var top fyne.CanvasObject = container.NewVBox(topGap, stampRow)
 	if speakerPanel != nil {
@@ -262,7 +263,7 @@ func (p *transcribePanel) openPreview(item exportItem, onClose func()) {
 	floating := container.New(newTopRightFloater(spaceXL, spaceXL), copyBtn)
 	bodyInner := container.NewBorder(top, actionRow, nil, nil, scroll)
 	body := container.NewStack(bodyInner, floating)
-	hidePreview = showTranscriptPreview(item.sourceName, body, p.window, onClose)
+	hidePreview = preview.ShowTranscript(item.sourceName, body, p.window, onClose)
 }
 
 func (p *transcribePanel) exportSinglePrompt(item exportItem, start time.Time) {

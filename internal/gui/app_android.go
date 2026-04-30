@@ -110,7 +110,7 @@ func buildTranscodeTabAndroid(tp *transcribePanel) fyne.CanvasObject {
 	cancelBtn := newDangerButton("CANCEL", tp.onCancel)
 
 	var recBtn *pointerButton
-	recBtn = newPointerButtonWithIcon("RECORD", micIconResource, func() { tp.onToggleRecord(recBtn) })
+	recBtn = newPointerButtonWithIcon("RECORD", assets.MicIcon, func() { tp.onToggleRecord(recBtn) })
 	recBtn.Importance = widget.HighImportance
 
 	settingsRow := container.NewGridWithColumns(3,

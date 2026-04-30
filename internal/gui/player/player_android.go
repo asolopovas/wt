@@ -1,6 +1,6 @@
 //go:build android
 
-package gui
+package player
 
 /*
 #cgo LDFLAGS: -llog
@@ -16,8 +16,6 @@ package gui
 
 static jobject g_player = NULL;
 
-// wt_play_start: creates MediaPlayer, setDataSource(path), prepare(), start().
-// Returns 1 on success.
 static int wt_play_start(uintptr_t envPtr, const char* path) {
 	JNIEnv* env = (JNIEnv*)envPtr;
 	if (!env) return 0;
@@ -72,7 +70,6 @@ fail:
 	return 0;
 }
 
-// wt_play_stop releases the active MediaPlayer.
 static void wt_play_stop(uintptr_t envPtr) {
 	JNIEnv* env = (JNIEnv*)envPtr;
 	if (!env || !g_player) return;
@@ -88,7 +85,6 @@ static void wt_play_stop(uintptr_t envPtr) {
 	(*env)->DeleteLocalRef(env, cMP);
 }
 
-// wt_play_is_playing returns 1 if MediaPlayer.isPlaying() is true.
 static int wt_play_is_playing(uintptr_t envPtr) {
 	JNIEnv* env = (JNIEnv*)envPtr;
 	if (!env || !g_player) return 0;
@@ -112,7 +108,7 @@ import (
 	"fyne.io/fyne/v2/driver"
 )
 
-type audioPlayer struct {
+type Player struct {
 	mu      sync.Mutex
 	key     string
 	onStop  func(key string)
@@ -120,14 +116,14 @@ type audioPlayer struct {
 	running bool
 }
 
-func (p *audioPlayer) playing(key string) bool {
+func (p *Player) Playing(key string) bool {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	return p.running && p.key == key
 }
 
-func (p *audioPlayer) start(key, path string, onStop func(key string)) error {
-	p.stop()
+func (p *Player) Start(key, path string, onStop func(key string)) error {
+	p.Stop()
 
 	cPath := C.CString(path)
 	defer C.free(unsafe.Pointer(cPath))
@@ -157,7 +153,7 @@ func (p *audioPlayer) start(key, path string, onStop func(key string)) error {
 	return nil
 }
 
-func (p *audioPlayer) watch(key string, stopCh chan struct{}) {
+func (p *Player) watch(key string, stopCh chan struct{}) {
 	ticker := time.NewTicker(300 * time.Millisecond)
 	defer ticker.Stop()
 	for {
@@ -203,7 +199,7 @@ func (p *audioPlayer) watch(key string, stopCh chan struct{}) {
 	}
 }
 
-func (p *audioPlayer) stop() {
+func (p *Player) Stop() {
 	p.mu.Lock()
 	stopCh := p.stopCh
 	cb := p.onStop

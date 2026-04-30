@@ -8,13 +8,14 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/widget"
 
+	"github.com/asolopovas/wt/internal/gui/assets"
 	"github.com/asolopovas/wt/internal/gui/platsvc"
 )
 
 func (p *transcribePanel) onToggleRecord(btn *pointerButton) {
 	if isRecording() {
 		path, err := stopRecording()
-		btn.SetIcon(micIconResource)
+		btn.SetIcon(assets.MicIcon)
 		btn.SetText("RECORD")
 		btn.Importance = widget.HighImportance
 		btn.Refresh()
