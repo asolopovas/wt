@@ -44,11 +44,24 @@ func Run(version string) error {
 	transcodeTab := buildTranscodeTabAndroid(transcribe)
 	settingsTab := buildSettingsTab(settings, deviceInfo)
 
+	if missing := missingPermissions(); len(missing) > 0 {
+		go func(p []string) {
+			time.Sleep(600 * time.Millisecond)
+			fyne.Do(func() { requestPermissions(p) })
+		}(missing)
+	}
+
+	settingsTabItem := container.NewTabItem("SETTINGS", settingsTab)
 	tabs := container.NewAppTabs(
 		container.NewTabItem("TRANSCODE", transcodeTab),
-		container.NewTabItem("SETTINGS", settingsTab),
+		settingsTabItem,
 	)
 	tabs.SetTabLocation(container.TabLocationBottom)
+	tabs.OnSelected = func(t *container.TabItem) {
+		if t == settingsTabItem && permsSection != nil {
+			permsSection.refresh()
+		}
+	}
 
 	w.SetContent(tabs)
 	wireShareIntake(transcribe, tabs)
@@ -91,13 +104,18 @@ func buildTranscodeTabAndroid(tp *transcribePanel) fyne.CanvasObject {
 	cancelBtn := newPointerButton("CANCEL", tp.onCancel)
 	cancelBtn.Importance = widget.DangerImportance
 
+	var recBtn *pointerButton
+	recBtn = newPointerButtonWithIcon("RECORD", micIconResource, func() { tp.onToggleRecord(recBtn) })
+	recBtn.Importance = widget.HighImportance
+
 	settingsRow := container.NewGridWithColumns(3,
 		settingsField("MODEL", tp.settings.modelSelect),
 		settingsField("LANGUAGE", tp.settings.langSelect),
 		settingsField("SPEAKERS", tp.settings.speakersSelect),
 	)
 
-	actionRow := container.NewGridWithColumns(2,
+	actionRow := container.NewGridWithColumns(3,
+		borderedBtn(recBtn, colPrimary),
 		borderedBtn(addBtn, colOutline),
 		borderedBtn(cancelBtn, colError),
 	)
@@ -118,6 +136,8 @@ func buildTranscodeTabAndroid(tp *transcribePanel) fyne.CanvasObject {
 		tp.container,
 	)
 }
+
+var permsSection *permissionsSection
 
 func buildSettingsTab(sp *settingsPanel, deviceInfo string) fyne.CanvasObject {
 	settingsGrid := container.NewGridWithColumns(2,
@@ -144,6 +164,10 @@ func buildSettingsTab(sp *settingsPanel, deviceInfo string) fyne.CanvasObject {
 	deviceLabel.TextSize = 11
 	deviceLabel.TextStyle = fyne.TextStyle{Monospace: true}
 
+	if permsSection == nil {
+		permsSection = newPermissionsSection()
+	}
+
 	topSection := container.NewVBox(
 		gap(12),
 		header,
@@ -152,6 +176,8 @@ func buildSettingsTab(sp *settingsPanel, deviceInfo string) fyne.CanvasObject {
 		gap(12),
 		deviceHeader,
 		deviceLabel,
+		gap(16),
+		permsSection.container,
 	)
 
 	toggleRow := container.NewGridWithColumns(2,
@@ -185,6 +211,7 @@ func buildSettingsTab(sp *settingsPanel, deviceInfo string) fyne.CanvasObject {
 	)
 
 	return container.NewBorder(
-		topSection, bottomSection, nil, nil,
+		nil, bottomSection, nil, nil,
+		container.NewVScroll(topSection),
 	)
 }

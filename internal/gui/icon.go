@@ -27,3 +27,10 @@ var expandIconResource = &fyne.StaticResource{
 	StaticName:    "icon_expand.svg",
 	StaticContent: expandIconData,
 }
+
+//go:embed icon_mic.svg
+var micIconData []byte
+var micIconResource = &fyne.StaticResource{
+	StaticName:    "icon_mic.svg",
+	StaticContent: micIconData,
+}
