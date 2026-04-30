@@ -37,6 +37,7 @@ var (
 	appIcon           = assets.AppIcon
 	playIconResource  = assets.PlayIcon
 	pauseIconResource = assets.PauseIcon
+	downloadIcon      = assets.DownloadIcon
 )
 
 var validModels = func() []string {

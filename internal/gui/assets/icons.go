@@ -61,3 +61,11 @@ var GPUIcon = &fyne.StaticResource{
 	StaticName:    "icon_gpu.svg",
 	StaticContent: gpuIconData,
 }
+
+//go:embed icon_download.svg
+var downloadIconData []byte
+
+var DownloadIcon = &fyne.StaticResource{
+	StaticName:    "icon_download.svg",
+	StaticContent: downloadIconData,
+}

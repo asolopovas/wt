@@ -5,6 +5,7 @@ vars:
   VERSION: '0.0.4'
   WHISPER_ROOT: '{{.ROOT_DIR | toSlash}}/third_party/whisper.cpp'
   WHISPER_BUILD: '{{.WHISPER_ROOT}}/build'
+  LLAMA_ROOT: '{{.ROOT_DIR | toSlash}}/third_party/llama.cpp'
 
   IS_LINUX:
     sh: |
@@ -810,6 +811,40 @@ tasks:
           cp "{{.NDK_TOOLCHAIN}}/sysroot/usr/lib/aarch64-linux-android/28/libvulkan.so" \
             "{{.ANDROID_BUILD}}/ggml/src/ggml-vulkan/libvulkan.so"
 
+  android-llama-cli:
+    desc: 'Cross-compile llama-cli for Android arm64 (CPU). Slow first time.'
+    vars:
+      NDK_ROOT:
+        sh: echo "$LOCALAPPDATA/Android/Sdk/ndk/27.2.12479018"
+      ANDROID_BUILD: '{{.LLAMA_ROOT}}/build-android-arm64'
+    status:
+      - test -f "{{.ANDROID_BUILD}}/bin/llama-cli"
+    cmds:
+      - cmd: git clone --depth 1 https://github.com/ggml-org/llama.cpp.git {{.LLAMA_ROOT}}
+        if: '[ ! -d "{{.LLAMA_ROOT}}" ]'
+      - cmd: |
+          set -e
+          export PATH="/c/msys64/mingw64/bin:$PATH"
+          cmake -B "{{.ANDROID_BUILD}}" -S "{{.LLAMA_ROOT}}" \
+            -DCMAKE_MAKE_PROGRAM="C:/msys64/mingw64/bin/mingw32-make.exe" \
+            -DCMAKE_TOOLCHAIN_FILE="{{.NDK_ROOT}}/build/cmake/android.toolchain.cmake" \
+            -DANDROID_ABI=arm64-v8a \
+            -DANDROID_PLATFORM=android-28 \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_SHARED_LIBS=OFF \
+            -DGGML_NATIVE=OFF \
+            -DGGML_OPENMP=OFF \
+            -DGGML_VULKAN=OFF \
+            -DLLAMA_CURL=OFF \
+            -DLLAMA_BUILD_TESTS=OFF \
+            -DLLAMA_BUILD_SERVER=ON \
+            -DLLAMA_BUILD_EXAMPLES=ON \
+            -DLLAMA_BUILD_TOOLS=ON \
+            -G "MinGW Makefiles"
+          cmake --build "{{.ANDROID_BUILD}}" --config Release --target llama-cli -j${NUMBER_OF_PROCESSORS:-$(nproc)}
+          mkdir -p dist/llama
+          cp "{{.ANDROID_BUILD}}/bin/llama-cli" dist/llama/llama-cli-android-arm64
+
   android-apk:
     desc: 'Build Android APK (dist/wt-{{.VERSION}}.apk).'
     deps: [android-whisper-lib]
@@ -871,6 +906,7 @@ tasks:
           sherpa_bin="dist/sherpa/sherpa-diar-android"
           sherpa_seg="dist/sherpa/models/sherpa-onnx-pyannote-segmentation-3-0/model.onnx"
           sherpa_emb="dist/sherpa/models/titanet_large.onnx"
+          llama_bin="dist/llama/llama-cli-android-arm64"
           mkdir -p dist
           libcxx_fwd="${ndk_libcxx//\\//}"
           libomp_fwd="${ndk_libomp//\\//}"
@@ -881,6 +917,7 @@ tasks:
           sherpa_bin = r'$sherpa_bin'
           sherpa_seg = r'$sherpa_seg'
           sherpa_emb = r'$sherpa_emb'
+          llama_bin = r'$llama_bin'
           with zipfile.ZipFile('$apk', 'r') as zin:
               with zipfile.ZipFile('dist/unsigned.apk', 'w', zipfile.ZIP_DEFLATED) as zout:
                   for item in zin.infolist():
@@ -895,6 +932,8 @@ tasks:
                       zout.write(sherpa_seg, 'assets/sherpa-models/seg.onnx', compress_type=zipfile.ZIP_STORED)
                   if os.path.exists(sherpa_emb):
                       zout.write(sherpa_emb, 'assets/sherpa-models/emb.onnx', compress_type=zipfile.ZIP_STORED)
+                  if os.path.exists(llama_bin):
+                      zout.write(llama_bin, 'lib/arm64-v8a/libllama-cli.so', compress_type=zipfile.ZIP_STORED)
           print('Patched:', os.path.getsize('dist/unsigned.apk'))
           "
           "{{.BUILD_TOOLS}}/zipalign.exe" -f 4 dist/unsigned.apk dist/aligned.apk

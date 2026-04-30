@@ -178,6 +178,10 @@ func buildSettingsTab(sp *settingsPanel, deviceInfo, version string) fyne.Canvas
 		permsSection = newPermissionsSection()
 	}
 
+	if sp.models == nil {
+		sp.models = newModelsSection(sp.window)
+	}
+
 	bodySection := container.NewVBox(
 		vGap(spaceMD),
 		statsBlock,
@@ -185,6 +189,9 @@ func buildSettingsTab(sp *settingsPanel, deviceInfo, version string) fyne.Canvas
 		settingsGrid,
 		vGap(spaceXXL),
 		permsSection.container,
+		vGap(spaceXXL),
+		newSectionDivider(),
+		sp.models.container,
 	)
 
 	toggleRow := container.NewGridWithColumns(2,

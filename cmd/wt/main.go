@@ -90,6 +90,7 @@ func main() {
 				Usage: "enable live microphone transcription",
 			},
 		},
+		Commands: []*cli.Command{modelsCommand(), renameCommand()},
 		Action: func(_ context.Context, cmd *cli.Command) error {
 			ui.Verbose = cmd.Bool("verbose")
 			return run(

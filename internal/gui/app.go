@@ -123,6 +123,6 @@ func buildSettingsTab(sp *settingsPanel, deviceInfo, version string) fyne.Canvas
 		header,
 		container.NewVBox(vGap(spaceXL), deviceHeader, deviceLabel),
 		nil, nil,
-		sp.container,
+		container.NewVScroll(sp.container),
 	)
 }
