@@ -68,7 +68,7 @@ func (p *settingsPanel) build() {
 		langLabel = p.cfg.Language
 	}
 	p.langSelect = newLimitSelect(languages, 300, persist)
-	p.langSelect.inner.Selected = langLabel
+	p.langSelect.Inner.Selected = langLabel
 
 	p.deviceSelect = newPointerSelect([]string{"auto", "cuda", "cpu"}, persist)
 	p.deviceSelect.Selected = p.cfg.Device
@@ -79,7 +79,7 @@ func (p *settingsPanel) build() {
 		threadOpts[i] = strconv.Itoa(i + 1)
 	}
 	p.threadsSelect = newLimitSelect(threadOpts, 300, persist)
-	p.threadsSelect.inner.Selected = strconv.Itoa(p.cfg.Threads)
+	p.threadsSelect.Inner.Selected = strconv.Itoa(p.cfg.Threads)
 
 	p.speakersSelect = newPointerSelect(speakerOptions, persist)
 	spkSel := "auto"
@@ -247,7 +247,7 @@ func (p *settingsPanel) ModelSize() string {
 }
 
 func (p *settingsPanel) Language() string {
-	lang := p.langSelect.inner.Selected
+	lang := p.langSelect.Inner.Selected
 	if lang == "auto" {
 		return ""
 	}
@@ -259,7 +259,7 @@ func (p *settingsPanel) Device() string {
 }
 
 func (p *settingsPanel) Threads() int {
-	n, err := strconv.Atoi(p.threadsSelect.inner.Selected)
+	n, err := strconv.Atoi(p.threadsSelect.Inner.Selected)
 	if err != nil || n < 1 {
 		return runtime.NumCPU()
 	}

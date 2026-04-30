@@ -27,16 +27,5 @@ const (
 
 var (
 	borderSubtle  = decor.BorderSubtle
-	borderDefault = decor.BorderDefault
-	borderAccent  = decor.BorderAccent
-)
-
-var (
-	actionPrimary = decor.ActionPrimary
-	actionDanger  = decor.ActionDanger
-)
-
-var (
-	surfacePanel  = decor.SurfacePanel
 	surfaceRaised = decor.SurfaceRaised
 )

@@ -13,6 +13,10 @@ var (
 	paletteError        = color.NRGBA{R: 255, G: 180, B: 171, A: 255}
 	paletteSurfLowest   = color.NRGBA{R: 10, G: 15, B: 20, A: 255}
 	paletteSurfLow      = color.NRGBA{R: 23, G: 28, B: 34, A: 255}
+	paletteSurfHigh     = color.NRGBA{R: 37, G: 42, B: 49, A: 255}
+	paletteMuted        = color.NRGBA{R: 191, G: 199, B: 208, A: 255}
+	paletteSecondary    = color.NRGBA{R: 255, G: 208, B: 135, A: 255}
+	paletteSuccess      = color.NRGBA{R: 187, G: 250, B: 195, A: 255}
 )
 
 var (
@@ -30,4 +34,13 @@ var (
 var (
 	SurfacePanel  color.Color = paletteSurfLowest
 	SurfaceRaised color.Color = paletteSurfLow
+	SurfaceHigh   color.Color = paletteSurfHigh
+)
+
+var (
+	TextMuted     color.Color = paletteMuted
+	TextSecondary color.Color = paletteSecondary
+	StatusSuccess color.Color = paletteSuccess
+	StatusError   color.Color = paletteError
+	StatusActive  color.Color = paletteSecondary
 )

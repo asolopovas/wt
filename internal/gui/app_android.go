@@ -12,6 +12,8 @@ import (
 	"fyne.io/fyne/v2/widget"
 
 	shared "github.com/asolopovas/wt/internal"
+	"github.com/asolopovas/wt/internal/gui/assets"
+	"github.com/asolopovas/wt/internal/gui/decor"
 	"github.com/asolopovas/wt/internal/gui/platsvc"
 )
 
@@ -107,7 +109,7 @@ func buildTranscodeTabAndroid(tp *transcribePanel) fyne.CanvasObject {
 	tp.transcribeBtn.Importance = widget.HighImportance
 
 	addBtn := newSecondaryButton("ADD FILES", tp.onBrowse)
-	cancelBtn := newDangerButton("CANCEL", tp.onCancel)
+	cancelBtn := decor.NewDangerButton("CANCEL", tp.onCancel)
 
 	var recBtn *pointerButton
 	recBtn = newPointerButtonWithIcon("RECORD", assets.MicIcon, func() { tp.onToggleRecord(recBtn) })
