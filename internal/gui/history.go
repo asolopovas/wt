@@ -109,9 +109,9 @@ func formatDurationCompact(ms int64) string {
 }
 
 func (h *historyPanel) buildRow(e cacheEntry) fyne.CanvasObject {
-	name := widget.NewLabel(e.SourceName)
-	name.TextStyle = fyne.TextStyle{Bold: true}
-	name.Truncation = fyne.TextTruncateEllipsis
+	nameText := canvas.NewText(e.SourceName, colForeground)
+	nameText.TextSize = 13
+	nameText.TextStyle = fyne.TextStyle{Bold: true}
 
 	recorded := recordedAtOrFallback(e)
 	metaText := canvas.NewText(
@@ -121,7 +121,7 @@ func (h *historyPanel) buildRow(e cacheEntry) fyne.CanvasObject {
 	metaText.TextSize = 11
 	metaText.TextStyle = fyne.TextStyle{Monospace: true}
 
-	info := container.NewVBox(name, metaText)
+	info := container.New(&tightVBox{gap: 2}, nameText, metaText)
 
 	playBtn := newPointerButtonWithIcon("", playIconResource, nil)
 	playBtn.Importance = widget.LowImportance
@@ -160,7 +160,7 @@ func (h *historyPanel) buildRow(e cacheEntry) fyne.CanvasObject {
 
 	actions := container.NewHBox(wrap(playBtn), wrap(moreBtn))
 
-	row := container.NewBorder(nil, nil, nil, actions, info)
+	row := container.NewBorder(nil, nil, nil, container.NewCenter(actions), info)
 
 	rowBg := canvas.NewRectangle(colSurfLow)
 	rowBg.StrokeColor = colGhostBorder
