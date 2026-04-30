@@ -8,7 +8,6 @@ import (
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/theme"
-	"fyne.io/fyne/v2/widget"
 
 	shared "github.com/asolopovas/wt/internal"
 )
@@ -61,82 +60,59 @@ func Run(version string) error {
 }
 
 func buildTranscodeTab(tp *transcribePanel) fyne.CanvasObject {
-	addBtn := newPointerButton("ADD FILES", tp.onBrowse)
-	addBtn.Importance = widget.LowImportance
+	addBtn := newSecondaryButton("ADD FILES", tp.onBrowse)
 
 	sidebar := buildSidebar(tp, addBtn)
 
-	return container.New(newSidebarLayout(8), tp.container, sidebar)
+	return container.New(newSidebarLayout(spaceLG), tp.container, sidebar)
 }
 
 func buildSidebar(tp *transcribePanel, addBtn *pointerButton) fyne.CanvasObject {
-	bg := canvas.NewRectangle(colSurfLowest)
-	bg.StrokeColor = colGhostBorder
-	bg.StrokeWidth = 1
-
 	optionsBlock := container.NewVBox(
-		sidebarHeader("OPTIONS"),
-		container.New(newCappedGrid(3, 6, 0),
-			settingsField("MODEL", tp.settings.modelSelect),
-			settingsField("LANGUAGE", tp.settings.langSelect),
-			settingsField("SPEAKERS", tp.settings.speakersSelect),
+		newSectionHeader("OPTIONS"),
+		container.New(newCappedGrid(3, spaceMD, 0),
+			newFormField("MODEL", tp.settings.modelSelect),
+			newFormField("LANGUAGE", tp.settings.langSelect),
+			newFormField("SPEAKERS", tp.settings.speakersSelect),
 		),
 	)
 
 	actionsBlock := container.NewVBox(
-		sidebarHeader("ACTIONS"),
-		container.New(newCappedGrid(1, 8, 36),
-			borderedBtn(addBtn, colDialogBorder),
+		newSectionHeader("ACTIONS"),
+		container.New(newCappedGrid(1, spaceLG, 36),
+			wrapAction(addBtn),
 		),
 	)
 
 	statusRow := container.NewBorder(nil, nil, tp.statusText, tp.timerText)
 	statusBlock := container.NewVBox(
-		sidebarHeader("STATUS"),
+		newSectionHeader("STATUS"),
 		tp.progress,
 		statusRow,
 	)
 
 	content := container.NewVBox(
 		optionsBlock,
-		sidebarDivider(),
+		newSectionDivider(),
 		actionsBlock,
-		sidebarDivider(),
+		newSectionDivider(),
 		statusBlock,
 	)
 
 	scroll := container.NewVScroll(content)
 
-	return container.NewStack(bg, container.NewPadded(scroll))
-}
-
-func sidebarHeader(label string) fyne.CanvasObject {
-	t := canvas.NewText(label, colMuted)
-	t.TextSize = 10
-	t.TextStyle = fyne.TextStyle{Monospace: true, Bold: true}
-	gap := canvas.NewRectangle(transparent)
-	gap.SetMinSize(fyne.NewSize(0, 2))
-	return container.NewVBox(t, gap)
-}
-
-func sidebarDivider() fyne.CanvasObject {
-	line := canvas.NewRectangle(colGhostBorder)
-	line.SetMinSize(fyne.NewSize(0, 1))
-	pad := canvas.NewRectangle(transparent)
-	pad.SetMinSize(fyne.NewSize(0, 6))
-	return container.NewVBox(pad, line, pad)
+	return container.NewStack(newPanelBackground(), container.NewPadded(scroll))
 }
 
 func buildSettingsTab(sp *settingsPanel, deviceInfo string) fyne.CanvasObject {
-	deviceHeader := canvas.NewText("DEVICE", colMuted)
-	deviceHeader.TextSize = 10
+	deviceHeader := newCaptionText("DEVICE")
 	deviceHeader.TextStyle = fyne.TextStyle{Monospace: true, Bold: true}
 	deviceLabel := canvas.NewText(deviceInfo, colSecondary)
-	deviceLabel.TextSize = 11
+	deviceLabel.TextSize = textBody
 	deviceLabel.TextStyle = fyne.TextStyle{Monospace: true}
 
 	gap := canvas.NewRectangle(transparent)
-	gap.SetMinSize(fyne.NewSize(0, 12))
+	gap.SetMinSize(fyne.NewSize(0, spaceXL))
 
 	return container.NewBorder(
 		nil,

@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/widget"
 )
 
@@ -42,20 +41,17 @@ func (p *transcribePanel) onToggleRecord(btn *pointerButton) {
 	}
 
 	if !checkPermission(permRecordAudio) {
-		dialog.ShowConfirm("Microphone permission",
+		showConfirm(p.window, "Microphone permission",
 			"Recording requires microphone access. Grant now?",
-			func(ok bool) {
-				if !ok {
-					return
-				}
+			func() {
 				requestPermissions([]string{permRecordAudio})
-			}, p.window)
+			})
 		return
 	}
 
 	path, err := startRecording()
 	if err != nil {
-		dialog.ShowError(fmt.Errorf("could not start recording: %w", err), p.window)
+		showError(p.window, fmt.Errorf("could not start recording: %w", err))
 		return
 	}
 	btn.SetText("STOP")

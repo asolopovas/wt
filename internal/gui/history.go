@@ -8,7 +8,6 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
@@ -57,29 +56,23 @@ func (h *historyPanel) build() {
 	h.list = container.NewVBox()
 
 	h.empty = canvas.NewText("No transcriptions yet.", colSurfBright)
-	h.empty.TextSize = 11
+	h.empty.TextSize = textBody
 	h.empty.Alignment = fyne.TextAlignCenter
 
 	scroll := container.NewVScroll(h.list)
 
-	header := canvas.NewText("RECENT", colMuted)
-	header.TextSize = 10
-	header.TextStyle = fyne.TextStyle{Bold: true}
+	header := newCaptionText("RECENT")
 
 	h.headerRight = container.NewHBox()
 	headerContent := container.NewBorder(nil, nil, header, h.headerRight)
 
 	headerBar := container.NewStack(
-		canvas.NewRectangle(colSurfLow),
+		canvas.NewRectangle(surfaceRaised),
 		container.NewPadded(headerContent),
 	)
 
-	bg := canvas.NewRectangle(colSurfLowest)
-	bg.StrokeColor = colGhostBorder
-	bg.StrokeWidth = 1
-
 	h.container = container.NewStack(
-		bg,
+		newPanelBackground(),
 		container.NewBorder(headerBar, nil, nil, nil, scroll),
 	)
 }
@@ -110,7 +103,7 @@ func formatDurationCompact(ms int64) string {
 
 func (h *historyPanel) buildRow(e cacheEntry) fyne.CanvasObject {
 	nameText := canvas.NewText(e.SourceName, colForeground)
-	nameText.TextSize = 13
+	nameText.TextSize = textRow
 	nameText.TextStyle = fyne.TextStyle{Bold: true}
 
 	recorded := recordedAtOrFallback(e)
@@ -118,10 +111,10 @@ func (h *historyPanel) buildRow(e cacheEntry) fyne.CanvasObject {
 		recorded.Format(startTimeLayout)+"   "+formatDurationCompact(e.DurationMs),
 		colMuted,
 	)
-	metaText.TextSize = 11
+	metaText.TextSize = textBody
 	metaText.TextStyle = fyne.TextStyle{Monospace: true}
 
-	info := container.New(&tightVBox{gap: 2}, nameText, metaText)
+	info := container.New(&tightVBox{gap: spaceXS}, nameText, metaText)
 
 	playBtn := newPointerButtonWithIcon("", playIconResource, nil)
 	playBtn.Importance = widget.LowImportance
@@ -130,7 +123,7 @@ func (h *historyPanel) buildRow(e cacheEntry) fyne.CanvasObject {
 	}
 	playBtn.OnTapped = func() {
 		if e.SourcePath == "" {
-			dialog.ShowError(fmt.Errorf("source file path missing"), h.window)
+			showError(h.window, fmt.Errorf("source file path missing"))
 			return
 		}
 		if h.player.playing(e.Key) {
@@ -142,7 +135,7 @@ func (h *historyPanel) buildRow(e cacheEntry) fyne.CanvasObject {
 			fyne.Do(func() { playBtn.SetIcon(playIconResource) })
 		})
 		if err != nil {
-			dialog.ShowError(fmt.Errorf("ffplay not available: %w", err), h.window)
+			showError(h.window, fmt.Errorf("ffplay not available: %w", err))
 			return
 		}
 		playBtn.SetIcon(pauseIconResource)
@@ -162,8 +155,8 @@ func (h *historyPanel) buildRow(e cacheEntry) fyne.CanvasObject {
 
 	row := container.NewBorder(nil, nil, nil, container.NewCenter(actions), info)
 
-	rowBg := canvas.NewRectangle(colSurfLow)
-	rowBg.StrokeColor = colGhostBorder
+	rowBg := canvas.NewRectangle(surfaceRaised)
+	rowBg.StrokeColor = borderSubtle
 	rowBg.StrokeWidth = 1
 
 	return container.NewStack(rowBg, container.NewPadded(row))
@@ -173,7 +166,7 @@ func (h *historyPanel) showRowMenu(e cacheEntry, recorded time.Time, anchor fyne
 	items := []*fyne.MenuItem{
 		fyne.NewMenuItem("Transcribe", func() {
 			if e.SourcePath == "" {
-				dialog.ShowError(fmt.Errorf("source file path missing"), h.window)
+				showError(h.window, fmt.Errorf("source file path missing"))
 				return
 			}
 			h.transcribe.startTranscription([]string{e.SourcePath})
@@ -210,26 +203,22 @@ func (h *historyPanel) showRowMenu(e cacheEntry, recorded time.Time, anchor fyne
 		fyne.NewMenuItemSeparator(),
 		fyne.NewMenuItem("Delete", func() {
 			msg := fmt.Sprintf("Delete %s? This will remove the source file and any cached transcript.", e.SourceName)
-			dialog.ShowConfirm("Delete", msg,
-				func(ok bool) {
-					if !ok {
+			showConfirm(h.window, "Delete", msg, func() {
+				if h.player.playing(e.Key) {
+					h.player.stop()
+				}
+				if e.SourcePath != "" {
+					if err := os.Remove(e.SourcePath); err != nil && !os.IsNotExist(err) {
+						showError(h.window, err)
 						return
 					}
-					if h.player.playing(e.Key) {
-						h.player.stop()
-					}
-					if e.SourcePath != "" {
-						if err := os.Remove(e.SourcePath); err != nil && !os.IsNotExist(err) {
-							dialog.ShowError(err, h.window)
-							return
-						}
-					}
-					if err := cacheDelete(e.Key); err != nil {
-						dialog.ShowError(err, h.window)
-						return
-					}
-					h.refresh()
-				}, h.window)
+				}
+				if err := cacheDelete(e.Key); err != nil {
+					showError(h.window, err)
+					return
+				}
+				h.refresh()
+			})
 		}),
 	)
 
@@ -248,7 +237,7 @@ func (h *historyPanel) editRecordedAt(key string, current time.Time) {
 		showTimePicker(h.window, current, func(hh, mm, ss int) {
 			combined := time.Date(d.Year(), d.Month(), d.Day(), hh, mm, ss, 0, time.Local)
 			if err := cacheSetRecordedAt(key, combined); err != nil {
-				dialog.ShowError(err, h.window)
+				showError(h.window, err)
 				return
 			}
 			h.refresh()

@@ -49,18 +49,11 @@ func extensionSet(extensions []string) map[string]bool {
 }
 
 func buildLogPanel(content fyne.CanvasObject, leftHeader fyne.CanvasObject, copyBtn, clearLogBtn *pointerButton, extraBtns ...*pointerButton) fyne.CanvasObject {
-	bg := canvas.NewRectangle(colSurfLowest)
-	bg.StrokeColor = colGhostBorder
-	bg.StrokeWidth = 1
-
 	if leftHeader == nil {
-		logLabel := canvas.NewText("SYSTEM LOG", colMuted)
-		logLabel.TextSize = 10
-		logLabel.TextStyle = fyne.TextStyle{Bold: true}
-		leftHeader = logLabel
+		leftHeader = newCaptionText("SYSTEM LOG")
 	}
 
-	headerBg := canvas.NewRectangle(colSurfLow)
+	headerBg := canvas.NewRectangle(surfaceRaised)
 	headerObjs := []fyne.CanvasObject{leftHeader, layout.NewSpacer()}
 	for _, b := range extraBtns {
 		if b == nil {
@@ -79,7 +72,7 @@ func buildLogPanel(content fyne.CanvasObject, leftHeader fyne.CanvasObject, copy
 
 	themed := container.NewThemeOverride(content, &logEntryTheme{})
 	inner := container.NewBorder(header, nil, nil, nil, themed)
-	return container.NewStack(bg, inner)
+	return container.NewStack(newPanelBackground(), inner)
 }
 
 func appendLogInit(p *transcribePanel) {
@@ -90,11 +83,11 @@ func appendLogInit(p *transcribePanel) {
 func clearCache(window fyne.Window, appendLog func(string)) {
 	cacheDir := shared.CacheDir()
 	if err := os.RemoveAll(cacheDir); err != nil {
-		dialog.ShowError(fmt.Errorf("clearing cache: %w", err), window)
+		showError(window, fmt.Errorf("clearing cache: %w", err))
 		return
 	}
 	if err := os.MkdirAll(cacheDir, 0o755); err != nil {
-		dialog.ShowError(fmt.Errorf("recreating cache dir: %w", err), window)
+		showError(window, fmt.Errorf("recreating cache dir: %w", err))
 		return
 	}
 	appendLog("Cache cleared: " + cacheDir)
@@ -300,21 +293,16 @@ func (p *transcribePanel) setStatus(msg string) {
 		s := upper
 		p.statusTarget.Store(&s)
 		fyne.Do(func() {
-			p.statusText.Color = colSecondary
-			p.statusText.TextStyle = fyne.TextStyle{Monospace: true, Bold: true}
+			setStatusStyle(p.statusText, notifyActive)
 		})
 		return
 	}
+	level := notifyInfo
+	if running {
+		level = notifyActive
+	}
 	fyne.Do(func() {
-		if running {
-			p.statusText.Color = colSecondary
-			p.statusText.TextStyle = fyne.TextStyle{Monospace: true, Bold: true}
-		} else {
-			p.statusText.Color = colMuted
-			p.statusText.TextStyle = fyne.TextStyle{Monospace: true}
-		}
-		p.statusText.Text = upper
-		p.statusText.Refresh()
+		setStatusText(p.statusText, level, msg)
 	})
 }
 

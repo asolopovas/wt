@@ -22,13 +22,13 @@ func newFileChip(name string, onClose func()) *fileChip {
 	c := &fileChip{name: name, onClose: onClose}
 
 	c.label = canvas.NewText(name, colPrimary)
-	c.label.TextSize = 10
+	c.label.TextSize = textCaption
 	c.label.TextStyle = fyne.TextStyle{Monospace: true}
 
 	c.closeBtn = newPointerButtonWithIcon("", theme.CancelIcon(), onClose)
 	c.closeBtn.Importance = widget.LowImportance
 
-	c.bg = canvas.NewRectangle(colSurfLow)
+	c.bg = canvas.NewRectangle(surfaceRaised)
 	c.bg.StrokeColor = colPrimaryFaint
 	c.bg.StrokeWidth = 1
 

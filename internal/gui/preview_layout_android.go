@@ -12,5 +12,5 @@ func previewDialogSize() (fyne.Size, bool) {
 	return fyne.Size{}, false
 }
 
-func previewTopInset() float32    { return 36 }
-func previewBottomInset() float32 { return 56 }
+func previewTopInset() float32    { return spaceXXL*2 + spaceSM }
+func previewBottomInset() float32 { return spaceXXL*3 + spaceLG }

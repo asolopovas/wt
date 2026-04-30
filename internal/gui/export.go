@@ -46,7 +46,7 @@ type exportItem struct {
 func (p *transcribePanel) openPreview(item exportItem, onClose func()) {
 	tr, err := loadTranscript(item.cachePath)
 	if err != nil {
-		dialog.ShowError(fmt.Errorf("loading %s: %w", item.sourceName, err), p.window)
+		showError(p.window, fmt.Errorf("loading %s: %w", item.sourceName, err))
 		return
 	}
 
@@ -165,7 +165,7 @@ func (p *transcribePanel) openPreview(item exportItem, onClose func()) {
 			render()
 		}
 		label := canvas.NewText(speaker, colMuted)
-		label.TextSize = 11
+		label.TextSize = textBody
 		label.TextStyle = fyne.TextStyle{Monospace: true, Bold: true}
 		speakerRows = append(speakerRows,
 			container.NewBorder(nil, nil, container.NewGridWrap(fyne.NewSize(130, 30), container.NewCenter(label)), nil, entry))
@@ -173,9 +173,7 @@ func (p *transcribePanel) openPreview(item exportItem, onClose func()) {
 
 	var speakerPanel *fyne.Container
 	if len(speakerRows) > 0 {
-		header := canvas.NewText("SPEAKERS (edit to rename)", colMuted)
-		header.TextSize = 10
-		header.TextStyle = fyne.TextStyle{Bold: true}
+		header := newCaptionText("SPEAKERS (edit to rename)")
 		speakerPanel = container.NewVBox(append([]fyne.CanvasObject{header}, speakerRows...)...)
 		speakerPanel.Hide()
 	}
@@ -184,8 +182,7 @@ func (p *transcribePanel) openPreview(item exportItem, onClose func()) {
 	scroll.SetMinSize(previewScrollMinSize())
 
 	editing := false
-	editBtn := newPointerButton("RENAME", nil)
-	editBtn.Importance = widget.LowImportance
+	editBtn := newSecondaryButton("RENAME", nil)
 	editBtn.OnTapped = func() {
 		editing = !editing
 		if editing {
@@ -202,36 +199,32 @@ func (p *transcribePanel) openPreview(item exportItem, onClose func()) {
 	}
 
 	var hidePreview func()
-	exportBtn := newPointerButton("EXPORT", func() {
+	exportBtn := newSecondaryButton("EXPORT", func() {
 		if hidePreview != nil {
 			hidePreview()
 		}
 		p.exportSinglePrompt(item, start)
 	})
-	exportBtn.Importance = widget.LowImportance
 
-	closeBtn := newPointerButton("CLOSE", func() {
+	closeBtn := newSecondaryButton("CLOSE", func() {
 		if hidePreview != nil {
 			hidePreview()
 		}
 	})
-	closeBtn.Importance = widget.LowImportance
 
 	buttons := container.NewGridWithColumns(3,
-		borderedBtn(closeBtn, colOutline),
-		borderedBtn(exportBtn, colOutline),
-		borderedBtn(editBtn, colOutline),
+		wrapAction(closeBtn),
+		wrapAction(exportBtn),
+		wrapAction(editBtn),
 	)
 	bottomGap := canvas.NewRectangle(transparent)
 	bottomGap.SetMinSize(fyne.NewSize(0, previewBottomInset()))
 	actionRow := container.NewVBox(buttons, bottomGap)
 
 	stampText := canvas.NewText(start.Format(startTimeLayout), colMuted)
-	stampText.TextSize = 11
+	stampText.TextSize = textBody
 	stampText.TextStyle = fyne.TextStyle{Monospace: true, Bold: true}
-	stampLabel := canvas.NewText("RECORDED", colMuted)
-	stampLabel.TextSize = 10
-	stampLabel.TextStyle = fyne.TextStyle{Bold: true}
+	stampLabel := newCaptionText("RECORDED")
 	stampRow := container.NewHBox(stampLabel, stampText)
 
 	topGap := canvas.NewRectangle(transparent)
@@ -266,7 +259,7 @@ func (p *transcribePanel) openPreview(item exportItem, onClose func()) {
 		}()
 	}
 
-	floating := container.New(newTopRightFloater(12, 12), copyBtn)
+	floating := container.New(newTopRightFloater(spaceXL, spaceXL), copyBtn)
 	bodyInner := container.NewBorder(top, actionRow, nil, nil, scroll)
 	body := container.NewStack(bodyInner, floating)
 	hidePreview = showTranscriptPreview(item.sourceName, body, p.window, onClose)
@@ -280,17 +273,23 @@ func (p *transcribePanel) exportSinglePrompt(item exportItem, start time.Time) {
 	radio := widget.NewRadioGroup(labels, nil)
 	radio.SetSelected(exportFormats[0].label)
 
-	dialog.ShowCustomConfirm("Export format", "Export", "Cancel", radio, func(ok bool) {
-		if !ok {
-			return
-		}
-		for _, f := range exportFormats {
-			if f.label == radio.Selected {
-				p.exportSingleAs(f, item, start)
-				return
-			}
-		}
-	}, p.window)
+	showDialog(dialogConfig{
+		Parent: p.window,
+		Title:  "EXPORT FORMAT",
+		Body:   radio,
+		Actions: []dialogAction{
+			{Label: "CANCEL", Kind: kindSecondary},
+			{Label: "EXPORT", Kind: kindPrimary, OnTap: func() {
+				for _, f := range exportFormats {
+					if f.label == radio.Selected {
+						p.exportSingleAs(f, item, start)
+						return
+					}
+				}
+			}},
+		},
+		WidthFrac: 0.4,
+	})
 }
 
 func itemStartTime(item exportItem) time.Time {
@@ -325,12 +324,12 @@ func (p *transcribePanel) renamedTranscript(tr *transcriber.Transcript) *transcr
 
 func (p *transcribePanel) exportTranscript(items []exportItem) {
 	if len(items) == 0 {
-		dialog.ShowInformation("Export", "No output yet. Transcribe a file first.", p.window)
+		showNotice(p.window, notifyInfo, "Export", "No output yet. Transcribe a file first.")
 		return
 	}
 	for _, it := range items {
 		if _, err := os.Stat(it.cachePath); err != nil {
-			dialog.ShowError(fmt.Errorf("output file not found: %s", it.cachePath), p.window)
+			showError(p.window, fmt.Errorf("output file not found: %s", it.cachePath))
 			return
 		}
 	}
@@ -342,27 +341,33 @@ func (p *transcribePanel) exportTranscript(items []exportItem) {
 	radio := widget.NewRadioGroup(labels, nil)
 	radio.SetSelected(exportFormats[0].label)
 
-	dialog.ShowCustomConfirm("Export format", "Export", "Cancel", radio, func(ok bool) {
-		if !ok {
-			return
-		}
-		for _, f := range exportFormats {
-			if f.label == radio.Selected {
-				if len(items) == 1 {
-					p.exportSingleAs(f, items[0], itemStartTime(items[0]))
-				} else {
-					p.exportBatchAs(f, items)
+	showDialog(dialogConfig{
+		Parent: p.window,
+		Title:  "EXPORT FORMAT",
+		Body:   radio,
+		Actions: []dialogAction{
+			{Label: "CANCEL", Kind: kindSecondary},
+			{Label: "EXPORT", Kind: kindPrimary, OnTap: func() {
+				for _, f := range exportFormats {
+					if f.label == radio.Selected {
+						if len(items) == 1 {
+							p.exportSingleAs(f, items[0], itemStartTime(items[0]))
+						} else {
+							p.exportBatchAs(f, items)
+						}
+						return
+					}
 				}
-				return
-			}
-		}
-	}, p.window)
+			}},
+		},
+		WidthFrac: 0.4,
+	})
 }
 
 func (p *transcribePanel) exportSingleAs(f exportFormat, item exportItem, start time.Time) {
 	tr, err := loadTranscript(item.cachePath)
 	if err != nil {
-		dialog.ShowError(err, p.window)
+		showError(p.window, err)
 		return
 	}
 	tr = p.renamedTranscript(tr)
@@ -373,7 +378,7 @@ func (p *transcribePanel) exportSingleAs(f exportFormat, item exportItem, start 
 		}
 		defer func() { _ = w.Close() }()
 		if writeErr := writeExport(w, tr, f, start); writeErr != nil {
-			dialog.ShowError(writeErr, p.window)
+			showError(p.window, writeErr)
 			return
 		}
 		p.appendLog("Exported: " + w.URI().Path())
@@ -423,11 +428,11 @@ func (p *transcribePanel) exportBatchAs(f exportFormat, items []exportItem) {
 			done++
 		}
 		if failed > 0 {
-			dialog.ShowInformation("Export",
-				fmt.Sprintf("Exported %d of %d. %d failed.", done, done+failed, failed), p.window)
+			showNotice(p.window, notifyInfo, "Export",
+				fmt.Sprintf("Exported %d of %d. %d failed.", done, done+failed, failed))
 		} else {
-			dialog.ShowInformation("Export",
-				fmt.Sprintf("Exported %d file(s) to %s", done, u.Path()), p.window)
+			showNotice(p.window, notifyInfo, "Export",
+				fmt.Sprintf("Exported %d file(s) to %s", done, u.Path()))
 		}
 	}, p.window)
 	folderDialog.Show()

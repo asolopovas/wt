@@ -25,33 +25,29 @@ var (
 )
 
 func (p *transcribePanel) build() {
-	chipsFlow := newFlowLayout(6)
+	chipsFlow := newFlowLayout(spaceMD)
 	p.fileChips = container.New(chipsFlow)
 	chipsFlow.setParent(p.fileChips)
 
 	p.dropText = canvas.NewText("No files added", colMuted)
-	p.dropText.TextSize = 11
+	p.dropText.TextSize = textBody
 	p.dropText.TextStyle = fyne.TextStyle{Monospace: true}
 
-	outerBg := canvas.NewRectangle(colSurfLowest)
-	outerBg.StrokeColor = colGhostBorder
-	outerBg.StrokeWidth = 1
 	p.libraryHost = container.NewStack()
-	p.dropArea = container.NewStack(outerBg, container.NewPadded(p.libraryHost))
+	p.dropArea = container.NewStack(newPanelBackground(), container.NewPadded(p.libraryHost))
 
 	p.clearBtn = newPointerButton("CLEAR ALL", p.onClear)
 	p.clearCacheBtn = newPointerButton("CLEAR CACHE", p.onClearCache)
-	p.transcribeBtn = newPointerButton("TRANSCRIBE", p.onTranscribe)
-	p.transcribeBtn.Importance = widget.HighImportance
+	p.transcribeBtn = newPrimaryButton("TRANSCRIBE", p.onTranscribe)
 
 	p.progress = newThinProgress()
 
 	p.statusText = canvas.NewText("READY", colMuted)
-	p.statusText.TextSize = 11
+	p.statusText.TextSize = textBody
 	p.statusText.TextStyle = fyne.TextStyle{Monospace: true, Bold: true}
 
 	p.timerText = canvas.NewText("", colMuted)
-	p.timerText.TextSize = 11
+	p.timerText.TextSize = textBody
 	p.timerText.TextStyle = fyne.TextStyle{Monospace: true, Bold: true}
 	p.timerText.Alignment = fyne.TextAlignTrailing
 
@@ -80,36 +76,27 @@ func (p *transcribePanel) build() {
 }
 
 func (p *transcribePanel) buildFilesTab() fyne.CanvasObject {
-	addBtn := newPointerButton("ADD FILES", p.onBrowse)
-	addBtn.Importance = widget.HighImportance
-
-	clearBtn := newPointerButton("CLEAR ALL", func() {
+	addBtn := newPrimaryButton("ADD FILES", p.onBrowse)
+	clearBtn := newSecondaryButton("CLEAR ALL", func() {
 		p.files = nil
 		p.rebuildChips()
 		p.updateDropLabel()
 	})
-	clearBtn.Importance = widget.LowImportance
 
 	btnRow := container.NewGridWithColumns(2,
-		borderedBtn(addBtn, colPrimary),
-		borderedBtn(clearBtn, colOutline),
+		wrapAction(addBtn),
+		wrapAction(clearBtn),
 	)
 
-	filesLabel := canvas.NewText("SELECTED FILES", colMuted)
-	filesLabel.TextSize = 10
-	filesLabel.TextStyle = fyne.TextStyle{Bold: true}
+	filesLabel := newCaptionText("SELECTED FILES")
 
 	chipsScroll := container.NewVScroll(container.NewVBox(p.fileChips, p.dropText))
 
-	filesBg := canvas.NewRectangle(colSurfLowest)
-	filesBg.StrokeColor = colGhostBorder
-	filesBg.StrokeWidth = 1
-
 	filesInner := container.NewBorder(filesLabel, nil, nil, nil, chipsScroll)
-	filesPanel := container.NewStack(filesBg, container.NewPadded(filesInner))
+	filesPanel := container.NewStack(newPanelBackground(), container.NewPadded(filesInner))
 
 	bottomGap := canvas.NewRectangle(transparent)
-	bottomGap.SetMinSize(fyne.NewSize(0, 6))
+	bottomGap.SetMinSize(fyne.NewSize(0, spaceMD))
 
 	return container.NewBorder(
 		nil, container.NewVBox(btnRow, bottomGap), nil, nil,

@@ -105,30 +105,27 @@ func wireShareIntake(tp *transcribePanel, tabs *container.AppTabs) {
 func buildTranscodeTabAndroid(tp *transcribePanel) fyne.CanvasObject {
 	tp.transcribeBtn.Importance = widget.HighImportance
 
-	addBtn := newPointerButton("ADD FILES", tp.onBrowse)
-	addBtn.Importance = widget.LowImportance
-
-	cancelBtn := newPointerButton("CANCEL", tp.onCancel)
-	cancelBtn.Importance = widget.DangerImportance
+	addBtn := newSecondaryButton("ADD FILES", tp.onBrowse)
+	cancelBtn := newDangerButton("CANCEL", tp.onCancel)
 
 	var recBtn *pointerButton
 	recBtn = newPointerButtonWithIcon("RECORD", micIconResource, func() { tp.onToggleRecord(recBtn) })
 	recBtn.Importance = widget.HighImportance
 
 	settingsRow := container.NewGridWithColumns(3,
-		settingsField("MODEL", tp.settings.modelSelect),
-		settingsField("LANGUAGE", tp.settings.langSelect),
-		settingsField("SPEAKERS", tp.settings.speakersSelect),
+		newFormField("MODEL", tp.settings.modelSelect),
+		newFormField("LANGUAGE", tp.settings.langSelect),
+		newFormField("SPEAKERS", tp.settings.speakersSelect),
 	)
 
 	actionRow := container.NewGridWithColumns(3,
-		borderedBtn(recBtn, colPrimary),
-		borderedBtn(addBtn, colOutline),
-		borderedBtn(cancelBtn, colError),
+		wrapAction(recBtn),
+		wrapAction(addBtn),
+		wrapAction(cancelBtn),
 	)
 
 	bottomGap := canvas.NewRectangle(transparent)
-	bottomGap.SetMinSize(fyne.NewSize(0, 6))
+	bottomGap.SetMinSize(fyne.NewSize(0, spaceMD))
 
 	bottomBar := container.NewVBox(
 		tp.progress,
@@ -148,9 +145,9 @@ var permsSection *permissionsSection
 
 func buildSettingsTab(sp *settingsPanel, deviceInfo string) fyne.CanvasObject {
 	settingsGrid := container.NewGridWithColumns(2,
-		settingsField("DEVICE", sp.deviceSelect),
-		settingsField("THREADS", sp.threadsSelect),
-		settingsField("EXPIRY (DAYS)", sp.expirySelect),
+		newFormField("DEVICE", sp.deviceSelect),
+		newFormField("THREADS", sp.threadsSelect),
+		newFormField("EXPIRY (DAYS)", sp.expirySelect),
 	)
 
 	gap := func(h float32) fyne.CanvasObject {
@@ -160,12 +157,11 @@ func buildSettingsTab(sp *settingsPanel, deviceInfo string) fyne.CanvasObject {
 	}
 
 	header := canvas.NewText("SETTINGS", colMuted)
-	header.TextSize = 12
+	header.TextSize = textLabel
 	header.TextStyle = fyne.TextStyle{Bold: true}
 	header.Alignment = fyne.TextAlignCenter
 
-	deviceHeader := canvas.NewText("DEVICE", colMuted)
-	deviceHeader.TextSize = 10
+	deviceHeader := newCaptionText("DEVICE")
 	deviceHeader.TextStyle = fyne.TextStyle{Monospace: true, Bold: true}
 	deviceLabel := widget.NewLabel(deviceInfo)
 	deviceLabel.TextStyle = fyne.TextStyle{Monospace: true}
@@ -176,39 +172,36 @@ func buildSettingsTab(sp *settingsPanel, deviceInfo string) fyne.CanvasObject {
 	}
 
 	topSection := container.NewVBox(
-		gap(12),
+		gap(spaceXL),
 		header,
-		gap(16),
+		gap(spaceXXL),
 		settingsGrid,
-		gap(12),
+		gap(spaceXL),
 		deviceHeader,
 		deviceLabel,
-		gap(16),
+		gap(spaceXXL),
 		permsSection.container,
 	)
 
 	toggleRow := container.NewGridWithColumns(2,
-		borderedBtn(sp.noDiarizeBtn, colPrimaryGhost),
-		borderedBtn(sp.debugBtn, colOutline),
+		wrapGhost(sp.noDiarizeBtn),
+		wrapGhost(sp.debugBtn),
 	)
 
-	clearCacheBtn := newPointerButton("CLEAR CACHE", sp.onClearCache)
-	clearCacheBtn.Importance = widget.LowImportance
-
-	clearTranscriptsBtn := newPointerButton("CLEAR TEXT", sp.onClearTranscripts)
-	clearTranscriptsBtn.Importance = widget.LowImportance
+	clearCacheBtn := newSecondaryButton("CLEAR CACHE", sp.onClearCache)
+	clearTranscriptsBtn := newSecondaryButton("CLEAR TEXT", sp.onClearTranscripts)
 
 	cacheRow := container.NewGridWithColumns(2,
-		borderedBtn(clearCacheBtn, colOutline),
-		borderedBtn(clearTranscriptsBtn, colOutline),
+		wrapAction(clearCacheBtn),
+		wrapAction(clearTranscriptsBtn),
 	)
 
 	actionRow := container.NewGridWithColumns(1,
-		borderedBtn(sp.saveBtn, colPrimary),
+		wrapAction(sp.saveBtn),
 	)
 
 	bottomGap := canvas.NewRectangle(transparent)
-	bottomGap.SetMinSize(fyne.NewSize(0, 6))
+	bottomGap.SetMinSize(fyne.NewSize(0, spaceMD))
 
 	bottomSection := container.NewVBox(
 		toggleRow,

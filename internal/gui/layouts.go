@@ -4,12 +4,6 @@ import (
 	"fyne.io/fyne/v2"
 )
 
-const (
-	sidebarMaxWidth   = 300
-	sidebarMinWidth   = 260
-	sidebarStackBelow = 820
-)
-
 type tightVBox struct {
 	gap float32
 }

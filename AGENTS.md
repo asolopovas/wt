@@ -64,6 +64,28 @@ third_party/whisper.cpp  Cloned at build time (gitignored)
 
 Module: `github.com/asolopovas/wt` (Go 1.26). Key deps: `fyne.io/fyne/v2`, `pterm`, `urfave/cli/v3`, `yaml.v3`.
 
+## GUI design system
+
+`internal/gui/` has a centralized design system. **Do not** introduce raw pixel literals, hex colors, or `widget.NewButton` + manual styling chains for new UI. Reach for the existing primitives.
+
+**Tokens** (`tokens.go`):
+- Spacing: `spaceXS=2`, `spaceSM=4`, `spaceMD=6`, `spaceLG=8`, `spaceXL=12`, `spaceXXL=16`. All gaps, paddings, insets pick from this scale.
+- Text sizes: `textCaption=10`, `textBody=11`, `textLabel=12`, `textRow=13`, `textHeading=14`. No raw `TextSize = 11` literals.
+- Borders by intent: `borderSubtle` (panel backgrounds), `borderDefault` (widget frames), `borderStrong` (modal frames), `borderAccent` (toggle/active).
+- Surfaces: `surfacePanel`, `surfaceRaised`. Action colors: `actionPrimary`, `actionDanger`.
+
+**Components** (`components.go`):
+- Buttons: `newPrimaryButton` / `newSecondaryButton` / `newDangerButton`. Pick by **role**, not styling. Wrap with `wrapAction(b)` (border auto-derived from Importance) or `wrapGhost(b)` for toggles.
+- Layout: `newSectionHeader`, `newSectionDivider`, `newFormField(label, widget)`, `newCaptionText`, `newPanelBackground`.
+- Modals: `showDialog(dialogConfig{Parent, Title, Body, Actions, WidthFrac/Size})` — replaces all hand-rolled `widget.NewModalPopUp` + `dialogBordered` + title/button boilerplate. Actions auto-hide before invoking `OnTap`.
+
+**Notifications** (`notify_ui.go`): use `setStatusText(t, level, msg)` / `setStatusStyle(t, level)` for inline status; `showNotice(win, level, title, msg)`, `showError(win, err)`, `showConfirm(win, title, body, onConfirm)` for popups. **Never** call `dialog.ShowError` / `dialog.ShowInformation` / `dialog.ShowConfirm` directly — only `dialog.NewFileOpen` / `NewFileSave` / `NewFolderOpen` (system pickers) bypass the helpers.
+
+**Never:**
+- Hardcode colors (`colOutline`, `colPrimary`, `colDialogBorder`, …) outside `tokens.go` / `components.go` / `notify_ui.go`. Use the semantic alias.
+- Reintroduce `settingsField`, `sidebarHeader`, `sidebarDivider`, or per-call `borderedBtn(b, colX)` — they are deliberately gone.
+- Mix toggle borders. Toggles always use `wrapGhost`; one-shot actions always use `wrapAction`.
+
 ## Platform splits
 
 `//go:build android` / `//go:build !android` pairs:

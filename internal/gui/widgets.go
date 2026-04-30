@@ -53,17 +53,17 @@ func (s *pointerSelect) Cursor() desktop.Cursor {
 
 func dialogBordered(content fyne.CanvasObject) fyne.CanvasObject {
 	frame := canvas.NewRectangle(transparent)
-	frame.StrokeColor = colDialogBorder
+	frame.StrokeColor = borderStrong
 	frame.StrokeWidth = 1
 
 	top := canvas.NewRectangle(transparent)
-	top.SetMinSize(fyne.NewSize(0, 12))
+	top.SetMinSize(fyne.NewSize(0, spaceXL))
 	bottom := canvas.NewRectangle(transparent)
-	bottom.SetMinSize(fyne.NewSize(0, 12))
+	bottom.SetMinSize(fyne.NewSize(0, spaceXL))
 	left := canvas.NewRectangle(transparent)
-	left.SetMinSize(fyne.NewSize(12, 0))
+	left.SetMinSize(fyne.NewSize(spaceXL, 0))
 	right := canvas.NewRectangle(transparent)
-	right.SetMinSize(fyne.NewSize(12, 0))
+	right.SetMinSize(fyne.NewSize(spaceXL, 0))
 
 	inner := container.NewBorder(top, bottom, left, right, content)
 	return container.NewStack(frame, inner)

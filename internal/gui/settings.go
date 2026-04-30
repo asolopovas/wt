@@ -7,9 +7,7 @@ import (
 	"strconv"
 
 	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/widget"
 
@@ -103,54 +101,43 @@ func (p *settingsPanel) build() {
 	p.debugBtn = newPointerButton("", p.onToggleDebug)
 	p.updateDebugLabel()
 
-	p.saveBtn = newPointerButton("SAVE CONFIG", p.onSave)
-	p.saveBtn.Importance = widget.HighImportance
+	p.saveBtn = newPrimaryButton("SAVE CONFIG", p.onSave)
 
-	clearCacheBtn := newPointerButton("CLEAR CACHE", p.onClearCache)
-	clearCacheBtn.Importance = widget.LowImportance
-
-	clearTranscriptsBtn := newPointerButton("CLEAR TEXT", p.onClearTranscripts)
-	clearTranscriptsBtn.Importance = widget.LowImportance
+	clearCacheBtn := newSecondaryButton("CLEAR CACHE", p.onClearCache)
+	clearTranscriptsBtn := newSecondaryButton("CLEAR TEXT", p.onClearTranscripts)
 
 	settingsGrid := container.NewGridWithColumns(2,
-		settingsField("MODEL", p.modelSelect),
-		settingsField("LANGUAGE", p.langSelect),
-		settingsField("DEVICE", p.deviceSelect),
-		settingsField("THREADS", p.threadsSelect),
-		settingsField("SPEAKERS", p.speakersSelect),
-		settingsField("EXPIRY (DAYS)", p.expirySelect),
+		newFormField("MODEL", p.modelSelect),
+		newFormField("LANGUAGE", p.langSelect),
+		newFormField("DEVICE", p.deviceSelect),
+		newFormField("THREADS", p.threadsSelect),
+		newFormField("SPEAKERS", p.speakersSelect),
+		newFormField("EXPIRY (DAYS)", p.expirySelect),
 	)
 
 	toggleRow := container.NewGridWithColumns(2,
-		borderedBtn(p.noDiarizeBtn, colPrimaryGhost),
-		borderedBtn(p.debugBtn, colOutline),
+		wrapGhost(p.noDiarizeBtn),
+		wrapGhost(p.debugBtn),
 	)
 
 	cacheRow := container.NewGridWithColumns(2,
-		borderedBtn(clearCacheBtn, colOutline),
-		borderedBtn(clearTranscriptsBtn, colOutline),
+		wrapAction(clearCacheBtn),
+		wrapAction(clearTranscriptsBtn),
 	)
 
-	saveRow := borderedBtn(p.saveBtn, colPrimary)
+	saveRow := wrapAction(p.saveBtn)
 
 	p.container = container.NewVBox(
 		layout.NewSpacer(),
 		settingsGrid,
-		container.NewGridWrap(fyne.NewSize(0, 8)),
+		container.NewGridWrap(fyne.NewSize(0, spaceLG)),
 		toggleRow,
-		container.NewGridWrap(fyne.NewSize(0, 4)),
+		container.NewGridWrap(fyne.NewSize(0, spaceSM)),
 		cacheRow,
-		container.NewGridWrap(fyne.NewSize(0, 8)),
+		container.NewGridWrap(fyne.NewSize(0, spaceLG)),
 		saveRow,
 		layout.NewSpacer(),
 	)
-}
-
-func settingsField(label string, w fyne.CanvasObject) *fyne.Container {
-	lbl := canvas.NewText(label, colMuted)
-	lbl.TextSize = 10
-	lbl.TextStyle = fyne.TextStyle{Bold: true}
-	return container.NewVBox(lbl, w)
 }
 
 func (p *settingsPanel) onToggleDiarize() {
@@ -190,25 +177,22 @@ func (p *settingsPanel) debug() bool {
 
 func (p *settingsPanel) onClearCache() {
 	clearCache(p.window, func(_ string) {})
-	dialog.ShowInformation("Cache", "Audio cache cleared.", p.window)
+	showNotice(p.window, notifyInfo, "Cache", "Audio cache cleared.")
 }
 
 func (p *settingsPanel) onClearTranscripts() {
-	dialog.ShowConfirm("Clear transcripts",
+	showConfirm(p.window, "Clear transcripts",
 		"Remove all cached transcripts? This cannot be undone.",
-		func(ok bool) {
-			if !ok {
-				return
-			}
+		func() {
 			if err := cacheClear(); err != nil {
-				dialog.ShowError(err, p.window)
+				showError(p.window, err)
 				return
 			}
 			if p.onCacheCleared != nil {
 				p.onCacheCleared()
 			}
-			dialog.ShowInformation("Transcripts", "Transcript cache cleared.", p.window)
-		}, p.window)
+			showNotice(p.window, notifyInfo, "Transcripts", "Transcript cache cleared.")
+		})
 }
 
 func (p *settingsPanel) cacheExpiryDays() int {
@@ -225,10 +209,10 @@ func (p *settingsPanel) cacheExpiryDays() int {
 
 func (p *settingsPanel) onSave() {
 	if err := p.writeConfig(); err != nil {
-		dialog.ShowError(err, p.window)
+		showError(p.window, err)
 		return
 	}
-	dialog.ShowInformation("Settings", "Settings saved.", p.window)
+	showNotice(p.window, notifyInfo, "Settings", "Settings saved.")
 }
 
 func (p *settingsPanel) persist() {

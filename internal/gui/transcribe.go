@@ -16,31 +16,26 @@ var (
 )
 
 func (p *transcribePanel) build() {
-	chipsFlow := newFlowLayout(8)
+	chipsFlow := newFlowLayout(spaceLG)
 	p.fileChips = container.New(chipsFlow)
 	chipsFlow.setParent(p.fileChips)
 
-	outerBg := canvas.NewRectangle(colSurfLowest)
-	outerBg.StrokeColor = colGhostBorder
-	outerBg.StrokeWidth = 1
-
 	p.libraryHost = container.NewStack()
 
-	p.dropArea = container.NewStack(outerBg, container.NewPadded(p.libraryHost))
+	p.dropArea = container.NewStack(newPanelBackground(), container.NewPadded(p.libraryHost))
 
 	p.clearBtn = newPointerButton("CLEAR ALL", p.onClear)
 	p.clearCacheBtn = newPointerButton("CLEAR CACHE", p.onClearCache)
-	p.transcribeBtn = newPointerButton("TRANSCRIBE", p.onTranscribe)
-	p.transcribeBtn.Importance = widget.HighImportance
+	p.transcribeBtn = newPrimaryButton("TRANSCRIBE", p.onTranscribe)
 
 	p.progress = newThinProgress()
 
 	p.statusText = canvas.NewText("READY", colMuted)
-	p.statusText.TextSize = 11
+	p.statusText.TextSize = textBody
 	p.statusText.TextStyle = fyne.TextStyle{Monospace: true, Bold: true}
 
 	p.timerText = canvas.NewText("", colMuted)
-	p.timerText.TextSize = 11
+	p.timerText.TextSize = textBody
 	p.timerText.TextStyle = fyne.TextStyle{Monospace: true, Bold: true}
 	p.timerText.Alignment = fyne.TextAlignTrailing
 

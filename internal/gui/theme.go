@@ -96,21 +96,21 @@ func (t *logEntryTheme) Color(name fyne.ThemeColorName, variant fyne.ThemeVarian
 func (t *whisperTheme) Size(name fyne.ThemeSizeName) float32 {
 	switch name {
 	case theme.SizeNamePadding:
-		return 6
+		return spaceMD
 	case theme.SizeNameInnerPadding:
-		return 12
+		return spaceXL
 	case theme.SizeNameText:
-		return 12
+		return textLabel
 	case theme.SizeNameHeadingText:
-		return 14
+		return textHeading
 	case theme.SizeNameSubHeadingText:
-		return 13
+		return textRow
 	case theme.SizeNameLineSpacing:
 		return 0
 	case theme.SizeNameScrollBarSmall:
-		return 4
+		return spaceSM
 	case theme.SizeNameScrollBar:
-		return 10
+		return textCaption
 	case theme.SizeNameInputRadius:
 		return 0
 	case theme.SizeNameSelectionRadius:
