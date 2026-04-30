@@ -41,16 +41,19 @@ func NewWithPreference(numSpeakers int, preferSherpa bool) (Backend, error) {
 		return b, nil
 	}
 
+	primary, fallback := newNemoDiarizer, newSherpaDiarizer
 	if preferSherpa || numSpeakers > 0 {
-		if b, err := newSherpaDiarizer(); err == nil {
-			return b, nil
-		}
+		primary, fallback = newSherpaDiarizer, newNemoDiarizer
 	}
 
-	if b, err := newNemoDiarizer(); err == nil {
+	b, primaryErr := primary()
+	if primaryErr == nil {
 		return b, nil
 	}
-	return newSherpaDiarizer()
+	if b, err := fallback(); err == nil {
+		return b, nil
+	}
+	return nil, fmt.Errorf("no diarizer backend available: %w", primaryErr)
 }
 
 func resolvePython() (string, error) {
