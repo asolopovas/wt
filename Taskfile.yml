@@ -425,41 +425,54 @@ tasks:
           ls -lh "$dest"
 
   release:
-    desc: 'Tag v{{.VERSION}} and attach platform artifacts (Linux on Linux host; Windows + Android on Windows host)'
-    deps: [build]
+    desc: 'End-to-end release: bump version, build artifacts, push commits + tag, create GitHub release and upload assets'
     cmds:
       - |
         if ! command -v gh >/dev/null 2>&1; then
           echo "ERROR: gh CLI not found. Install via: winget install GitHub.cli"
           exit 1
         fi
+        if [ -n "$(git status --porcelain)" ]; then
+          echo "ERROR: working tree has uncommitted changes; commit or stash first."
+          git status --short
+          exit 1
+        fi
+      - task: bump
+      - task: build
       - cmd: 'task android-apk'
         if: '[ -z "{{.IS_LINUX}}" ]'
       - |
-        tag="v{{.VERSION}}"
+        ver=$(awk -F"'" '/^[[:space:]]+VERSION:/ {print $2; exit}' Taskfile.yml)
+        tag="v$ver"
+        echo "Releasing $tag"
+
+        git push origin HEAD
+
         if git rev-parse "$tag" >/dev/null 2>&1; then
           echo "Tag $tag already exists locally; skipping tag creation."
         else
           git tag -a "$tag" -m "Release $tag"
-          git push origin "$tag"
         fi
+        git push origin "$tag"
+
         if gh release view "$tag" >/dev/null 2>&1; then
-          echo "Release $tag already exists; uploading artifacts (clobber)..."
+          echo "Release $tag exists; uploading artifacts (clobber)..."
         else
           gh release create "$tag" --title "$tag" --generate-notes
         fi
+
         artifacts=""
         for f in \
-          "dist/wt-setup-{{.VERSION}}.exe" \
-          "dist/wt-{{.VERSION}}.apk" \
-          "dist/wt_{{.VERSION}}_amd64.deb"; do
+          "dist/wt-setup-$ver.exe" \
+          "dist/wt-$ver.apk" \
+          "dist/wt_${ver}_amd64.deb"; do
           [ -f "$f" ] && artifacts="$artifacts $f"
         done
         if [ -z "$artifacts" ]; then
           echo "ERROR: no artifacts found to upload"; exit 1
         fi
         gh release upload "$tag" $artifacts --clobber
-        gh release view "$tag" --web || true
+        echo "Released $tag: https://github.com/asolopovas/wt/releases/tag/$tag"
 
   bump:
     desc: Bump patch version, build, install, verify, and commit
