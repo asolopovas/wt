@@ -193,9 +193,13 @@ func (h *historyPanel) buildRow(e cacheEntry) fyne.CanvasObject {
 	})
 	editStampBtn.Importance = widget.LowImportance
 
+	wrap := func(btn fyne.CanvasObject) fyne.CanvasObject {
+		return container.NewGridWrap(fyne.NewSize(48, 48), btn)
+	}
+
 	var actions *fyne.Container
 	if e.Pending {
-		actions = container.NewHBox(playBtn, transcribeBtn, editStampBtn, deleteBtn)
+		actions = container.NewHBox(wrap(playBtn), wrap(transcribeBtn), wrap(editStampBtn), wrap(deleteBtn))
 	} else {
 		previewBtn := newPointerButtonWithIcon("", theme.VisibilityIcon(), func() {
 			h.transcribe.openPreview(exportItem{
@@ -219,7 +223,7 @@ func (h *historyPanel) buildRow(e cacheEntry) fyne.CanvasObject {
 		})
 		exportBtn.Importance = widget.LowImportance
 
-		actions = container.NewHBox(playBtn, transcribeBtn, editStampBtn, previewBtn, exportBtn, deleteBtn)
+		actions = container.NewHBox(wrap(playBtn), wrap(transcribeBtn), wrap(editStampBtn), wrap(previewBtn), wrap(exportBtn), wrap(deleteBtn))
 	}
 
 	actionBg := canvas.NewRectangle(colSurfLow)

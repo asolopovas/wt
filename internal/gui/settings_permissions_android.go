@@ -33,12 +33,20 @@ func newPermissionsSection() *permissionsSection {
 func (s *permissionsSection) refresh() {
 	s.rows.Objects = nil
 
+	cells := []fyne.CanvasObject{}
 	for _, p := range collectPermissionInfos() {
-		s.rows.Add(s.buildRow(p))
+		cells = append(cells, s.buildRow(p))
 	}
+	cells = append(cells, s.buildBatteryRow(isIgnoringBatteryOptimizations()))
 
-	ignore := isIgnoringBatteryOptimizations()
-	s.rows.Add(s.buildBatteryRow(ignore))
+	for i := 0; i < len(cells); i += 2 {
+		left := cells[i]
+		var right fyne.CanvasObject = canvas.NewRectangle(transparent)
+		if i+1 < len(cells) {
+			right = cells[i+1]
+		}
+		s.rows.Add(container.NewGridWithColumns(2, left, right))
+	}
 
 	s.rows.Refresh()
 	s.container.Refresh()
@@ -52,10 +60,6 @@ func (s *permissionsSection) buildRow(p permissionInfo) fyne.CanvasObject {
 		statusText = "ENABLED"
 	}
 
-	label := canvas.NewText(p.label, colSecondary)
-	label.TextSize = 12
-	label.TextStyle = fyne.TextStyle{Bold: true, Monospace: true}
-
 	desc := widget.NewLabel(p.purpose)
 	desc.TextStyle = fyne.TextStyle{Monospace: true}
 	desc.Wrapping = fyne.TextWrapWord
@@ -63,15 +67,11 @@ func (s *permissionsSection) buildRow(p permissionInfo) fyne.CanvasObject {
 	status := canvas.NewText(statusText, statusColor)
 	status.TextSize = 11
 	status.TextStyle = fyne.TextStyle{Bold: true, Monospace: true}
-	status.Alignment = fyne.TextAlignTrailing
+	status.Alignment = fyne.TextAlignCenter
 
 	id := p.id
 	granted := p.granted
-	btnText := "ENABLE"
-	if granted {
-		btnText = "MANAGE"
-	}
-	btn := newPointerButton(btnText, func() {
+	btn := newPointerButton(p.label, func() {
 		if granted {
 			openAppSettings()
 			return
@@ -88,8 +88,7 @@ func (s *permissionsSection) buildRow(p permissionInfo) fyne.CanvasObject {
 		btn.Importance = widget.HighImportance
 	}
 
-	header := container.NewBorder(nil, nil, label, status)
-	row := container.NewVBox(header, desc, borderedBtn(btn, colOutline))
+	row := container.NewVBox(status, desc, borderedBtn(btn, colOutline))
 	return container.NewPadded(row)
 }
 
@@ -101,10 +100,6 @@ func (s *permissionsSection) buildBatteryRow(ignoring bool) fyne.CanvasObject {
 		statusText = "UNRESTRICTED"
 	}
 
-	label := canvas.NewText("BATTERY", colSecondary)
-	label.TextSize = 12
-	label.TextStyle = fyne.TextStyle{Bold: true, Monospace: true}
-
 	desc := widget.NewLabel("Skip Doze battery limit.")
 	desc.TextStyle = fyne.TextStyle{Monospace: true}
 	desc.Wrapping = fyne.TextWrapWord
@@ -112,9 +107,9 @@ func (s *permissionsSection) buildBatteryRow(ignoring bool) fyne.CanvasObject {
 	status := canvas.NewText(statusText, statusColor)
 	status.TextSize = 11
 	status.TextStyle = fyne.TextStyle{Bold: true, Monospace: true}
-	status.Alignment = fyne.TextAlignTrailing
+	status.Alignment = fyne.TextAlignCenter
 
-	btn := newPointerButton("OPEN SETTINGS", func() {
+	btn := newPointerButton("BATTERY", func() {
 		openBatteryOptimizationSettings()
 	})
 	if ignoring {
@@ -123,7 +118,6 @@ func (s *permissionsSection) buildBatteryRow(ignoring bool) fyne.CanvasObject {
 		btn.Importance = widget.HighImportance
 	}
 
-	header := container.NewBorder(nil, nil, label, status)
-	row := container.NewVBox(header, desc, borderedBtn(btn, colOutline))
+	row := container.NewVBox(status, desc, borderedBtn(btn, colOutline))
 	return container.NewPadded(row)
 }
