@@ -254,6 +254,10 @@ func (p *transcribePanel) onClearLog() {
 	fyne.Do(func() {
 		p.logText.Segments = nil
 		p.logText.Refresh()
+		if p.logMirror != nil {
+			p.logMirror.Segments = nil
+			p.logMirror.Refresh()
+		}
 	})
 }
 
@@ -282,6 +286,14 @@ func (p *transcribePanel) appendLog(msg string) {
 		p.logText.Refresh()
 		if p.autoScroll.Load() {
 			p.logScroll.ScrollToBottom()
+		}
+		if p.logMirror != nil {
+			mseg := &widget.TextSegment{Text: seg.Text, Style: seg.Style}
+			p.logMirror.Segments = append(p.logMirror.Segments, mseg)
+			p.logMirror.Refresh()
+			if p.logMirrorScr != nil && p.autoScroll.Load() {
+				p.logMirrorScr.ScrollToBottom()
+			}
 		}
 	})
 }

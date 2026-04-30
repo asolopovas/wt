@@ -88,14 +88,18 @@ func buildTranscodeTabAndroid(tp *transcribePanel) fyne.CanvasObject {
 	addBtn := newPointerButton("ADD FILES", tp.onBrowse)
 	addBtn.Importance = widget.LowImportance
 
+	cancelBtn := newPointerButton("CANCEL", tp.onCancel)
+	cancelBtn.Importance = widget.DangerImportance
+
 	settingsRow := container.NewGridWithColumns(3,
 		settingsField("MODEL", tp.settings.modelSelect),
 		settingsField("LANGUAGE", tp.settings.langSelect),
 		settingsField("SPEAKERS", tp.settings.speakersSelect),
 	)
 
-	actionRow := container.NewGridWithColumns(1,
+	actionRow := container.NewGridWithColumns(2,
 		borderedBtn(addBtn, colOutline),
+		borderedBtn(cancelBtn, colError),
 	)
 
 	bottomGap := canvas.NewRectangle(transparent)

@@ -37,8 +37,10 @@ type transcribePanel struct {
 	runStart    time.Time
 	timerStop   chan struct{}
 	timerStopMu sync.Mutex
-	logText     *widget.RichText
-	logScroll   *container.Scroll
+	logText      *widget.RichText
+	logScroll    *container.Scroll
+	logMirror    *widget.RichText
+	logMirrorScr *container.Scroll
 	autoScroll  atomic.Bool
 	autoBtn     *pointerButton
 	copyLogBtn  *pointerButton

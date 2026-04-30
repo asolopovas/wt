@@ -86,9 +86,11 @@ func (p *transcribePanel) setRunning(running bool) {
 		p.statusTarget.Store(nil)
 		p.startSmoothUpdates()
 		p.startRunTimer()
+		acquireWakeLock()
 	} else {
 		p.stopSmoothUpdates()
 		p.stopRunTimer()
+		releaseWakeLock()
 	}
 
 	fyne.Do(func() {

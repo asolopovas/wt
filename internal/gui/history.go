@@ -191,7 +191,11 @@ func (h *historyPanel) buildRow(e cacheEntry) fyne.CanvasObject {
 		actions = container.NewHBox(transcribeBtn, editStampBtn, previewBtn, exportBtn, deleteBtn)
 	}
 
-	actionRow := container.NewHBox(layout.NewSpacer(), actions)
+	actionBg := canvas.NewRectangle(colSurfLow)
+	actionRow := container.NewStack(
+		actionBg,
+		container.NewPadded(container.NewHBox(layout.NewSpacer(), actions)),
+	)
 	row := container.NewVBox(info, actionRow)
 
 	rowBg := canvas.NewRectangle(colSurfLow)

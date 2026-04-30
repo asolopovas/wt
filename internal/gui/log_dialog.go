@@ -60,6 +60,8 @@ func (p *transcribePanel) openLogDialog() {
 		}
 	}
 	scroll := container.NewVScroll(rt)
+	p.logMirror = rt
+	p.logMirrorScr = scroll
 
 	cs := p.window.Canvas().Size()
 	const (
@@ -82,6 +84,8 @@ func (p *transcribePanel) openLogDialog() {
 	copyBtn.Importance = widget.HighImportance
 
 	shareBtn := newPointerButtonWithIcon("", theme.MailForwardIcon(), func() {
+		p.logMirror = nil
+		p.logMirrorScr = nil
 		if pop != nil {
 			pop.Hide()
 		}
@@ -90,6 +94,8 @@ func (p *transcribePanel) openLogDialog() {
 	shareBtn.Importance = widget.HighImportance
 
 	closeBtn := newPointerButtonWithIcon("", theme.CancelIcon(), func() {
+		p.logMirror = nil
+		p.logMirrorScr = nil
 		if pop != nil {
 			pop.Hide()
 		}
@@ -103,6 +109,7 @@ func (p *transcribePanel) openLogDialog() {
 
 	body := container.NewBorder(floatRow, nil, nil, nil, scroll)
 
+	bg := canvas.NewRectangle(colSurfLowest)
 	frame := canvas.NewRectangle(transparent)
 	frame.StrokeColor = colDialogBorder
 	frame.StrokeWidth = 1
@@ -114,7 +121,7 @@ func (p *transcribePanel) openLogDialog() {
 	leftPad.SetMinSize(fyne.NewSize(4, 0))
 	rightPad := canvas.NewRectangle(transparent)
 	rightPad.SetMinSize(fyne.NewSize(4, 0))
-	bordered := container.NewStack(frame, container.NewBorder(topPad, bottomPad, leftPad, rightPad, body))
+	bordered := container.NewStack(bg, frame, container.NewBorder(topPad, bottomPad, leftPad, rightPad, body))
 
 	pop = widget.NewModalPopUp(bordered, p.window.Canvas())
 	pop.Resize(fyne.NewSize(w, h))
