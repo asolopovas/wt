@@ -123,12 +123,14 @@ tasks:
             if [ -f "$d/ISCC.exe" ]; then echo "$d/ISCC.exe"; exit 0; fi
           done
           echo ""
+      GIT_DATE:
+        sh: 'if git describe --tags --exact-match HEAD >/dev/null 2>&1; then echo ""; else git log -1 --format=%cd --date=format:%y%m%d 2>/dev/null || echo ""; fi'
     cmds:
       - mkdir -p dist/bin
       # ---- Windows builds ----
       - cmd: 'export PATH="{{.WHISPER_BUILD}}/bin;{{.EXTRA_PATH}};$PATH" && go build -ldflags "-X main.Version={{.VERSION}}" -o dist/bin/{{.BINARY}}.exe ./cmd/wt'
         if: '[ -z "{{.IS_LINUX}}" ] && [ "{{.ONLY}}" != "gui" ]'
-      - cmd: 'export PATH="{{.WHISPER_BUILD}}/bin;{{.EXTRA_PATH}};$PATH" && go build -ldflags "-X main.Version={{.VERSION}} -H windowsgui" -o dist/bin/{{.BINARY}}-gui.exe ./cmd/wt-gui'
+      - cmd: 'export PATH="{{.WHISPER_BUILD}}/bin;{{.EXTRA_PATH}};$PATH" && go build -ldflags "-X main.Version={{.VERSION}} -X main.BuildDate={{.GIT_DATE}} -H windowsgui" -o dist/bin/{{.BINARY}}-gui.exe ./cmd/wt-gui'
         if: '[ -z "{{.IS_LINUX}}" ] && [ "{{.ONLY}}" != "cli" ]'
       - cmd: |
           dlldir="{{.WHISPER_BUILD}}/bin"
@@ -146,7 +148,7 @@ tasks:
           go build -ldflags "-X main.Version={{.VERSION}}" -o dist/bin/{{.BINARY}} ./cmd/wt
         if: '[ -n "{{.IS_LINUX}}" ] && [ "{{.ONLY}}" != "gui" ]'
       - cmd: |
-          go build -ldflags "-X main.Version={{.VERSION}}" -o dist/bin/{{.BINARY}}-gui ./cmd/wt-gui
+          go build -ldflags "-X main.Version={{.VERSION}} -X main.BuildDate={{.GIT_DATE}}" -o dist/bin/{{.BINARY}}-gui ./cmd/wt-gui
         if: '[ -n "{{.IS_LINUX}}" ] && [ "{{.ONLY}}" != "cli" ]'
       - cmd: |
           dest="{{.ROOT_DIR | toSlash}}/dist/bin"
@@ -841,12 +843,26 @@ tasks:
           export ANDROID_HOME="$LOCALAPPDATA/Android/Sdk"
           export ANDROID_NDK_HOME="{{.NDK_ROOT}}"
           unset CGO_CFLAGS CGO_LDFLAGS CGO_LDFLAGS_ALLOW CC
+          if git describe --tags --exact-match HEAD >/dev/null 2>&1; then
+            GIT_DATE=""
+          else
+            GIT_DATE="$(git log -1 --format=%cd --date=format:%y%m%d 2>/dev/null || echo '')"
+          fi
+          cat > cmd/wt-gui/buildinfo_generated.go <<EOF
+          package main
+
+          func init() {
+              Version = "{{.VERSION}}"
+              BuildDate = "$GIT_DATE"
+          }
+          EOF
           fyne package --os android/arm64 \
             --app-id com.asolopovas.wtranscribe \
             --name wt \
             --app-version {{.VERSION}} \
             --icon "{{.ROOT_DIR | toSlash}}/winres/icon.png" \
             --src "{{.ROOT_DIR | toSlash}}/cmd/wt-gui"
+      - defer: rm -f cmd/wt-gui/buildinfo_generated.go
       - cmd: |
           set -e
           apk="cmd/wt-gui/wt.apk"

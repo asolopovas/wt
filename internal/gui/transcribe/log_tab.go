@@ -18,7 +18,8 @@ func BuildLogTab(tp *Panel) fyne.CanvasObject {
 	} else {
 		shareBtn := newPointerButtonWithIcon("", theme.MailForwardIcon(), tp.onShareLog)
 		shareBtn.Importance = widget.LowImportance
-		panel = buildLogPanel(tp.LogEntry, tp.StatsLine, tp.CopyLogBtn, tp.ClearLogBtn, tp.AutoBtn, shareBtn)
+		panel = buildLogPanel(tp.LogEntry, nil, tp.CopyLogBtn, tp.ClearLogBtn, tp.AutoBtn, shareBtn)
 	}
-	return container.NewBorder(nil, decor.VGap(spaceXXL*2), nil, nil, panel)
+	footer := container.NewPadded(container.NewCenter(tp.StatsFooter))
+	return container.NewBorder(nil, container.NewVBox(footer, decor.VGap(spaceLG)), nil, nil, panel)
 }

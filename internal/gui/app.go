@@ -15,7 +15,7 @@ import (
 	"github.com/asolopovas/wt/internal/gui/transcribe"
 )
 
-func Run(version string) error {
+func Run(version, buildDate string) error {
 	cfg, _ := shared.Load()
 
 	a := app.New()
@@ -46,7 +46,7 @@ func Run(version string) error {
 
 	transcodeTab := buildTranscodeTab(tp, settings)
 	logTab := transcribe.BuildLogTab(tp)
-	settingsTab := buildSettingsTab(settings, deviceInfo, version)
+	settingsTab := buildSettingsTab(settings, deviceInfo, versionLabel(version, buildDate))
 
 	tabs := container.NewAppTabs(
 		container.NewTabItemWithIcon("TRANSCODE", theme.MediaRecordIcon(), transcodeTab),

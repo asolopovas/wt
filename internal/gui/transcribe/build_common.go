@@ -25,6 +25,7 @@ func (p *Panel) buildSharedControls() {
 	p.TimerText.Alignment = fyne.TextAlignTrailing
 
 	p.StatsLine = container.NewHBox()
+	p.StatsFooter = container.NewHBox()
 
 	p.LogEntry = widget.NewMultiLineEntry()
 	p.LogEntry.TextStyle = fyne.TextStyle{Monospace: true}

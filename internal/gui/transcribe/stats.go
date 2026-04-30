@@ -11,8 +11,9 @@ import (
 )
 
 type statSegment struct {
-	icon *fyne.StaticResource
-	text string
+	icon    *fyne.StaticResource
+	compact string
+	verbose string
 }
 
 func (p *Panel) startStats() {
@@ -26,6 +27,20 @@ func (p *Panel) startStats() {
 	}()
 }
 
+func memPct(used, total int) int {
+	if total <= 0 {
+		return -1
+	}
+	pct := used * 100 / total
+	if pct < 0 {
+		pct = 0
+	}
+	if pct > 100 {
+		pct = 100
+	}
+	return pct
+}
+
 func (p *Panel) collectStats() []statSegment {
 	segs := make([]statSegment, 0, 3)
 
@@ -34,13 +49,15 @@ func (p *Panel) collectStats() []statSegment {
 		cpu = sysstats.ProcessCPU()
 	}
 	if cpu >= 0 {
-		segs = append(segs, statSegment{icon: assets.CPUIcon, text: fmt.Sprintf("%d%%", cpu)})
+		txt := fmt.Sprintf("%d%%", cpu)
+		segs = append(segs, statSegment{icon: assets.CPUIcon, compact: txt, verbose: txt})
 	}
 
 	if used, total := sysstats.MemUsageMB(); used >= 0 && total > 0 {
 		segs = append(segs, statSegment{
-			icon: assets.RAMIcon,
-			text: fmt.Sprintf("%s / %s", sysstats.FormatMB(int64(used)), sysstats.FormatMB(int64(total))),
+			icon:    assets.RAMIcon,
+			compact: fmt.Sprintf("%d%%", memPct(used, total)),
+			verbose: fmt.Sprintf("%s / %s", sysstats.FormatMB(int64(used)), sysstats.FormatMB(int64(total))),
 		})
 	}
 
@@ -50,11 +67,13 @@ func (p *Panel) collectStats() []statSegment {
 	}
 	if gpuUsed >= 0 && gpuTotal > 0 {
 		segs = append(segs, statSegment{
-			icon: assets.GPUIcon,
-			text: fmt.Sprintf("%s / %s", sysstats.FormatMB(int64(gpuUsed)), sysstats.FormatMB(int64(gpuTotal))),
+			icon:    assets.GPUIcon,
+			compact: fmt.Sprintf("%d%%", memPct(gpuUsed, gpuTotal)),
+			verbose: fmt.Sprintf("%s / %s", sysstats.FormatMB(int64(gpuUsed)), sysstats.FormatMB(int64(gpuTotal))),
 		})
 	} else if gpuUtil >= 0 {
-		segs = append(segs, statSegment{icon: assets.GPUIcon, text: fmt.Sprintf("%d%%", gpuUtil)})
+		txt := fmt.Sprintf("%d%%", gpuUtil)
+		segs = append(segs, statSegment{icon: assets.GPUIcon, compact: txt, verbose: txt})
 	}
 
 	return segs

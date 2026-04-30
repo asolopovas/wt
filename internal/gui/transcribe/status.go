@@ -61,29 +61,43 @@ func (p *Panel) stopRunTimer() {
 	}
 }
 
+func renderStatsRow(segs []statSegment, verbose bool) []fyne.CanvasObject {
+	objs := make([]fyne.CanvasObject, 0, len(segs)*3)
+	for i, s := range segs {
+		if i > 0 {
+			sep := canvas.NewText(" | ", colMuted)
+			sep.TextSize = textBody
+			sep.TextStyle = fyne.TextStyle{Monospace: true}
+			objs = append(objs, container.NewCenter(sep))
+		}
+		if s.icon != nil {
+			ic := canvas.NewImageFromResource(s.icon)
+			ic.FillMode = canvas.ImageFillContain
+			ic.SetMinSize(fyne.NewSize(textBody+spaceSM, textBody+spaceSM))
+			objs = append(objs, container.NewCenter(ic))
+		}
+		text := s.compact
+		if verbose {
+			text = s.verbose
+		}
+		t := canvas.NewText(text, colMuted)
+		t.TextSize = textBody
+		t.TextStyle = fyne.TextStyle{Monospace: true}
+		objs = append(objs, container.NewCenter(t))
+	}
+	return objs
+}
+
 func (p *Panel) setStats(segs []statSegment) {
 	fyne.Do(func() {
-		objs := make([]fyne.CanvasObject, 0, len(segs)*3)
-		for i, s := range segs {
-			if i > 0 {
-				sep := canvas.NewText(" | ", colMuted)
-				sep.TextSize = textBody
-				sep.TextStyle = fyne.TextStyle{Monospace: true}
-				objs = append(objs, sep)
-			}
-			if s.icon != nil {
-				ic := canvas.NewImageFromResource(s.icon)
-				ic.FillMode = canvas.ImageFillContain
-				ic.SetMinSize(fyne.NewSize(textBody+spaceSM, textBody+spaceSM))
-				objs = append(objs, container.NewCenter(ic))
-			}
-			t := canvas.NewText(s.text, colMuted)
-			t.TextSize = textBody
-			t.TextStyle = fyne.TextStyle{Monospace: true}
-			objs = append(objs, container.NewCenter(t))
+		if p.StatsLine != nil {
+			p.StatsLine.Objects = renderStatsRow(segs, false)
+			p.StatsLine.Refresh()
 		}
-		p.StatsLine.Objects = objs
-		p.StatsLine.Refresh()
+		if p.StatsFooter != nil {
+			p.StatsFooter.Objects = renderStatsRow(segs, true)
+			p.StatsFooter.Refresh()
+		}
 	})
 }
 

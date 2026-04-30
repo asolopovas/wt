@@ -19,7 +19,7 @@ import (
 	"github.com/asolopovas/wt/internal/gui/transcribe"
 )
 
-func Run(version string) error {
+func Run(version, buildDate string) error {
 	cfg, _ := shared.Load()
 
 	a := app.New()
@@ -53,7 +53,7 @@ func Run(version string) error {
 
 	transcodeTab := buildTranscodeTabAndroid(tp, settings)
 	logTab := transcribe.BuildLogTab(tp)
-	settingsTab := buildSettingsTab(settings, deviceInfo, version)
+	settingsTab := buildSettingsTab(settings, deviceInfo, versionLabel(version, buildDate))
 
 	if missing := platsvc.MissingPermissions(); len(missing) > 0 {
 		go func(p []string) {
