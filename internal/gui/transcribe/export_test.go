@@ -92,3 +92,82 @@ func TestWriteExport_UnknownFormat(t *testing.T) {
 		t.Fatal("expected error for unknown format")
 	}
 }
+
+func TestWriteExport_JSONPath(t *testing.T) {
+	tr := &transcriber.Transcript{
+		Model:    "tiny",
+		Language: "en",
+		Utterances: []transcriber.Utterance{
+			{Start: 0, End: 1000, Speaker: "A", Text: "hi"},
+		},
+	}
+	var buf bytes.Buffer
+	if err := writeExport(&buf, tr, exportFormat{ext: "json"}, time.Now()); err != nil {
+		t.Fatalf("writeExport: %v", err)
+	}
+	if !strings.Contains(buf.String(), `"model": "tiny"`) {
+		t.Errorf("output missing model field: %q", buf.String())
+	}
+	if !strings.Contains(buf.String(), `"language": "en"`) {
+		t.Errorf("output missing language field")
+	}
+}
+
+func TestPanelRenamedTranscript_NoOp(t *testing.T) {
+	p := &Panel{}
+	tr := &transcriber.Transcript{
+		Utterances: []transcriber.Utterance{{Speaker: "SPEAKER_01", Text: "x"}},
+	}
+	got := p.renamedTranscript(tr)
+	if got != tr {
+		t.Error("no renames: should return same pointer (no copy)")
+	}
+}
+
+func TestPanelRenamedTranscript_Renames(t *testing.T) {
+	p := &Panel{speakerRenames: map[string]string{"SPEAKER_01": "Alice"}}
+	tr := &transcriber.Transcript{
+		Utterances: []transcriber.Utterance{
+			{Speaker: "SPEAKER_01", Text: "hi"},
+			{Speaker: "SPEAKER_02", Text: "yo"},
+		},
+		Words: []transcriber.Word{
+			{Speaker: "SPEAKER_01", Text: "hi"},
+		},
+	}
+	got := p.renamedTranscript(tr)
+	if got == tr {
+		t.Error("expected new transcript pointer, got same")
+	}
+	if got.Utterances[0].Speaker != "Alice" {
+		t.Errorf("utterance speaker not renamed: %q", got.Utterances[0].Speaker)
+	}
+	if got.Utterances[1].Speaker != "SPEAKER_02" {
+		t.Errorf("unrelated speaker should be untouched: %q", got.Utterances[1].Speaker)
+	}
+	if got.Words[0].Speaker != "Alice" {
+		t.Errorf("word speaker not renamed: %q", got.Words[0].Speaker)
+	}
+	if tr.Utterances[0].Speaker != "SPEAKER_01" {
+		t.Error("input transcript should not be mutated")
+	}
+}
+
+func TestItemStartTime_PrefersRecordedAt(t *testing.T) {
+	when := time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)
+	item := ExportItem{RecordedAt: when, SourcePath: "/nonexistent/audio.wav"}
+	got := itemStartTime(item)
+	if !got.Equal(when) {
+		t.Errorf("got %v, want %v", got, when)
+	}
+}
+
+func TestItemStartTime_FallsBackToNow(t *testing.T) {
+	item := ExportItem{SourcePath: "/nonexistent/audio.wav"}
+	before := time.Now()
+	got := itemStartTime(item)
+	after := time.Now()
+	if got.Before(before) || got.After(after) {
+		t.Errorf("expected fallback to time.Now(), got %v (range %v–%v)", got, before, after)
+	}
+}
