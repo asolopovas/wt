@@ -1,0 +1,30 @@
+{
+  "folders": [
+    { "path": "." }
+  ],
+  "settings": {
+    "go.toolsEnvVars": {
+      "GOOS": "android",
+      "GOARCH": "arm64",
+      "CGO_ENABLED": "1",
+      "CC": "${env:LOCALAPPDATA}/Android/Sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/windows-x86_64/bin/aarch64-linux-android28-clang.cmd",
+      "CGO_CFLAGS": "--sysroot=${env:LOCALAPPDATA}/Android/Sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/windows-x86_64/sysroot",
+      "CGO_LDFLAGS": "--sysroot=${env:LOCALAPPDATA}/Android/Sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/windows-x86_64/sysroot -L${env:LOCALAPPDATA}/Android/Sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/windows-x86_64/sysroot/usr/lib/aarch64-linux-android/28"
+    },
+    "gopls": {
+      "build.env": {
+        "GOOS": "android",
+        "GOARCH": "arm64",
+        "CGO_ENABLED": "1",
+        "CC": "${env:LOCALAPPDATA}/Android/Sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/windows-x86_64/bin/aarch64-linux-android28-clang.cmd",
+        "CGO_CFLAGS": "--sysroot=${env:LOCALAPPDATA}/Android/Sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/windows-x86_64/sysroot",
+        "CGO_LDFLAGS": "--sysroot=${env:LOCALAPPDATA}/Android/Sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/windows-x86_64/sysroot -L${env:LOCALAPPDATA}/Android/Sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/windows-x86_64/sysroot/usr/lib/aarch64-linux-android/28"
+      },
+      "build.directoryFilters": [
+        "-third_party",
+        "-dist",
+        "-bindings"
+      ]
+    }
+  }
+}

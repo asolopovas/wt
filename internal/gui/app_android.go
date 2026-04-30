@@ -53,7 +53,7 @@ func Run(version string) error {
 
 	transcodeTab := buildTranscodeTabAndroid(tp, settings)
 	logTab := transcribe.BuildLogTab(tp)
-	settingsTab := buildSettingsTab(settings, deviceInfo)
+	settingsTab := buildSettingsTab(settings, deviceInfo, version)
 
 	if missing := platsvc.MissingPermissions(); len(missing) > 0 {
 		go func(p []string) {
@@ -153,14 +153,17 @@ func inlineField(label string, w fyne.CanvasObject) fyne.CanvasObject {
 	return container.NewBorder(nil, nil, left, nil, w)
 }
 
-func buildSettingsTab(sp *settingsPanel, deviceInfo string) fyne.CanvasObject {
+func buildSettingsTab(sp *settingsPanel, deviceInfo, version string) fyne.CanvasObject {
 	settingsGrid := container.NewVBox(
 		inlineField("DEVICE", sp.deviceSelect),
 		inlineField("THREADS", sp.threadsSelect),
 		inlineField("CACHE EXPIRY", sp.expirySelect),
 	)
 
-	header := decor.NewPanelHeader(newCaptionText("SETTINGS"))
+	versionLabel := canvas.NewText(version, decor.TextMuted)
+	versionLabel.TextSize = textCaption
+	versionLabel.TextStyle = decor.MonoBoldStyle
+	header := decor.NewPanelHeader(newCaptionText("SETTINGS"), versionLabel)
 
 	_ = deviceInfo
 	statsBlock := container.NewVBox()

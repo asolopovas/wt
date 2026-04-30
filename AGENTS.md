@@ -20,8 +20,10 @@ task test                # go test -v ./...
 task test-unit           # -short, no CGo/model
 task test-integration    # go test -tags=integration ./internal/diarizer/... (downloads sherpa sample wavs on demand)
 task fetch-samples       # Pre-stage diarization samples + VoxConverse RTTMs into samples/diarization/ (gitignored)
-task lint                # golangci-lint (scoped to ./cmd/... ./internal/...)
+task lint                # golangci-lint windows pass + chained vet-android pass
+task lint-android        # golangci-lint with GOOS=android GOARCH=arm64 + NDK sysroot
 task vet                 # go vet with proper CGo env
+task vet-android         # go vet with android tag + NDK toolchain (covers _android.go)
 task fmt                 # gofumpt -w
 task clean-comments      # Strip non-directive comments
 task bump                # Auto-increment version, build, install, verify, commit (local only)
@@ -51,7 +53,7 @@ Requires Go 1.26+, GCC/MinGW, CMake, ffmpeg, [Task](https://taskfile.dev/). CGo 
 - **IMPORTANT:** never commit unless explicitly instructed.
 - **IMPORTANT:** never launch the GUI. If you do by accident, `taskkill /F /IM wt-gui.exe` immediately.
 - Bump the version unless the user types "bump" (use `task bump`, scheme `1.0.0 → 1.0.9 → 1.1.0`).
-- Re-add `-tags=android` to `.vscode/settings.json` gopls flags (NDK headers cascade fake `C.xxx` errors on Windows).
+- Re-add `-tags=android` to `.vscode/settings.json` gopls flags (NDK headers cascade fake `C.xxx` errors on Windows). For editing android-tagged Go in the IDE, open `wt-android.code-workspace` in a separate window — it pins gopls to GOOS=android with NDK sysroot. Lint coverage for android files comes from `task lint` (chains `vet-android`) and `task lint-android`, not from the editor.
 - Re-scope lint to `./...` (picks up vendored cgo bindings that won't compile standalone).
 - Re-run `scripts/diar_sweep.py` to retune diarization (slow; winning params already chosen — see below).
 - Add skip-on-missing-model tests.

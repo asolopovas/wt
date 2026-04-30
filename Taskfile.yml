@@ -631,6 +631,56 @@ tasks:
             echo "golangci-lint not found, falling back to go vet"
             go vet ./cmd/... ./internal/...
           fi
+      - task: vet-android
+
+  vet-android:
+    desc: go vet for android-tagged files (covers _android.go that the windows lint pass skips)
+    vars:
+      NDK_ROOT:
+        sh: echo "$LOCALAPPDATA/Android/Sdk/ndk/27.2.12479018"
+      NDK_TOOLCHAIN:
+        sh: echo "$LOCALAPPDATA/Android/Sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/windows-x86_64"
+      ANDROID_SYSROOT: '{{.NDK_TOOLCHAIN}}/sysroot'
+      ANDROID_CC: '{{.NDK_TOOLCHAIN}}/bin/aarch64-linux-android28-clang'
+    cmds:
+      - cmd: |
+          if [ ! -d "{{.NDK_ROOT}}" ]; then
+            echo "NDK not found at {{.NDK_ROOT}} — skipping android vet"
+            exit 0
+          fi
+          export GOOS=android GOARCH=arm64 CGO_ENABLED=1
+          export CC="{{.ANDROID_CC}}"
+          export CGO_CFLAGS="--sysroot={{.ANDROID_SYSROOT}} -I{{.ANDROID_SYSROOT}}/usr/include"
+          export CGO_LDFLAGS="--sysroot={{.ANDROID_SYSROOT}} -L{{.ANDROID_SYSROOT}}/usr/lib/aarch64-linux-android/28"
+          export CGO_LDFLAGS_ALLOW='.*'
+          go vet ./cmd/wt-gui/... ./cmd/wt-test/... ./internal/...
+
+  lint-android:
+    desc: golangci-lint for android-tagged files (uses NDK toolchain)
+    vars:
+      NDK_ROOT:
+        sh: echo "$LOCALAPPDATA/Android/Sdk/ndk/27.2.12479018"
+      NDK_TOOLCHAIN:
+        sh: echo "$LOCALAPPDATA/Android/Sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/windows-x86_64"
+      ANDROID_SYSROOT: '{{.NDK_TOOLCHAIN}}/sysroot'
+      ANDROID_CC: '{{.NDK_TOOLCHAIN}}/bin/aarch64-linux-android28-clang'
+    cmds:
+      - cmd: |
+          if [ ! -d "{{.NDK_ROOT}}" ]; then
+            echo "NDK not found at {{.NDK_ROOT}} — skipping android lint"
+            exit 0
+          fi
+          export GOOS=android GOARCH=arm64 CGO_ENABLED=1
+          export CC="{{.ANDROID_CC}}"
+          export CGO_CFLAGS="--sysroot={{.ANDROID_SYSROOT}} -I{{.ANDROID_SYSROOT}}/usr/include"
+          export CGO_LDFLAGS="--sysroot={{.ANDROID_SYSROOT}} -L{{.ANDROID_SYSROOT}}/usr/lib/aarch64-linux-android/28"
+          export CGO_LDFLAGS_ALLOW='.*'
+          if command -v golangci-lint >/dev/null 2>&1; then
+            golangci-lint run ./cmd/wt-gui/... ./cmd/wt-test/... ./internal/...
+          else
+            echo "golangci-lint not found, falling back to go vet"
+            go vet ./cmd/wt-gui/... ./cmd/wt-test/... ./internal/...
+          fi
 
   fmt:
     desc: Run gofumpt (falls back to gofmt)
