@@ -109,9 +109,13 @@ func (h *historyPanel) buildRow(e cache.Entry) fyne.CanvasObject {
 	actions := container.NewHBox()
 
 	if e.Pending {
-		spinner := widget.NewActivity()
-		spinner.Start()
-		actions.Add(wrap(container.NewCenter(spinner)))
+		if h.transcribe != nil && h.transcribe.IsActivePath(e.SourcePath) {
+			spinner := widget.NewActivity()
+			spinner.Start()
+			actions.Add(wrap(container.NewCenter(spinner)))
+		} else {
+			actions.Add(wrap(container.NewCenter(canvas.NewText("…", colMuted))))
+		}
 	} else {
 		playBtn := newPointerButtonWithIcon("", playIconResource, nil)
 		playBtn.Importance = widget.LowImportance

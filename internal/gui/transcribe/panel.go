@@ -83,6 +83,24 @@ type Panel struct {
 
 	progBase  float64
 	progSlice float64
+
+	activePath atomic.Pointer[string]
+}
+
+func (p *Panel) setActivePath(path string) {
+	if path == "" {
+		p.activePath.Store(nil)
+	} else {
+		p.activePath.Store(&path)
+	}
+	if p.History != nil {
+		p.History.Refresh()
+	}
+}
+
+func (p *Panel) IsActivePath(path string) bool {
+	cur := p.activePath.Load()
+	return cur != nil && *cur == path
 }
 
 func (p *Panel) setLocalProgress(local float64) {

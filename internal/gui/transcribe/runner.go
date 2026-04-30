@@ -186,9 +186,11 @@ func (p *Panel) runTranscription(files []string) {
 		p.setLocalProgress(0)
 		p.AppendLog(fmt.Sprintf("[%d/%d] %s", i+1, total, filename))
 		p.setChipProcessing(filename, true)
+		p.setActivePath(path)
 
 		err := p.transcribeFile(model, path, modelSize, deviceLabel, language, threads, speakers, noDiarize)
 		p.setChipProcessing(filename, false)
+		p.setActivePath("")
 		if err != nil {
 			if p.cancelled.Load() {
 				p.AppendLog("Cancelled by user.")
