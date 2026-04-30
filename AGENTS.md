@@ -18,6 +18,8 @@ task check               # Verify toolchain
 task clean               # dist/ + samples/*.json (DEEP=1 also clears whisper.cpp build)
 task test                # go test -v ./...
 task test-unit           # -short, no CGo/model
+task test-integration    # go test -tags=integration ./internal/diarizer/... (downloads sherpa sample wavs on demand)
+task fetch-samples       # Pre-stage diarization samples + VoxConverse RTTMs into samples/diarization/ (gitignored)
 task lint                # golangci-lint (scoped to ./cmd/... ./internal/...)
 task vet                 # go vet with proper CGo env
 task fmt                 # gofumpt -w
@@ -105,6 +107,12 @@ Module: `github.com/asolopovas/wt` (Go 1.26). Key deps: `fyne.io/fyne/v2`, `pter
 
 stdlib `testing` only. Names: `Test<Function>_<Scenario>`, prefer table-driven.
 Config tests: `t.TempDir()` + `t.Setenv("HOME", ...)`. CI runs `go vet`, `golangci-lint`, and full `go test` on Linux.
+
+Diarization integration tests live behind `//go:build integration` (`task test-integration`). They use `getSherpaSample` to lazy-download sherpa-onnx clips into `samples/diarization/sherpa/` (gitignored) on first run. Use `-short` to skip the download.
+
+## Config env vars
+
+`shared.Load()` applies `WT_*` overrides after YAML parse: `WT_MODEL`, `WT_LANGUAGE`, `WT_DEVICE`, `WT_THREADS`, `WT_SPEAKERS`, `WT_NO_DIARIZE`, `WT_TDRZ`, `WT_CACHE_EXPIRY_DAYS`. Booleans accept `1/true/yes/on` and `0/false/no/off` (case-insensitive). Invalid values are silently ignored — a typo cannot flip a flag.
 
 ## Diarization
 
