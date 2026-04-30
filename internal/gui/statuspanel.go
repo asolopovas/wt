@@ -1,27 +1,14 @@
 package gui
 
 import (
-	"fmt"
 	"strings"
 	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/widget"
-)
 
-func formatRunDuration(d time.Duration) string {
-	if d < 0 {
-		d = 0
-	}
-	total := int(d / time.Second)
-	h := total / 3600
-	m := (total % 3600) / 60
-	s := total % 60
-	if h > 0 {
-		return fmt.Sprintf("%d:%02d:%02d", h, m, s)
-	}
-	return fmt.Sprintf("%d:%02d", m, s)
-}
+	"github.com/asolopovas/wt/internal/transcriber"
+)
 
 func (p *transcribePanel) startRunTimer() {
 	p.timerStopMu.Lock()
@@ -44,7 +31,7 @@ func (p *transcribePanel) startRunTimer() {
 			case <-stop:
 				return
 			case <-ticker.C:
-				txt := formatRunDuration(time.Since(p.runStart))
+				txt := transcriber.FormatHMS(time.Since(p.runStart))
 				fyne.Do(func() {
 					p.timerText.Text = txt
 					p.timerText.Refresh()
@@ -63,7 +50,7 @@ func (p *transcribePanel) stopRunTimer() {
 		close(stop)
 	}
 	if !p.runStart.IsZero() {
-		final := formatRunDuration(time.Since(p.runStart))
+		final := transcriber.FormatHMS(time.Since(p.runStart))
 		fyne.Do(func() {
 			p.timerText.Text = final
 			p.timerText.Refresh()

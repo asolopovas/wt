@@ -14,13 +14,6 @@ var appIcon = &fyne.StaticResource{
 	StaticContent: appIconData,
 }
 
-//go:embed icon_transcribe.svg
-var transcribeIconData []byte
-var transcribeIconResource = &fyne.StaticResource{
-	StaticName:    "icon_transcribe.svg",
-	StaticContent: transcribeIconData,
-}
-
 //go:embed icon_mic.svg
 var micIconData []byte
 var micIconResource = &fyne.StaticResource{

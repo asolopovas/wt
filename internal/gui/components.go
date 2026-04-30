@@ -49,16 +49,13 @@ func newSectionHeader(label string) fyne.CanvasObject {
 	t := canvas.NewText(label, colMuted)
 	t.TextSize = textCaption
 	t.TextStyle = fyne.TextStyle{Monospace: true, Bold: true}
-	gap := canvas.NewRectangle(transparent)
-	gap.SetMinSize(fyne.NewSize(0, spaceXS))
-	return container.NewVBox(t, gap)
+	return container.NewVBox(t, vGap(spaceXS))
 }
 
 func newSectionDivider() fyne.CanvasObject {
 	line := canvas.NewRectangle(borderSubtle)
 	line.SetMinSize(fyne.NewSize(0, 1))
-	pad := canvas.NewRectangle(transparent)
-	pad.SetMinSize(fyne.NewSize(0, spaceMD))
+	pad := vGap(spaceMD)
 	return container.NewVBox(pad, line, pad)
 }
 
@@ -81,6 +78,18 @@ func newPanelBackground() *canvas.Rectangle {
 	bg.StrokeColor = borderSubtle
 	bg.StrokeWidth = 1
 	return bg
+}
+
+func vGap(h float32) fyne.CanvasObject {
+	r := canvas.NewRectangle(transparent)
+	r.SetMinSize(fyne.NewSize(0, h))
+	return r
+}
+
+func hGap(w float32) fyne.CanvasObject {
+	r := canvas.NewRectangle(transparent)
+	r.SetMinSize(fyne.NewSize(w, 0))
+	return r
 }
 
 type dialogAction struct {
@@ -136,17 +145,15 @@ func showDialog(cfg dialogConfig) func() {
 		actionObjs = append(actionObjs, wrapAction(btn))
 	}
 
-	bottomGap := canvas.NewRectangle(transparent)
-	bottomGap.SetMinSize(fyne.NewSize(0, previewBottomInset()))
-	var bottom fyne.CanvasObject = bottomGap
+	bottomGap := vGap(previewBottomInset())
+	bottom := bottomGap
 	if len(actionObjs) > 0 {
 		row := container.NewGridWithColumns(len(actionObjs), actionObjs...)
 		bottom = container.NewVBox(row, bottomGap)
 	}
 
-	topGap := canvas.NewRectangle(transparent)
-	topGap.SetMinSize(fyne.NewSize(0, previewTopInset()))
-	var top fyne.CanvasObject = topGap
+	topGap := vGap(previewTopInset())
+	top := topGap
 	if cfg.Title != "" {
 		top = container.NewVBox(topGap, container.NewHBox(newSectionHeader(cfg.Title)))
 	}

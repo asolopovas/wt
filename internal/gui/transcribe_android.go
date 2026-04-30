@@ -13,8 +13,6 @@ import (
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/storage"
-	"fyne.io/fyne/v2/theme"
-	"fyne.io/fyne/v2/widget"
 
 	shared "github.com/asolopovas/wt/internal"
 )
@@ -36,72 +34,9 @@ func (p *transcribePanel) build() {
 	p.libraryHost = container.NewStack()
 	p.dropArea = container.NewStack(newPanelBackground(), container.NewPadded(p.libraryHost))
 
-	p.clearBtn = newPointerButton("CLEAR ALL", p.onClear)
-	p.clearCacheBtn = newPointerButton("CLEAR CACHE", p.onClearCache)
-	p.transcribeBtn = newPrimaryButton("TRANSCRIBE", p.onTranscribe)
-
-	p.progress = newThinProgress()
-
-	p.statusText = canvas.NewText("READY", colMuted)
-	p.statusText.TextSize = textBody
-	p.statusText.TextStyle = fyne.TextStyle{Monospace: true, Bold: true}
-
-	p.timerText = canvas.NewText("", colMuted)
-	p.timerText.TextSize = textBody
-	p.timerText.TextStyle = fyne.TextStyle{Monospace: true, Bold: true}
-	p.timerText.Alignment = fyne.TextAlignTrailing
-
-	p.statsLine = widget.NewLabel("")
-	p.statsLine.TextStyle = fyne.TextStyle{Monospace: true}
-
-	p.logEntry = widget.NewMultiLineEntry()
-	p.logEntry.TextStyle = fyne.TextStyle{Monospace: true}
-	p.logEntry.Wrapping = fyne.TextWrapWord
-	p.logEntry.Disable()
-
-	p.copyLogBtn = newPointerButtonWithIcon("", theme.ContentCopyIcon(), p.onCopyLog)
-	p.copyLogBtn.Importance = widget.LowImportance
-
-	p.clearLogBtn = newPointerButtonWithIcon("", theme.HistoryIcon(), p.onClearLog)
-	p.clearLogBtn.Importance = widget.LowImportance
-
-	p.autoScroll.Store(true)
-	p.autoBtn = newPointerButtonWithIcon("", theme.MoveDownIcon(), nil)
-	p.autoBtn.Importance = widget.HighImportance
-	p.autoBtn.OnTapped = p.toggleAutoScroll
-
-	appendLogInit(p)
+	p.buildSharedControls()
 
 	p.container = p.dropArea
-}
-
-func (p *transcribePanel) buildFilesTab() fyne.CanvasObject {
-	addBtn := newPrimaryButton("ADD FILES", p.onBrowse)
-	clearBtn := newSecondaryButton("CLEAR ALL", func() {
-		p.files = nil
-		p.rebuildChips()
-		p.updateDropLabel()
-	})
-
-	btnRow := container.NewGridWithColumns(2,
-		wrapAction(addBtn),
-		wrapAction(clearBtn),
-	)
-
-	filesLabel := newCaptionText("SELECTED FILES")
-
-	chipsScroll := container.NewVScroll(container.NewVBox(p.fileChips, p.dropText))
-
-	filesInner := container.NewBorder(filesLabel, nil, nil, nil, chipsScroll)
-	filesPanel := container.NewStack(newPanelBackground(), container.NewPadded(filesInner))
-
-	bottomGap := canvas.NewRectangle(transparent)
-	bottomGap.SetMinSize(fyne.NewSize(0, spaceMD))
-
-	return container.NewBorder(
-		nil, container.NewVBox(btnRow, bottomGap), nil, nil,
-		filesPanel,
-	)
 }
 
 func (p *transcribePanel) onBrowse() {

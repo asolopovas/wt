@@ -56,16 +56,11 @@ func dialogBordered(content fyne.CanvasObject) fyne.CanvasObject {
 	frame.StrokeColor = borderStrong
 	frame.StrokeWidth = 1
 
-	top := canvas.NewRectangle(transparent)
-	top.SetMinSize(fyne.NewSize(0, spaceXL))
-	bottom := canvas.NewRectangle(transparent)
-	bottom.SetMinSize(fyne.NewSize(0, spaceXL))
-	left := canvas.NewRectangle(transparent)
-	left.SetMinSize(fyne.NewSize(spaceXL, 0))
-	right := canvas.NewRectangle(transparent)
-	right.SetMinSize(fyne.NewSize(spaceXL, 0))
-
-	inner := container.NewBorder(top, bottom, left, right, content)
+	inner := container.NewBorder(
+		vGap(spaceXL), vGap(spaceXL),
+		hGap(spaceXL), hGap(spaceXL),
+		content,
+	)
 	return container.NewStack(frame, inner)
 }
 

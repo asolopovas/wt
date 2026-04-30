@@ -16,15 +16,12 @@ type permissionsSection struct {
 
 func newPermissionsSection() *permissionsSection {
 	header := canvas.NewText("PERMISSIONS", colMuted)
-	header.TextSize = 12
+	header.TextSize = textLabel
 	header.TextStyle = fyne.TextStyle{Bold: true}
 	header.Alignment = fyne.TextAlignCenter
 
-	gap := canvas.NewRectangle(transparent)
-	gap.SetMinSize(fyne.NewSize(0, 8))
-
 	rows := container.NewVBox()
-	root := container.NewVBox(header, gap, rows)
+	root := container.NewVBox(header, vGap(spaceLG), rows)
 	s := &permissionsSection{container: root, rows: rows}
 	s.refresh()
 	return s
@@ -65,7 +62,7 @@ func (s *permissionsSection) buildRow(p permissionInfo) fyne.CanvasObject {
 	desc.Wrapping = fyne.TextWrapWord
 
 	status := canvas.NewText(statusText, statusColor)
-	status.TextSize = 11
+	status.TextSize = textBody
 	status.TextStyle = fyne.TextStyle{Bold: true, Monospace: true}
 	status.Alignment = fyne.TextAlignCenter
 
@@ -88,7 +85,7 @@ func (s *permissionsSection) buildRow(p permissionInfo) fyne.CanvasObject {
 		btn.Importance = widget.HighImportance
 	}
 
-	row := container.NewVBox(status, desc, borderedBtn(btn, colOutline))
+	row := container.NewVBox(status, desc, wrapAction(btn))
 	return container.NewPadded(row)
 }
 
@@ -105,7 +102,7 @@ func (s *permissionsSection) buildBatteryRow(ignoring bool) fyne.CanvasObject {
 	desc.Wrapping = fyne.TextWrapWord
 
 	status := canvas.NewText(statusText, statusColor)
-	status.TextSize = 11
+	status.TextSize = textBody
 	status.TextStyle = fyne.TextStyle{Bold: true, Monospace: true}
 	status.Alignment = fyne.TextAlignCenter
 
@@ -118,6 +115,6 @@ func (s *permissionsSection) buildBatteryRow(ignoring bool) fyne.CanvasObject {
 		btn.Importance = widget.HighImportance
 	}
 
-	row := container.NewVBox(status, desc, borderedBtn(btn, colOutline))
+	row := container.NewVBox(status, desc, wrapAction(btn))
 	return container.NewPadded(row)
 }

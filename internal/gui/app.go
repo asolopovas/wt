@@ -111,12 +111,9 @@ func buildSettingsTab(sp *settingsPanel, deviceInfo string) fyne.CanvasObject {
 	deviceLabel.TextSize = textBody
 	deviceLabel.TextStyle = fyne.TextStyle{Monospace: true}
 
-	gap := canvas.NewRectangle(transparent)
-	gap.SetMinSize(fyne.NewSize(0, spaceXL))
-
 	return container.NewBorder(
 		nil,
-		container.NewVBox(gap, deviceHeader, deviceLabel),
+		container.NewVBox(vGap(spaceXL), deviceHeader, deviceLabel),
 		nil, nil,
 		sp.container,
 	)

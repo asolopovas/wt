@@ -124,15 +124,12 @@ func buildTranscodeTabAndroid(tp *transcribePanel) fyne.CanvasObject {
 		wrapAction(cancelBtn),
 	)
 
-	bottomGap := canvas.NewRectangle(transparent)
-	bottomGap.SetMinSize(fyne.NewSize(0, spaceMD))
-
 	bottomBar := container.NewVBox(
 		tp.progress,
 		container.NewBorder(nil, nil, tp.statusText, nil),
 		settingsRow,
 		actionRow,
-		bottomGap,
+		vGap(spaceMD),
 	)
 
 	return container.NewBorder(
@@ -150,12 +147,6 @@ func buildSettingsTab(sp *settingsPanel, deviceInfo string) fyne.CanvasObject {
 		newFormField("EXPIRY (DAYS)", sp.expirySelect),
 	)
 
-	gap := func(h float32) fyne.CanvasObject {
-		r := canvas.NewRectangle(transparent)
-		r.SetMinSize(fyne.NewSize(0, h))
-		return r
-	}
-
 	header := canvas.NewText("SETTINGS", colMuted)
 	header.TextSize = textLabel
 	header.TextStyle = fyne.TextStyle{Bold: true}
@@ -172,14 +163,14 @@ func buildSettingsTab(sp *settingsPanel, deviceInfo string) fyne.CanvasObject {
 	}
 
 	topSection := container.NewVBox(
-		gap(spaceXL),
+		vGap(spaceXL),
 		header,
-		gap(spaceXXL),
+		vGap(spaceXXL),
 		settingsGrid,
-		gap(spaceXL),
+		vGap(spaceXL),
 		deviceHeader,
 		deviceLabel,
-		gap(spaceXXL),
+		vGap(spaceXXL),
 		permsSection.container,
 	)
 
@@ -200,14 +191,11 @@ func buildSettingsTab(sp *settingsPanel, deviceInfo string) fyne.CanvasObject {
 		wrapAction(sp.saveBtn),
 	)
 
-	bottomGap := canvas.NewRectangle(transparent)
-	bottomGap.SetMinSize(fyne.NewSize(0, spaceMD))
-
 	bottomSection := container.NewVBox(
 		toggleRow,
 		cacheRow,
 		actionRow,
-		bottomGap,
+		vGap(spaceMD),
 	)
 
 	return container.NewBorder(
