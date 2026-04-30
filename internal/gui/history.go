@@ -186,15 +186,6 @@ func (h *historyPanel) showRowMenu(e cache.Entry, recorded time.Time, anchor fyn
 
 	if !e.Pending {
 		items = append(items,
-			fyne.NewMenuItem("Preview", func() {
-				h.transcribe.OpenPreview(transcribe.ExportItem{
-					CachePath:  cache.TranscriptPathForKey(e.Key),
-					SourceName: e.SourceName,
-					SourcePath: e.SourcePath,
-					CacheKey:   e.Key,
-					RecordedAt: recorded,
-				}, nil)
-			}),
 			fyne.NewMenuItem("Export", func() {
 				h.transcribe.ExportTranscript([]transcribe.ExportItem{{
 					CachePath:  cache.TranscriptPathForKey(e.Key),
