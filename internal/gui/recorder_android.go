@@ -90,7 +90,29 @@ static int wt_rec_stop(uintptr_t envPtr) {
 	jclass cMR = (*env)->GetObjectClass(env, g_recorder);
 	jmethodID mStop = (*env)->GetMethodID(env, cMR, "stop", "()V");
 	(*env)->CallVoidMethod(env, g_recorder, mStop);
-	if ((*env)->ExceptionCheck(env)) (*env)->ExceptionClear(env);
+	int stop_threw = 0;
+	if ((*env)->ExceptionCheck(env)) {
+		jthrowable exc = (*env)->ExceptionOccurred(env);
+		(*env)->ExceptionClear(env);
+		stop_threw = 1;
+		if (exc) {
+			jclass cThrow = (*env)->GetObjectClass(env, exc);
+			jmethodID mGetMsg = (*env)->GetMethodID(env, cThrow, "getMessage", "()Ljava/lang/String;");
+			jstring jMsg = (jstring)(*env)->CallObjectMethod(env, exc, mGetMsg);
+			if (jMsg) {
+				const char* utf = (*env)->GetStringUTFChars(env, jMsg, NULL);
+				WR_LOGE("MediaRecorder.stop() threw: %s", utf ? utf : "(null)");
+				if (utf) (*env)->ReleaseStringUTFChars(env, jMsg, utf);
+				(*env)->DeleteLocalRef(env, jMsg);
+			} else {
+				WR_LOGE("MediaRecorder.stop() threw (no message)");
+			}
+			(*env)->DeleteLocalRef(env, cThrow);
+			(*env)->DeleteLocalRef(env, exc);
+		} else {
+			WR_LOGE("MediaRecorder.stop() threw (could not retrieve exception)");
+		}
+	}
 
 	jmethodID mReset = (*env)->GetMethodID(env, cMR, "reset", "()V");
 	if (mReset) (*env)->CallVoidMethod(env, g_recorder, mReset);
@@ -101,8 +123,8 @@ static int wt_rec_stop(uintptr_t envPtr) {
 	(*env)->DeleteGlobalRef(env, g_recorder);
 	g_recorder = NULL;
 	(*env)->DeleteLocalRef(env, cMR);
-	WR_LOGI("recording stopped");
-	return 1;
+	WR_LOGI("recording stopped (stop_threw=%d)", stop_threw);
+	return stop_threw ? 0 : 1;
 }
 
 // wt_publish_to_documents copies the file at srcPath to MediaStore Documents/wt/<displayName>.
