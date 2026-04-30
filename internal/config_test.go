@@ -51,6 +51,65 @@ func TestFilePath(t *testing.T) {
 	}
 }
 
+func TestApplyEnvOverrides(t *testing.T) {
+	t.Setenv("WT_MODEL", "small")
+	t.Setenv("WT_LANGUAGE", "en")
+	t.Setenv("WT_DEVICE", "cpu")
+	t.Setenv("WT_THREADS", "8")
+	t.Setenv("WT_SPEAKERS", "3")
+	t.Setenv("WT_NO_DIARIZE", "true")
+	t.Setenv("WT_TDRZ", "false")
+	t.Setenv("WT_CACHE_EXPIRY_DAYS", "7")
+
+	cfg := Defaults()
+	cfg.TDRZ = true
+	applyEnvOverrides(&cfg)
+
+	if cfg.Model != "small" {
+		t.Errorf("Model: got %q, want %q", cfg.Model, "small")
+	}
+	if cfg.Language != "en" {
+		t.Errorf("Language: got %q, want %q", cfg.Language, "en")
+	}
+	if cfg.Device != "cpu" {
+		t.Errorf("Device: got %q, want %q", cfg.Device, "cpu")
+	}
+	if cfg.Threads != 8 {
+		t.Errorf("Threads: got %d, want 8", cfg.Threads)
+	}
+	if cfg.Speakers != 3 {
+		t.Errorf("Speakers: got %d, want 3", cfg.Speakers)
+	}
+	if !cfg.NoDiarize {
+		t.Errorf("NoDiarize: got false, want true")
+	}
+	if cfg.TDRZ {
+		t.Errorf("TDRZ: got true, want false (env should override)")
+	}
+	if cfg.CacheExpiryDays != 7 {
+		t.Errorf("CacheExpiryDays: got %d, want 7", cfg.CacheExpiryDays)
+	}
+}
+
+func TestApplyEnvOverrides_IgnoresInvalid(t *testing.T) {
+	t.Setenv("WT_THREADS", "not-a-number")
+	t.Setenv("WT_SPEAKERS", "-1")
+	t.Setenv("WT_NO_DIARIZE", "maybe")
+
+	cfg := Config{Threads: 4, Speakers: 2, NoDiarize: false}
+	applyEnvOverrides(&cfg)
+
+	if cfg.Threads != 4 {
+		t.Errorf("Threads: got %d, want 4 (invalid env should be ignored)", cfg.Threads)
+	}
+	if cfg.Speakers != 2 {
+		t.Errorf("Speakers: got %d, want 2 (negative env should be ignored)", cfg.Speakers)
+	}
+	if cfg.NoDiarize {
+		t.Errorf("NoDiarize: got true, want false (invalid bool should be ignored)")
+	}
+}
+
 func TestSaveAndLoad(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("HOME", tmpDir)

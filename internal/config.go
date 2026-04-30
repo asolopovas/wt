@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -109,7 +111,55 @@ func Load() (Config, error) {
 	if upgradeConfig(&cfg) {
 		_ = Save(cfg)
 	}
+	applyEnvOverrides(&cfg)
 	return cfg, nil
+}
+
+func applyEnvOverrides(cfg *Config) {
+	if v := os.Getenv("WT_MODEL"); v != "" {
+		cfg.Model = v
+	}
+	if v := os.Getenv("WT_LANGUAGE"); v != "" {
+		cfg.Language = v
+	}
+	if v := os.Getenv("WT_DEVICE"); v != "" {
+		cfg.Device = v
+	}
+	if v := os.Getenv("WT_THREADS"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			cfg.Threads = n
+		}
+	}
+	if v := os.Getenv("WT_SPEAKERS"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n >= 0 {
+			cfg.Speakers = n
+		}
+	}
+	if v, ok := envBool("WT_NO_DIARIZE"); ok {
+		cfg.NoDiarize = v
+	}
+	if v, ok := envBool("WT_TDRZ"); ok {
+		cfg.TDRZ = v
+	}
+	if v := os.Getenv("WT_CACHE_EXPIRY_DAYS"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n >= 0 {
+			cfg.CacheExpiryDays = n
+		}
+	}
+}
+
+func envBool(key string) (bool, bool) {
+	v := os.Getenv(key)
+	if v == "" {
+		return false, false
+	}
+	switch strings.ToLower(v) {
+	case "1", "true", "yes", "on":
+		return true, true
+	case "0", "false", "no", "off":
+		return false, true
+	}
+	return false, false
 }
 
 func initDir(cfg Config) error {
