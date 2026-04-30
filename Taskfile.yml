@@ -471,7 +471,13 @@ tasks:
         if [ -z "$artifacts" ]; then
           echo "ERROR: no artifacts found to upload"; exit 1
         fi
-        gh release upload "$tag" $artifacts --clobber
+        for attempt in 1 2 3; do
+          if gh release upload "$tag" $artifacts --clobber; then
+            break
+          fi
+          echo "upload attempt $attempt failed; retrying..." && sleep 3
+          [ "$attempt" = "3" ] && { echo "ERROR: gh release upload failed after 3 attempts"; exit 1; }
+        done
         echo "Released $tag: https://github.com/asolopovas/wt/releases/tag/$tag"
 
   release-latest:
@@ -519,7 +525,13 @@ tasks:
         if [ -z "$artifacts" ]; then
           echo "ERROR: no artifacts found to upload"; exit 1
         fi
-        gh release upload "$tag" $artifacts --clobber
+        for attempt in 1 2 3; do
+          if gh release upload "$tag" $artifacts --clobber; then
+            break
+          fi
+          echo "upload attempt $attempt failed; retrying..." && sleep 3
+          [ "$attempt" = "3" ] && { echo "ERROR: gh release upload failed after 3 attempts"; exit 1; }
+        done
         echo "Rolling release: https://github.com/asolopovas/wt/releases/tag/$tag"
 
   bump:
