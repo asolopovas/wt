@@ -21,10 +21,10 @@ type permissionsSection struct {
 }
 
 func newPermissionsSection() *permissionsSection {
-	header := decor.NewPanelHeader(newCaptionText("PERMISSIONS"))
+	header := decor.NewSectionHeader("PERMISSIONS")
 
 	rows := container.NewVBox()
-	root := container.NewVBox(header, vGap(spaceMD), rows)
+	root := container.NewVBox(header, rows)
 	s := &permissionsSection{container: root, rows: rows}
 	s.refresh()
 	return s
