@@ -9,9 +9,10 @@ import (
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
-	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
+
+	"github.com/asolopovas/wt/internal/transcriber"
 )
 
 func (p *transcribePanel) attachLibrary(h *historyPanel) {
@@ -100,59 +101,27 @@ func (h *historyPanel) rebuild() {
 	h.list.Refresh()
 }
 
-func (h *historyPanel) buildRow(e cacheEntry) fyne.CanvasObject {
-	name := canvas.NewText(e.SourceName, colForeground)
-	name.TextStyle = fyne.TextStyle{Bold: true}
-	name.TextSize = 12
-
-	var meta string
-	if e.Pending {
-		meta = "fresh · added " + formatRelative(e.CreatedAt)
-	} else {
-		lang := e.Language
-		if lang == "" {
-			lang = "auto"
-		}
-		meta = fmt.Sprintf("%s · %s · %d segments · %s",
-			e.Model, lang, e.Utterances, formatRelative(e.CreatedAt))
+func formatDurationCompact(ms int64) string {
+	if ms <= 0 {
+		return "--:--"
 	}
-	metaText := canvas.NewText(meta, colMuted)
-	metaText.TextSize = 10
-	metaText.TextStyle = fyne.TextStyle{Monospace: true}
+	return transcriber.FormatHMS(time.Duration(ms) * time.Millisecond)
+}
+
+func (h *historyPanel) buildRow(e cacheEntry) fyne.CanvasObject {
+	name := widget.NewLabel(e.SourceName)
+	name.TextStyle = fyne.TextStyle{Bold: true}
+	name.Truncation = fyne.TextTruncateEllipsis
 
 	recorded := recordedAtOrFallback(e)
-	stampText := canvas.NewText(recorded.Format(startTimeLayout), colMuted)
-	stampText.TextSize = 10
-	stampText.TextStyle = fyne.TextStyle{Monospace: true}
-	stampText.Alignment = fyne.TextAlignTrailing
+	metaText := canvas.NewText(
+		recorded.Format(startTimeLayout)+"   "+formatDurationCompact(e.DurationMs),
+		colMuted,
+	)
+	metaText.TextSize = 11
+	metaText.TextStyle = fyne.TextStyle{Monospace: true}
 
-	titleRow := container.NewBorder(nil, nil, nil, stampText, name)
-	info := container.NewVBox(titleRow, metaText)
-
-	deleteBtn := newPointerButtonWithIcon("", theme.DeleteIcon(), func() {
-		msg := fmt.Sprintf("Delete %s? This will remove the source file and any cached transcript.", e.SourceName)
-		dialog.ShowConfirm("Delete", msg,
-			func(ok bool) {
-				if !ok {
-					return
-				}
-				if h.player.playing(e.Key) {
-					h.player.stop()
-				}
-				if e.SourcePath != "" {
-					if err := os.Remove(e.SourcePath); err != nil && !os.IsNotExist(err) {
-						dialog.ShowError(err, h.window)
-						return
-					}
-				}
-				if err := cacheDelete(e.Key); err != nil {
-					dialog.ShowError(err, h.window)
-					return
-				}
-				h.refresh()
-			}, h.window)
-	})
-	deleteBtn.Importance = widget.LowImportance
+	info := container.NewVBox(name, metaText)
 
 	playBtn := newPointerButtonWithIcon("", playIconResource, nil)
 	playBtn.Importance = widget.LowImportance
@@ -179,65 +148,99 @@ func (h *historyPanel) buildRow(e cacheEntry) fyne.CanvasObject {
 		playBtn.SetIcon(pauseIconResource)
 	}
 
-	transcribeBtn := newPointerButtonWithIcon("", transcribeIconResource, func() {
-		if e.SourcePath == "" {
-			dialog.ShowError(fmt.Errorf("source file path missing"), h.window)
-			return
-		}
-		h.transcribe.startTranscription([]string{e.SourcePath})
-	})
-	transcribeBtn.Importance = widget.LowImportance
-
-	editStampBtn := newPointerButtonWithIcon("", theme.HistoryIcon(), func() {
-		h.editRecordedAt(e.Key, recorded)
-	})
-	editStampBtn.Importance = widget.LowImportance
+	moreBtn := newPointerButtonWithIcon("", theme.MoreVerticalIcon(), nil)
+	moreBtn.Importance = widget.LowImportance
+	moreBtn.OnTapped = func() {
+		h.showRowMenu(e, recorded, moreBtn)
+	}
 
 	wrap := func(btn fyne.CanvasObject) fyne.CanvasObject {
-		return container.NewGridWrap(fyne.NewSize(48, 48), btn)
+		return container.NewGridWrap(fyne.NewSize(32, 32), btn)
 	}
 
-	var actions *fyne.Container
-	if e.Pending {
-		actions = container.NewHBox(wrap(playBtn), wrap(transcribeBtn), wrap(editStampBtn), wrap(deleteBtn))
-	} else {
-		previewBtn := newPointerButtonWithIcon("", theme.VisibilityIcon(), func() {
-			h.transcribe.openPreview(exportItem{
-				cachePath:  transcriptPathForKey(e.Key),
-				sourceName: e.SourceName,
-				sourcePath: e.SourcePath,
-				cacheKey:   e.Key,
-				recordedAt: recorded,
-			}, nil)
-		})
-		previewBtn.Importance = widget.LowImportance
+	actions := container.NewHBox(wrap(playBtn), wrap(moreBtn))
 
-		exportBtn := newPointerButtonWithIcon("", theme.DocumentSaveIcon(), func() {
-			h.transcribe.exportTranscript([]exportItem{{
-				cachePath:  transcriptPathForKey(e.Key),
-				sourceName: e.SourceName,
-				sourcePath: e.SourcePath,
-				cacheKey:   e.Key,
-				recordedAt: recorded,
-			}})
-		})
-		exportBtn.Importance = widget.LowImportance
-
-		actions = container.NewHBox(wrap(playBtn), wrap(transcribeBtn), wrap(editStampBtn), wrap(previewBtn), wrap(exportBtn), wrap(deleteBtn))
-	}
-
-	actionBg := canvas.NewRectangle(colSurfLow)
-	actionRow := container.NewStack(
-		actionBg,
-		container.NewPadded(container.NewHBox(layout.NewSpacer(), actions)),
-	)
-	row := container.NewVBox(info, actionRow)
+	row := container.NewBorder(nil, nil, nil, actions, info)
 
 	rowBg := canvas.NewRectangle(colSurfLow)
 	rowBg.StrokeColor = colGhostBorder
 	rowBg.StrokeWidth = 1
 
 	return container.NewStack(rowBg, container.NewPadded(row))
+}
+
+func (h *historyPanel) showRowMenu(e cacheEntry, recorded time.Time, anchor fyne.CanvasObject) {
+	items := []*fyne.MenuItem{
+		fyne.NewMenuItem("Transcribe", func() {
+			if e.SourcePath == "" {
+				dialog.ShowError(fmt.Errorf("source file path missing"), h.window)
+				return
+			}
+			h.transcribe.startTranscription([]string{e.SourcePath})
+		}),
+	}
+
+	if !e.Pending {
+		items = append(items,
+			fyne.NewMenuItem("Preview", func() {
+				h.transcribe.openPreview(exportItem{
+					cachePath:  transcriptPathForKey(e.Key),
+					sourceName: e.SourceName,
+					sourcePath: e.SourcePath,
+					cacheKey:   e.Key,
+					recordedAt: recorded,
+				}, nil)
+			}),
+			fyne.NewMenuItem("Export", func() {
+				h.transcribe.exportTranscript([]exportItem{{
+					cachePath:  transcriptPathForKey(e.Key),
+					sourceName: e.SourceName,
+					sourcePath: e.SourcePath,
+					cacheKey:   e.Key,
+					recordedAt: recorded,
+				}})
+			}),
+		)
+	}
+
+	items = append(items,
+		fyne.NewMenuItem("Edit timestamp", func() {
+			h.editRecordedAt(e.Key, recorded)
+		}),
+		fyne.NewMenuItemSeparator(),
+		fyne.NewMenuItem("Delete", func() {
+			msg := fmt.Sprintf("Delete %s? This will remove the source file and any cached transcript.", e.SourceName)
+			dialog.ShowConfirm("Delete", msg,
+				func(ok bool) {
+					if !ok {
+						return
+					}
+					if h.player.playing(e.Key) {
+						h.player.stop()
+					}
+					if e.SourcePath != "" {
+						if err := os.Remove(e.SourcePath); err != nil && !os.IsNotExist(err) {
+							dialog.ShowError(err, h.window)
+							return
+						}
+					}
+					if err := cacheDelete(e.Key); err != nil {
+						dialog.ShowError(err, h.window)
+						return
+					}
+					h.refresh()
+				}, h.window)
+		}),
+	)
+
+	c := fyne.CurrentApp().Driver().CanvasForObject(anchor)
+	if c == nil {
+		return
+	}
+	pop := widget.NewPopUpMenu(fyne.NewMenu("", items...), c)
+	pos := fyne.CurrentApp().Driver().AbsolutePositionForObject(anchor)
+	pos = pos.Add(fyne.NewPos(anchor.Size().Width-pop.MinSize().Width, anchor.Size().Height))
+	pop.ShowAtPosition(pos)
 }
 
 func (h *historyPanel) editRecordedAt(key string, current time.Time) {

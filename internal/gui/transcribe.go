@@ -65,5 +65,5 @@ func (p *transcribePanel) build() {
 
 	appendLogInit(p)
 
-	p.container = container.New(newResponsiveColumns(8), p.dropArea)
+	p.container = p.dropArea
 }

@@ -84,6 +84,15 @@ func (t *whisperTheme) Font(style fyne.TextStyle) fyne.Resource {
 	return theme.DefaultTheme().Font(style)
 }
 
+type logEntryTheme struct{ whisperTheme }
+
+func (t *logEntryTheme) Color(name fyne.ThemeColorName, variant fyne.ThemeVariant) color.Color {
+	if name == theme.ColorNameInputBackground || name == theme.ColorNameDisabled {
+		return colSurfLowest
+	}
+	return t.whisperTheme.Color(name, variant)
+}
+
 func (t *whisperTheme) Size(name fyne.ThemeSizeName) float32 {
 	switch name {
 	case theme.SizeNamePadding:

@@ -478,6 +478,7 @@ func (p *transcribePanel) transcribeFile(model whisper.Model, path, modelSize, d
 		Speakers:   speakers,
 		NoDiarize:  noDiarize,
 		Utterances: len(transcript.Utterances),
+		DurationMs: audioDurMs,
 		CreatedAt:  time.Now(),
 	}
 	storedPath, storeErr := cacheStore(entry, data)

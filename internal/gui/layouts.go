@@ -5,10 +5,6 @@ import (
 )
 
 const (
-	collapseWidth  = 600
-	minWindowWidth = 320
-	panelHeight    = 240
-
 	sidebarMaxWidth   = 300
 	sidebarMinWidth   = 260
 	sidebarStackBelow = 820
@@ -141,38 +137,6 @@ func (c *cappedGrid) Layout(objects []fyne.CanvasObject, size fyne.Size) {
 		o.Move(fyne.NewPos(x, y))
 		o.Resize(fyne.NewSize(cellW, h))
 	}
-}
-
-type responsiveColumns struct {
-	gap float32
-}
-
-func newResponsiveColumns(gap float32) *responsiveColumns {
-	return &responsiveColumns{gap: gap}
-}
-
-func (r *responsiveColumns) MinSize(objects []fyne.CanvasObject) fyne.Size {
-	if len(objects) < 2 {
-		return fyne.NewSize(0, 0)
-	}
-	return fyne.NewSize(minWindowWidth, panelHeight)
-}
-
-func (r *responsiveColumns) Layout(objects []fyne.CanvasObject, size fyne.Size) {
-	if len(objects) < 2 {
-		return
-	}
-
-	avail := size.Height - r.gap
-	if avail < 0 {
-		avail = 0
-	}
-	topH := avail * 0.7
-	bottomH := avail - topH
-	objects[0].Move(fyne.NewPos(0, 0))
-	objects[0].Resize(fyne.NewSize(size.Width, topH))
-	objects[1].Move(fyne.NewPos(0, topH+r.gap))
-	objects[1].Resize(fyne.NewSize(size.Width, bottomH))
 }
 
 type flowLayout struct {

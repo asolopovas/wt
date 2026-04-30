@@ -83,6 +83,7 @@ type cacheEntry struct {
 	Speakers   int       `json:"speakers"`
 	NoDiarize  bool      `json:"no_diarize"`
 	Utterances int       `json:"utterances"`
+	DurationMs int64     `json:"duration_ms,omitempty"`
 	CreatedAt  time.Time `json:"created_at"`
 	RecordedAt time.Time `json:"recorded_at,omitempty"`
 	SizeBytes  int64     `json:"size_bytes"`

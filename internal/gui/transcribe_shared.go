@@ -77,7 +77,8 @@ func buildLogPanel(content fyne.CanvasObject, leftHeader fyne.CanvasObject, copy
 	headerContent := container.NewHBox(headerObjs...)
 	header := container.NewStack(headerBg, container.NewPadded(headerContent))
 
-	inner := container.NewBorder(header, nil, nil, nil, content)
+	themed := container.NewThemeOverride(content, &logEntryTheme{})
+	inner := container.NewBorder(header, nil, nil, nil, themed)
 	return container.NewStack(bg, inner)
 }
 

@@ -42,6 +42,7 @@ func Run(version string) error {
 	deviceInfo := detectDevice()
 
 	transcodeTab := buildTranscodeTabAndroid(transcribe)
+	logTab := buildLogTab(transcribe)
 	settingsTab := buildSettingsTab(settings, deviceInfo)
 
 	if missing := missingPermissions(); len(missing) > 0 {
@@ -54,6 +55,7 @@ func Run(version string) error {
 	settingsTabItem := container.NewTabItem("SETTINGS", settingsTab)
 	tabs := container.NewAppTabs(
 		container.NewTabItem("TRANSCODE", transcodeTab),
+		container.NewTabItem("LOG", logTab),
 		settingsTabItem,
 	)
 	tabs.SetTabLocation(container.TabLocationBottom)

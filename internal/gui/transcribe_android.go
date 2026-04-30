@@ -63,11 +63,11 @@ func (p *transcribePanel) build() {
 	p.logEntry.Wrapping = fyne.TextWrapWord
 	p.logEntry.Disable()
 
-	copyBtn := newPointerButtonWithIcon("", theme.ContentCopyIcon(), p.onCopyLog)
-	copyBtn.Importance = widget.LowImportance
+	p.copyLogBtn = newPointerButtonWithIcon("", theme.ContentCopyIcon(), p.onCopyLog)
+	p.copyLogBtn.Importance = widget.LowImportance
 
-	clearLogBtn := newPointerButtonWithIcon("", theme.HistoryIcon(), p.onClearLog)
-	clearLogBtn.Importance = widget.LowImportance
+	p.clearLogBtn = newPointerButtonWithIcon("", theme.HistoryIcon(), p.onClearLog)
+	p.clearLogBtn.Importance = widget.LowImportance
 
 	p.autoScroll.Store(true)
 	p.autoBtn = newPointerButtonWithIcon("", theme.MoveDownIcon(), nil)
@@ -76,9 +76,7 @@ func (p *transcribePanel) build() {
 
 	appendLogInit(p)
 
-	logPanel := buildLogPanel(p.logEntry, nil, copyBtn, clearLogBtn, p.autoBtn)
-
-	p.container = container.New(newResponsiveColumns(8), p.dropArea, logPanel)
+	p.container = p.dropArea
 }
 
 func (p *transcribePanel) buildFilesTab() fyne.CanvasObject {
