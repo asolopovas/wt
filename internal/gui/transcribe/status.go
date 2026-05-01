@@ -112,10 +112,12 @@ func (p *Panel) setRunning(running bool) {
 		p.startSmoothUpdates()
 		p.startRunTimer()
 		platsvc.AcquireWakeLock()
+		platsvc.KeepScreenOn()
 	} else {
 		p.stopSmoothUpdates()
 		p.stopRunTimer()
 		platsvc.ReleaseWakeLock()
+		platsvc.ReleaseScreenOn()
 	}
 
 	fyne.Do(func() {

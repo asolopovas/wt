@@ -67,3 +67,4 @@ tmp_vad/
 .ruff_cache/
 fyne_metadata_init.go
 screen.png
+screens-debug/

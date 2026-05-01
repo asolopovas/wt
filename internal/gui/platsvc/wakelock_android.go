@@ -36,8 +36,12 @@ static void wt_wake_acquire(uintptr_t env_p, uintptr_t ctx_p) {
 	jmethodID mNewWL = (*env)->GetMethodID(env, cPM, "newWakeLock", "(ILjava/lang/String;)Landroid/os/PowerManager$WakeLock;");
 	if (!mNewWL) { (*env)->DeleteLocalRef(env, cPM); (*env)->DeleteLocalRef(env, pm); return; }
 
+	// SCREEN_BRIGHT_WAKE_LOCK (10) | ACQUIRE_CAUSES_WAKEUP (0x10000000) | ON_AFTER_RELEASE (0x20000000)
+	// Deprecated since API 17 but still honored — keeps the device awake at the
+	// kernel level so the process stays in /top-app cpuset (big cores) instead
+	// of being demoted to /background when the screen would otherwise turn off.
 	jstring jTag = (*env)->NewStringUTF(env, "wt:transcribe");
-	jobject wl = (*env)->CallObjectMethod(env, pm, mNewWL, (jint)1, jTag);
+	jobject wl = (*env)->CallObjectMethod(env, pm, mNewWL, (jint)(10 | 0x10000000 | 0x20000000), jTag);
 	(*env)->DeleteLocalRef(env, jTag);
 	(*env)->DeleteLocalRef(env, cPM);
 	(*env)->DeleteLocalRef(env, pm);

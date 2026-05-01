@@ -16,6 +16,7 @@ import (
 	shared "github.com/asolopovas/wt/internal"
 	"github.com/asolopovas/wt/internal/diarizer"
 	"github.com/asolopovas/wt/internal/gui/cache"
+	"github.com/asolopovas/wt/internal/gui/sysstats"
 	"github.com/asolopovas/wt/internal/progress"
 	"github.com/asolopovas/wt/internal/transcriber"
 	whisper "github.com/ggerganov/whisper.cpp/bindings/go/pkg/whisper"
@@ -147,9 +148,15 @@ func (p *Panel) runTranscription(files []string) {
 	for _, dev := range devices {
 		if dev.Type == "GPU" || dev.Type == "iGPU" {
 			gpuFound = true
-			p.AppendLog(fmt.Sprintf("Model loaded (%s, %s)", modelSize, dev.Description))
-			usedMB := dev.TotalMB - dev.FreeMB
-			p.AppendLog(fmt.Sprintf("VRAM: %d/%d MB", usedMB, dev.TotalMB))
+			suffix := ""
+			if runtime.GOOS == "android" {
+				suffix = ", shared memory"
+			}
+			p.AppendLog(fmt.Sprintf("Model loaded (%s, %s%s)", modelSize, dev.Description, suffix))
+			if runtime.GOOS != "android" {
+				usedMB := dev.TotalMB - dev.FreeMB
+				p.AppendLog(fmt.Sprintf("VRAM: %d/%d MB", usedMB, dev.TotalMB))
+			}
 			p.debugLog(fmt.Sprintf("GPU: %s (free=%dMB total=%dMB)", dev.Description, dev.FreeMB, dev.TotalMB))
 		}
 	}
@@ -157,7 +164,13 @@ func (p *Panel) runTranscription(files []string) {
 		p.AppendLog(fmt.Sprintf("Model loaded (%s, CPU)", modelSize))
 		p.debugLog("no GPU detected, using CPU")
 	}
-	p.debugLog(fmt.Sprintf("system: %d cores, %s", runtime.NumCPU(), runtime.GOARCH))
+	if used, total := sysstats.MemUsageMB(); total > 0 {
+		p.AppendLog(fmt.Sprintf("RAM: %d/%d MB", used, total))
+	}
+	procSnap := sysstats.ProcStats()
+	p.AppendLog(fmt.Sprintf("Process: pid=%d threads=%d rss=%dMB cpuset=%s cores-allowed=%d",
+		procSnap.PID, procSnap.Threads, procSnap.RSSMB, procSnap.Cpuset, procSnap.NumCores))
+	p.debugLog(fmt.Sprintf("system: %d cores total, %d allowed, %s", runtime.NumCPU(), procSnap.NumCores, runtime.GOARCH))
 
 	total := len(files)
 	errCount := 0
@@ -353,9 +366,28 @@ func (p *Panel) transcribeFile(model whisper.Model, path, modelSize, deviceLabel
 			}
 			smoother.Report(pct)
 		}
+		stopMon := make(chan struct{})
+		monDone := make(chan struct{})
+		go func() {
+			defer close(monDone)
+			t := time.NewTicker(5 * time.Second)
+			defer t.Stop()
+			for {
+				select {
+				case <-stopMon:
+					return
+				case <-t.C:
+					s := sysstats.ProcStats()
+					p.debugLog(fmt.Sprintf("proc: cpu=%d%% threads=%d rss=%dMB cpuset=%s cores=%d",
+						s.CPUPct, s.Threads, s.RSSMB, s.Cpuset, s.NumCores))
+				}
+			}
+		}()
 		err = ctx.Process(samples, abortCb, nil, whisper.ProgressCallback(progressCb))
 		close(stopTick)
 		<-tickDone
+		close(stopMon)
+		<-monDone
 		if err != nil {
 			if p.cancelled.Load() {
 				return fmt.Errorf("cancelled")

@@ -2,12 +2,14 @@ package transcribe
 
 import (
 	"fmt"
+	"runtime"
 	"time"
 
 	"fyne.io/fyne/v2"
 
 	"github.com/asolopovas/wt/internal/gui/assets"
 	"github.com/asolopovas/wt/internal/gui/sysstats"
+	whisper "github.com/ggerganov/whisper.cpp/bindings/go/pkg/whisper"
 )
 
 type statSegment struct {
@@ -61,9 +63,27 @@ func (p *Panel) collectStats() []statSegment {
 		})
 	}
 
-	gpuUtil, gpuUsed, gpuTotal := sysstats.GPUStatsFull()
-	if gpuUsed < 0 {
-		gpuUsed = sysstats.AndroidGPUMemMB()
+	var (
+		gpuUtil  int
+		gpuUsed  = -1
+		gpuTotal = -1
+	)
+	if runtime.GOOS != "android" {
+		gpuUtil, gpuUsed, gpuTotal = sysstats.GPUStatsFull()
+		if gpuUsed < 0 || gpuTotal <= 0 {
+			for _, dev := range whisper.BackendDevices() {
+				if dev.Type != "GPU" && dev.Type != "iGPU" {
+					continue
+				}
+				if dev.TotalMB > 0 {
+					gpuTotal = int(dev.TotalMB)
+					gpuUsed = int(dev.TotalMB - dev.FreeMB)
+					break
+				}
+			}
+		}
+	} else {
+		gpuUtil = sysstats.AndroidGPU()
 	}
 	if gpuUsed >= 0 && gpuTotal > 0 {
 		segs = append(segs, statSegment{
