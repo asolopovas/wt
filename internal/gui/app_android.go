@@ -154,11 +154,18 @@ func inlineField(label string, w fyne.CanvasObject) fyne.CanvasObject {
 	return container.NewBorder(nil, nil, left, nil, w)
 }
 
+func compactStatsLine(text string) fyne.CanvasObject {
+	t := canvas.NewText(text, decor.TextSecondary)
+	t.TextSize = textCaption
+	t.TextStyle = fyne.TextStyle{Monospace: true}
+	return t
+}
+
 func buildSettingsTab(sp *settingsPanel, deviceInfo, version string) fyne.CanvasObject {
 	settingsGrid := container.NewVBox(
 		inlineField("DEVICE", sp.deviceSelect),
 		inlineField("THREADS", sp.threadsSelect),
-		inlineField("CACHE EXPIRY", sp.expirySelect),
+		inlineField("CACHE", sp.expirySelect),
 	)
 
 	versionLabel := canvas.NewText(version, decor.TextMuted)
@@ -167,13 +174,15 @@ func buildSettingsTab(sp *settingsPanel, deviceInfo, version string) fyne.Canvas
 	header := decor.NewPanelHeader(newCaptionText("SETTINGS"), versionLabel)
 
 	_ = deviceInfo
-	statsBlock := container.NewVBox()
-	for _, st := range deviceStats() {
-		val := widget.NewLabel(st.Value)
-		val.TextStyle = fyne.TextStyle{Monospace: true}
-		val.Wrapping = fyne.TextWrapWord
-		statsBlock.Add(inlineField(st.Label, val))
+	stats := deviceStats()
+	statMap := map[string]string{}
+	for _, st := range stats {
+		statMap[st.Label] = st.Value
 	}
+	statsBlock := container.NewVBox(
+		compactStatsLine(statMap["CPU"]+"  ·  "+statMap["RAM"]),
+		compactStatsLine("GPU  "+statMap["GPU"]),
+	)
 
 	if permsSection == nil {
 		permsSection = newPermissionsSection()
@@ -184,13 +193,13 @@ func buildSettingsTab(sp *settingsPanel, deviceInfo, version string) fyne.Canvas
 	}
 
 	bodySection := container.NewVBox(
-		vGap(spaceMD),
+		vGap(spaceSM),
 		statsBlock,
-		vGap(spaceXL),
+		vGap(spaceLG),
 		settingsGrid,
-		vGap(spaceXXL),
+		vGap(spaceLG),
 		permsSection.container,
-		vGap(spaceXXL),
+		vGap(spaceLG),
 		newSectionDivider(),
 		sp.models.container,
 	)
@@ -210,11 +219,11 @@ func buildSettingsTab(sp *settingsPanel, deviceInfo, version string) fyne.Canvas
 	)
 
 	bottomSection := container.NewVBox(
-		vGap(spaceMD),
+		vGap(spaceSM),
 		toggleRow,
-		vGap(spaceMD),
+		vGap(spaceSM),
 		cacheRow,
-		vGap(spaceMD),
+		vGap(spaceSM),
 	)
 
 	pad := func(o fyne.CanvasObject) fyne.CanvasObject {

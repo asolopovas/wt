@@ -3,6 +3,7 @@ package gui
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 
 	"fyne.io/fyne/v2"
@@ -52,7 +53,7 @@ func newModelsSection(win fyne.Window) *modelsSection {
 
 func (s *modelsSection) refresh() {
 	s.rows.Objects = nil
-	s.diskLabel.Text = fmt.Sprintf("STORAGE: %s", humanBytes(s.mgr.DiskUsage()))
+	s.diskLabel.Text = humanBytes(s.mgr.DiskUsage()) + " used"
 	s.diskLabel.Refresh()
 
 	families := []struct {
@@ -66,20 +67,22 @@ func (s *modelsSection) refresh() {
 
 	first := true
 	for _, fam := range families {
+		entries := models.ByFamily(fam.f)
+		if len(entries) == 0 {
+			continue
+		}
 		if !first {
 			s.rows.Add(vGap(spaceMD))
 		}
 		first = false
 
-		sub := canvas.NewText(fam.title, decor.TextSecondary)
+		sub := canvas.NewText(fam.title, decor.TextMuted)
 		sub.TextSize = textCaption
 		sub.TextStyle = monoBoldStyle
 		s.rows.Add(sub)
-		s.rows.Add(vGap(spaceXS))
 
-		for _, e := range models.ByFamily(fam.f) {
+		for _, e := range entries {
 			s.rows.Add(s.buildRow(e))
-			s.rows.Add(vGap(spaceXS))
 		}
 	}
 	s.rows.Refresh()
@@ -90,15 +93,19 @@ func (s *modelsSection) buildRow(e models.Entry) fyne.CanvasObject {
 	status := s.mgr.Status(e.ID)
 	isActive := s.mgr.Active(e.Family) == e.ID
 
-	name := widget.NewLabel(e.DisplayName)
+	name := widget.NewLabel(modelShortName(e.DisplayName))
 	name.TextStyle = fyne.TextStyle{Bold: true}
 	name.Truncation = fyne.TextTruncateEllipsis
 
-	sub := widget.NewLabel(fmt.Sprintf("%s · %s", humanBytes(e.SizeBytes), statusText(status, isActive)))
+	statusCol := decor.TextMuted
+	if isActive {
+		statusCol = decor.StatusActive
+	}
+	sub := canvas.NewText(fmt.Sprintf("%s · %s", humanBytes(e.SizeBytes), statusText(status, isActive)), statusCol)
+	sub.TextSize = textCaption
 	sub.TextStyle = fyne.TextStyle{Monospace: true}
-	sub.Truncation = fyne.TextTruncateEllipsis
 
-	info := container.NewVBox(name, sub)
+	info := container.NewBorder(nil, nil, nil, sub, name)
 
 	s.mu.Lock()
 	_, downloading := s.cancels[e.ID]
@@ -153,7 +160,14 @@ func (s *modelsSection) buildRow(e models.Entry) fyne.CanvasObject {
 	return container.NewBorder(nil, nil, nil, action, info)
 }
 
-const iconBtnW float32 = 44
+func modelShortName(s string) string {
+	if i := strings.Index(s, " ("); i > 0 {
+		return s[:i]
+	}
+	return s
+}
+
+const iconBtnW float32 = 36
 
 func (s *modelsSection) startDownload(e models.Entry) {
 	ctx, cancel := context.WithCancel(context.Background())
