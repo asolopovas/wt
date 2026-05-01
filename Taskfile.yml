@@ -367,7 +367,7 @@ tasks:
       - cmd: 'task android-apk'
         if: '[ -z "{{.IS_LINUX}}" ]'
       - |
-        ver=$(powershell -NoProfile -Command "(Select-String -Path Taskfile.yml -Pattern \"VERSION: '([^']+)'\" -CaseSensitive | Select-Object -First 1).Matches[0].Groups[1].Value")
+        ver=$(powershell -NoProfile -Command "[Console]::Write((Select-String -Path Taskfile.yml -Pattern \"VERSION: '([^']+)'\" -CaseSensitive | Select-Object -First 1).Matches[0].Groups[1].Value)")
         tag="v$ver"
         echo "Releasing $tag"
 
