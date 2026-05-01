@@ -441,11 +441,15 @@ tasks:
           exit 1
         fi
       - task: bump
-      - task: build
+      # IMPORTANT: spawn a fresh `task` subprocess for build so the freshly-bumped
+      # VERSION is re-parsed from Taskfile.yml. `- task: build` would reuse the
+      # already-parsed (stale) {{.VERSION}} from before the bump, producing
+      # artifacts with the previous version baked into ldflags + installer name.
+      - cmd: 'task build'
       - cmd: 'task android-apk'
         if: '[ -z "{{.IS_LINUX}}" ]'
       - |
-        ver=$(sed -nE "s/^[[:space:]]+VERSION:[[:space:]]+'([^']+)'.*/\1/p" Taskfile.yml | head -1)
+        ver=$(awk "/^[[:space:]]+VERSION:[[:space:]]+'/{ match(\$0, /'[^']+'/); print substr(\$0, RSTART+1, RLENGTH-2); exit }" Taskfile.yml)
         tag="v$ver"
         echo "Releasing $tag"
 
