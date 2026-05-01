@@ -64,7 +64,8 @@ def main():
     os.dup2(2, 1)
     sys.stdout = io.TextIOWrapper(os.fdopen(os.dup(2), "wb"), line_buffering=True)
 
-    _fix_hf_symlinks("nvidia/diar_sortformer_4spk-v1")
+    model_id = "nvidia/diar_streaming_sortformer_4spk-v2"
+    _fix_hf_symlinks(model_id)
 
     try:
         from nemo.collections.asr.models import SortformerEncLabelModel
@@ -82,11 +83,22 @@ def main():
     print(f"device: {device}", file=sys.stderr, flush=True)
     print("loading model...", file=sys.stderr, flush=True)
 
+    def _configure_streaming(m):
+        # High-latency / best-accuracy preset from the official model card.
+        # Memory scales with (chunk_len + fifo_len + spkcache_len) frames @ 80ms,
+        # not total audio length — bounds RAM regardless of clip duration.
+        m.sortformer_modules.chunk_len = 340
+        m.sortformer_modules.chunk_right_context = 40
+        m.sortformer_modules.fifo_len = 40
+        m.sortformer_modules.spkcache_update_period = 300
+        m.sortformer_modules.spkcache_len = 188
+        m.sortformer_modules.log = False
+        m.sortformer_modules._check_streaming_parameters()
+
     def _load(dev):
-        m = SortformerEncLabelModel.from_pretrained(
-            "nvidia/diar_sortformer_4spk-v1", map_location=dev
-        )
+        m = SortformerEncLabelModel.from_pretrained(model_id, map_location=dev)
         m.eval()
+        _configure_streaming(m)
         return m
 
     model = _load(device)

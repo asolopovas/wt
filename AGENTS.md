@@ -1,8 +1,22 @@
 # AGENTS.md — wt
 
 Go CLI + GUI wrapping whisper.cpp for audio transcription with speaker diarization.
-Desktop default: NeMo sortformer (`scripts/diarize.py`). Fallback / Android / GUI: sherpa-onnx
-(pyannote-3.0 + NeMo TitaNet-Large, threshold 0.75).
+Desktop default: NeMo **streaming** Sortformer (`nvidia/diar_streaming_sortformer_4spk-v2`
+via `scripts/diarize.py`). Fallback / Android / `--speakers N`: sherpa-onnx (pyannote-3.0
++ NeMo TitaNet-Large, threshold 0.75).
+
+**Why streaming Sortformer, not the v1 offline model:** v1's `model.diarize(audio=path)`
+loads the entire signal in one tensor — official model card caps it at ~12 min on a 48 GB
+GPU; on this codebase it peaks at ~18 GB RSS for a 22-min clip and page-faults the
+desktop. v2 streaming uses chunk+FIFO+speaker-cache so memory scales with
+`chunk_len + fifo_len + spkcache_len` frames (80 ms each), not total audio length. Output
+format (`begin end speaker_index` strings) is unchanged from v1, so `diarize.py` parsing
+is the same. **Don't downgrade to v1.**
+
+Streaming preset in use is the high-latency / best-accuracy one from the model card
+(`chunk_len=340 chunk_right_context=40 fifo_len=40 spkcache_update_period=300
+spkcache_len=188`). Configure on `model.sortformer_modules` and call
+`_check_streaming_parameters()` before `model.diarize(...)`.
 
 @CLAUDE.local.md
 

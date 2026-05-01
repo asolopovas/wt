@@ -300,10 +300,28 @@ var sherpaSegRE = regexp.MustCompile(`^\s*([0-9]+\.[0-9]+)\s+--\s+([0-9]+\.[0-9]
 
 var sherpaProgRE = regexp.MustCompile(`progress\s+([0-9]+\.[0-9]+)%`)
 
+func sherpaNumThreads() int {
+	n := runtime.NumCPU() / 2
+	if runtime.GOOS == "android" {
+		n = 2
+	}
+	if n < 2 {
+		n = 2
+	}
+	if n > 8 {
+		n = 8
+	}
+	return n
+}
+
 func (d *sherpaDiarizer) Diarize(ctx context.Context, wavPath string, numSpeakers int, audioDurSec float64, progress ProgressFunc) ([]Segment, error) {
+	threads := sherpaNumThreads()
 	args := []string{
 		"--segmentation.pyannote-model=" + d.segModel,
 		"--embedding.model=" + d.embModel,
+
+		fmt.Sprintf("--segmentation.num-threads=%d", threads),
+		fmt.Sprintf("--embedding.num-threads=%d", threads),
 
 		"--min-duration-on=0.2",
 		"--min-duration-off=0.2",
