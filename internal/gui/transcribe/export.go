@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -72,6 +73,7 @@ func (p *Panel) OpenPreview(item ExportItem, onClose func()) {
 			speakerOrder = append(speakerOrder, u.Speaker)
 		}
 	}
+	sort.Strings(speakerOrder)
 
 	p.speakerRenames = map[string]string{}
 	for k, v := range cache.LoadSpeakerRenames(item.CacheKey) {
