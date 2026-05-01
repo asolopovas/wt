@@ -12,7 +12,11 @@ import (
 
 func (p *Panel) OnBrowse() {
 	fd := dialog.NewFileOpen(func(reader fyne.URIReadCloser, err error) {
-		if err != nil || reader == nil {
+		if err != nil {
+			p.AppendLog(fmt.Sprintf("Error opening file: %v", err))
+			return
+		}
+		if reader == nil {
 			return
 		}
 		defer func() {

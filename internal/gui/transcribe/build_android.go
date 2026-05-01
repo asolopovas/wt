@@ -41,10 +41,15 @@ func (p *Panel) build() {
 
 func (p *Panel) OnBrowse() {
 	fd := dialog.NewFileOpen(func(reader fyne.URIReadCloser, err error) {
-		if err != nil || reader == nil {
+		if err != nil {
+			p.AppendLog(fmt.Sprintf("Error opening file: %v", err))
+			return
+		}
+		if reader == nil {
 			return
 		}
 
+		p.debugLog("OnBrowse picked uri=" + reader.URI().String())
 		localPath, copyErr := copyURIToLocal(reader)
 		_ = reader.Close()
 		if copyErr != nil {

@@ -138,7 +138,10 @@ func (p *Panel) addDroppedFiles(uris []fyne.URI) {
 }
 
 func (p *Panel) AddLocalFile(path string) bool {
+	base := filepath.Base(path)
 	if p.hasFile(path) {
+		p.AppendLog("Already added: " + base)
+		p.debugLog("AddLocalFile duplicate path=" + path)
 		return false
 	}
 	p.files = append(p.files, path)
@@ -147,6 +150,12 @@ func (p *Panel) AddLocalFile(path string) bool {
 	}
 	if p.History != nil {
 		p.History.Refresh()
+	}
+	p.AppendLog("Added: " + base)
+	if info, err := os.Stat(path); err == nil {
+		p.debugLog(fmt.Sprintf("AddLocalFile path=%s size=%d total=%d", path, info.Size(), len(p.files)))
+	} else {
+		p.debugLog(fmt.Sprintf("AddLocalFile path=%s stat-err=%v total=%d", path, err, len(p.files)))
 	}
 	return true
 }
