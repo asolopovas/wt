@@ -15,7 +15,7 @@ import (
 func renameCommand() *cli.Command {
 	return &cli.Command{
 		Name:      "rename",
-		Usage:     "Rename a transcript file to YYYY-MM-DD_HH-MM_topic using the active LLM",
+		Usage:     "Rename a transcript file to YYMMDD-HHMMSS_topic using the active LLM",
 		ArgsUsage: "<transcript-file>",
 		Flags: []cli.Flag{
 			&cli.BoolFlag{

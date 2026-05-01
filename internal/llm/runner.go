@@ -1,7 +1,6 @@
 package llm
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"errors"
@@ -84,6 +83,8 @@ func (r *Runner) Generate(ctx context.Context, opts Options) (string, error) {
 		"--no-display-prompt",
 		"--log-disable",
 		"--no-conversation",
+		"--single-turn",
+		"--simple-io",
 		"--no-warmup",
 	}
 
@@ -99,13 +100,13 @@ func (r *Runner) Generate(ctx context.Context, opts Options) (string, error) {
 		args = append(args, "--grammar-file", gPath)
 	}
 
-	rctx, cancel := context.WithTimeout(ctx, 90*time.Second)
+	rctx, cancel := context.WithTimeout(ctx, 120*time.Second)
 	defer cancel()
 
 	cmd := exec.CommandContext(rctx, r.BinaryPath, args...)
 	cmd.Env = os.Environ()
-	cmd.Stdin = strings.NewReader("")
-	shared.HideWindow(cmd)
+	cmd.Stdin = nil
+	hideLlamaWindow(cmd)
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
@@ -118,47 +119,53 @@ func (r *Runner) Generate(ctx context.Context, opts Options) (string, error) {
 		return "", fmt.Errorf("starting llama-cli: %w", err)
 	}
 
-	out, readErr := readUntilJSONClose(stdout)
-	_ = cmd.Process.Kill()
-	_ = cmd.Wait()
+	raw, readErr := io.ReadAll(stdout)
+	waitErr := cmd.Wait()
+	out := string(raw)
 
-	if readErr != nil && !errors.Is(readErr, io.EOF) && rctx.Err() == nil {
-		return "", fmt.Errorf("reading llm output: %w", readErr)
-	}
-	if rctx.Err() != nil && rctx.Err() != context.Canceled && len(out) == 0 {
+	if rctx.Err() != nil && rctx.Err() != context.Canceled {
 		return "", fmt.Errorf("llm timeout: %s", stderrTail(stderr.String(), 8))
 	}
-
-	if i := strings.Index(out, "{"); i >= 0 {
-		if j := strings.LastIndex(out, "}"); j > i {
-			return out[i : j+1], nil
-		}
+	if readErr != nil && !errors.Is(readErr, io.EOF) {
+		return "", fmt.Errorf("reading llm output: %w", readErr)
 	}
-	return strings.TrimSpace(out), nil
+
+	if obj := lastBalancedJSON(out); obj != "" {
+		return obj, nil
+	}
+	return "", fmt.Errorf("no JSON object in llm output (waitErr=%v): stderr=%s; stdout=%s",
+		waitErr, stderrTail(stderr.String(), 6), stdoutTail(out, 400))
 }
 
-func readUntilJSONClose(r io.Reader) (string, error) {
-	br := bufio.NewReader(r)
-	var buf bytes.Buffer
+func lastBalancedJSON(s string) string {
 	depth := 0
-	started := false
-	for {
-		b, err := br.ReadByte()
-		if err != nil {
-			return buf.String(), err
-		}
-		buf.WriteByte(b)
-		switch b {
-		case '{':
-			depth++
-			started = true
+	end := -1
+	for i := len(s) - 1; i >= 0; i-- {
+		c := s[i]
+		switch c {
 		case '}':
-			depth--
-			if started && depth <= 0 {
-				return buf.String(), nil
+			if depth == 0 {
+				end = i
+			}
+			depth++
+		case '{':
+			if depth > 0 {
+				depth--
+				if depth == 0 && end >= 0 {
+					return s[i : end+1]
+				}
 			}
 		}
 	}
+	return ""
+}
+
+func stdoutTail(s string, n int) string {
+	s = strings.TrimSpace(s)
+	if len(s) > n {
+		return "..." + s[len(s)-n:]
+	}
+	return s
 }
 
 func findBinary() (string, error) {

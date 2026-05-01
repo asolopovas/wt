@@ -120,6 +120,12 @@ Diarization integration tests live behind `//go:build integration` (`task test-i
 
 `shared.Load()` applies `WT_*` overrides after YAML parse: `WT_MODEL`, `WT_LANGUAGE`, `WT_DEVICE`, `WT_THREADS`, `WT_SPEAKERS`, `WT_NO_DIARIZE`, `WT_TDRZ`, `WT_CACHE_EXPIRY_DAYS`. Booleans accept `1/true/yes/on` and `0/false/no/off` (case-insensitive). Invalid values are silently ignored — a typo cannot flip a flag.
 
+## llama-cli subprocess
+
+- Don't use `shared.HideWindow` (CREATE_NO_WINDOW) on llama-cli — it makes its console probes fail and pushes generation into a slow path that hangs past any reasonable timeout. Use `internal/llm.hideLlamaWindow` (`SysProcAttr.HideWindow=true`, no CREATE_NO_WINDOW) for any process whose stdout/stderr we capture but want windowless under the GUI.
+- Pass `--single-turn` to llama-cli — newer builds (b8999+) silently auto-enable conversation mode with instruct templates and ignore `--no-conversation`/`--no-display-prompt`. Without `-st`, the process never exits after generation and we time out waiting on `cmd.Wait()`. Also keep `cmd.Stdin = nil` (not `strings.NewReader("")`).
+- llama-cli still echoes the prompt to stdout in chat mode despite `--no-display-prompt`. The grammar-constrained JSON appears AFTER the prompt echo, so when extracting the model's JSON, scan for the **last** balanced `{...}` block in stdout, not the first — transcript content can contain stray braces that would otherwise be matched.
+
 ## Subprocess IPC
 
 `internal/diarizer/subproc.go` is the canonical helper for any backend that spawns an external process. It owns pipe setup, an optional stderr line interceptor (return `true` to skip appending to the tail buffer), and tail-on-error formatting via `wait(ctx)`. Both nemo and sherpa go through it. Don't reintroduce ad-hoc `cmd.StdoutPipe`/`cmd.StderrPipe` + `sync.Mutex` boilerplate in new diarizer or transcribe-side subprocess code — extend `subproc` instead.

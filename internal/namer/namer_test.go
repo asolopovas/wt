@@ -13,7 +13,7 @@ func TestSanitizeTopic(t *testing.T) {
 		"hello___world":          "hello-world",
 		"---trim me---":          "trim-me",
 		"emoji 🎉 ok":             "emoji-ok",
-		strings.Repeat("a", 60):  strings.Repeat("a", 40),
+		strings.Repeat("a", 80): strings.Repeat("a", 60),
 	}
 	for in, want := range cases {
 		got := sanitizeTopic(in)
@@ -23,27 +23,13 @@ func TestSanitizeTopic(t *testing.T) {
 	}
 }
 
-func TestNormalize_FallbackOnInvalid(t *testing.T) {
-	fb := time.Date(2026, 4, 30, 13, 45, 0, 0, time.UTC)
-	s := &Suggestion{Date: "garbage", Time: "x", Topic: "Hello World"}
-	s.normalize(fb)
-	if s.Date != "2026-04-30" {
-		t.Errorf("date: got %s", s.Date)
-	}
-	if s.Time != "13-45" {
-		t.Errorf("time: got %s", s.Time)
-	}
-	if s.Topic != "hello-world" {
-		t.Errorf("topic: got %s", s.Topic)
-	}
-}
-
 func TestFilename(t *testing.T) {
-	s := Suggestion{Date: "2026-04-30", Time: "13-45", Topic: "team-sync"}
-	if got := s.Filename(".m4a"); got != "2026-04-30_13-45_team-sync.m4a" {
+	fb := time.Date(2026, 4, 30, 13, 45, 5, 0, time.UTC)
+	s := Suggestion{Stamp: fb.Format("060102-150405"), Topic: "team-sync"}
+	if got := s.Filename(".m4a"); got != "260430-134505_team-sync.m4a" {
 		t.Errorf("filename: got %s", got)
 	}
-	if got := s.Filename(""); got != "2026-04-30_13-45_team-sync" {
+	if got := s.Filename(""); got != "260430-134505_team-sync" {
 		t.Errorf("filename no ext: got %s", got)
 	}
 }

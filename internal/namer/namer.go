@@ -13,17 +13,13 @@ import (
 	"github.com/asolopovas/wt/internal/llm"
 )
 
-const filenameGrammar = "root ::= \"{\" ws \"\\\"date\\\":\" ws \"\\\"\" date \"\\\"\" ws \",\" ws \"\\\"time\\\":\" ws \"\\\"\" tm \"\\\"\" ws \",\" ws \"\\\"topic\\\":\" ws \"\\\"\" topic \"\\\"\" ws \"}\"\n" +
-	"date ::= digit digit digit digit \"-\" digit digit \"-\" digit digit\n" +
-	"tm   ::= digit digit \"-\" digit digit\n" +
-	"topic ::= slugChar slugChar slugChar slugChar slugChar (slugChar)? (slugChar)? (slugChar)? (slugChar)? (slugChar)? (slugChar)? (slugChar)? (slugChar)? (slugChar)? (slugChar)? (slugChar)? (slugChar)? (slugChar)? (slugChar)? (slugChar)? (slugChar)? (slugChar)? (slugChar)? (slugChar)? (slugChar)? (slugChar)? (slugChar)? (slugChar)? (slugChar)? (slugChar)? (slugChar)? (slugChar)? (slugChar)? (slugChar)? (slugChar)? (slugChar)? (slugChar)? (slugChar)? (slugChar)? (slugChar)?\n" +
+const filenameGrammar = "root ::= \"{\" ws \"\\\"topic\\\":\" ws \"\\\"\" topic \"\\\"\" ws \"}\"\n" +
+	"topic ::= slugChar slugChar slugChar slugChar slugChar (slugChar)? (slugChar)? (slugChar)? (slugChar)? (slugChar)? (slugChar)? (slugChar)? (slugChar)? (slugChar)? (slugChar)? (slugChar)? (slugChar)? (slugChar)? (slugChar)? (slugChar)? (slugChar)? (slugChar)? (slugChar)? (slugChar)? (slugChar)? (slugChar)? (slugChar)? (slugChar)? (slugChar)? (slugChar)? (slugChar)? (slugChar)? (slugChar)? (slugChar)? (slugChar)? (slugChar)? (slugChar)? (slugChar)? (slugChar)? (slugChar)? (slugChar)? (slugChar)? (slugChar)? (slugChar)? (slugChar)? (slugChar)? (slugChar)? (slugChar)? (slugChar)? (slugChar)? (slugChar)? (slugChar)? (slugChar)? (slugChar)? (slugChar)? (slugChar)? (slugChar)? (slugChar)? (slugChar)? (slugChar)?\n" +
 	"slugChar ::= [a-z0-9-]\n" +
-	"digit ::= [0-9]\n" +
 	"ws ::= [ \\t\\n]*\n"
 
 type Suggestion struct {
-	Date  string `json:"date"`
-	Time  string `json:"time"`
+	Stamp string `json:"-"`
 	Topic string `json:"topic"`
 }
 
@@ -34,15 +30,15 @@ func Suggest(ctx context.Context, transcript string, fallbackDate time.Time) (Su
 	}
 
 	excerpt := transcript
-	if len(excerpt) > 2000 {
-		excerpt = excerpt[:2000]
+	if len(excerpt) > 6000 {
+		excerpt = excerpt[:6000]
 	}
 
-	prompt := buildPrompt(excerpt, fallbackDate)
+	prompt := buildPrompt(excerpt)
 	out, err := r.Generate(ctx, llm.Options{
 		Prompt:    prompt,
 		Grammar:   filenameGrammar,
-		MaxTokens: 96,
+		MaxTokens: 80,
 		Temp:      0.1,
 	})
 	if err != nil {
@@ -53,29 +49,20 @@ func Suggest(ctx context.Context, transcript string, fallbackDate time.Time) (Su
 	if err := json.Unmarshal([]byte(out), &s); err != nil {
 		return Suggestion{}, fmt.Errorf("parsing LLM JSON %q: %w", out, err)
 	}
-	s.normalize(fallbackDate)
-	return s, nil
-}
-
-func (s *Suggestion) normalize(fallback time.Time) {
-	if !validDate(s.Date) {
-		s.Date = fallback.Format("2006-01-02")
-	}
-	if !validTime(s.Time) {
-		s.Time = fallback.Format("15-04")
-	}
+	s.Stamp = fallbackDate.Format("060102-150405")
 	s.Topic = sanitizeTopic(s.Topic)
 	if s.Topic == "" {
 		s.Topic = "untitled"
 	}
+	return s, nil
 }
 
 func (s Suggestion) Filename(ext string) string {
 	ext = strings.TrimPrefix(ext, ".")
 	if ext == "" {
-		return fmt.Sprintf("%s_%s_%s", s.Date, s.Time, s.Topic)
+		return fmt.Sprintf("%s_%s", s.Stamp, s.Topic)
 	}
-	return fmt.Sprintf("%s_%s_%s.%s", s.Date, s.Time, s.Topic, ext)
+	return fmt.Sprintf("%s_%s.%s", s.Stamp, s.Topic, ext)
 }
 
 func ExtractTranscriptText(path string) (string, error) {
@@ -117,47 +104,31 @@ func extractJSON(data []byte) (string, error) {
 	return b.String(), nil
 }
 
-func buildPrompt(excerpt string, fallback time.Time) string {
-	return fmt.Sprintf(`You are a filename generator. Read the transcript excerpt and respond with a single JSON object containing three fields:
-- date: YYYY-MM-DD format
-- time: HH-MM format (24-hour with hyphen, not colon)
-- topic: kebab-case-slug summarizing the main subject
+func buildPrompt(excerpt string) string {
+	return fmt.Sprintf(`You are a filename topic generator. Read the conversation transcript below and respond with a single JSON object: {"topic": "<slug>"}.
 
-Rules:
-- date and time: extract from transcript if explicitly mentioned, otherwise use fallback %s.
-- topic: 2-6 lowercase words joined with hyphens, ASCII letters/digits/hyphen only, max 40 chars.
-- Output ONLY the JSON object, no prose, no commentary.
+The topic must be a kebab-case slug of 3-7 lowercase words joined with hyphens that captures the main subject, setting, or purpose of the conversation. Use only ASCII letters, digits, and hyphens. Max 60 characters. Be specific (e.g. "fulham-boys-school-admission-interview", not "interview"; "kitchen-renovation-quote", not "renovation"; "weekly-sales-team-standup", not "meeting"). Avoid generic single words like "sports", "talk", "meeting".
+
+Output ONLY the JSON object, no prose, no commentary, no markdown.
 
 Transcript:
 %s
 
-JSON:`, fallback.Format("2006-01-02 15-04"), excerpt)
+JSON:`, excerpt)
 }
 
 var (
-	dateRE  = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
-	timeRE  = regexp.MustCompile(`^\d{2}-\d{2}$`)
 	slugRE  = regexp.MustCompile(`[^a-z0-9-]+`)
 	multiRE = regexp.MustCompile(`-+`)
 )
-
-func validDate(s string) bool {
-	if !dateRE.MatchString(s) {
-		return false
-	}
-	_, err := time.Parse("2006-01-02", s)
-	return err == nil
-}
-
-func validTime(s string) bool { return timeRE.MatchString(s) }
 
 func sanitizeTopic(s string) string {
 	s = strings.ToLower(strings.TrimSpace(s))
 	s = slugRE.ReplaceAllString(s, "-")
 	s = multiRE.ReplaceAllString(s, "-")
 	s = strings.Trim(s, "-")
-	if len(s) > 40 {
-		s = s[:40]
+	if len(s) > 60 {
+		s = s[:60]
 		s = strings.Trim(s, "-")
 	}
 	return s

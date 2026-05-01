@@ -93,6 +93,7 @@ var legacyDiarizerIDs = map[string]string{
 }
 
 var llmEntries = []Entry{
-	{ID: "qwen2.5-0.5b-instruct-q4km", Family: FamilyLLM, DisplayName: "Qwen2.5 0.5B Instruct (Q4_K_M, namer)", URL: "https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/resolve/main/qwen2.5-0.5b-instruct-q4_k_m.gguf", RelPath: "qwen2.5-0.5b-instruct-q4km.gguf", SizeBytes: 400_000_000, RAMHintMB: 700, DefaultActive: true},
+	{ID: "qwen2.5-0.5b-instruct-q4km", Family: FamilyLLM, DisplayName: "Qwen2.5 0.5B Instruct (Q4_K_M, namer)", URL: "https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/resolve/main/qwen2.5-0.5b-instruct-q4_k_m.gguf", RelPath: "qwen2.5-0.5b-instruct-q4km.gguf", SizeBytes: 400_000_000, RAMHintMB: 700},
+	{ID: "qwen3-1.7b-q4km", Family: FamilyLLM, DisplayName: "Qwen3 1.7B (Q4_K_M, namer)", URL: "https://huggingface.co/Qwen/Qwen3-1.7B-GGUF/resolve/main/Qwen3-1.7B-Q4_K_M.gguf", RelPath: "qwen3-1.7b-q4km.gguf", SizeBytes: 1_100_000_000, RAMHintMB: 1800, DefaultActive: true},
 }
 
