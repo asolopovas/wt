@@ -571,9 +571,11 @@ func (p *Panel) transcribeFile(model whisper.Model, path, modelSize, deviceLabel
 	}
 
 	p.lastCSVPath = storedPath
-	p.results = append(p.results, ExportItem{CachePath: storedPath, SourceName: sourceName, SourcePath: absPath, CacheKey: entry.Key})
 	p.setLocalProgress(1.0)
 	p.AppendLog(fmt.Sprintf("  Transcript ready (%d segments)", len(transcript.Utterances)))
+
+	newSrc, newName := p.autoRenameAfterTranscribe(entry.Key, storedPath, absPath, sourceName, time.Time{})
+	p.results = append(p.results, ExportItem{CachePath: storedPath, SourceName: newName, SourcePath: newSrc, CacheKey: entry.Key})
 
 	if p.History != nil {
 		p.History.Refresh()

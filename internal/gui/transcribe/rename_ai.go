@@ -8,186 +8,72 @@ import (
 	"strings"
 	"time"
 
-	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/canvas"
-	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/widget"
-
 	"github.com/asolopovas/wt/internal/gui/cache"
 	"github.com/asolopovas/wt/internal/namer"
 	"github.com/asolopovas/wt/internal/transcriber"
 )
 
-func (p *Panel) AIRenameInBackground(item ExportItem, fallback time.Time, onDone func()) {
-	finish := func() {
-		if onDone != nil {
-			onDone()
-		}
+func (p *Panel) autoRenameAfterTranscribe(cacheKey, jsonPath, sourcePath, sourceName string, fallback time.Time) (string, string) {
+	if sourcePath == "" {
+		return sourcePath, sourceName
 	}
-	tr, err := loadTranscript(item.CachePath)
+	text, err := loadTranscriptText(jsonPath)
 	if err != nil {
-		showError(p.window, fmt.Errorf("loading %s: %w", item.SourceName, err))
-		finish()
-		return
+		p.AppendLog(fmt.Sprintf("  Auto-name skipped: %v", err))
+		return sourcePath, sourceName
 	}
-	text := transcriptToText(tr)
 	if strings.TrimSpace(text) == "" {
-		showNotice(p.window, notifyInfo, "Auto-name", "Transcript is empty.")
-		finish()
-		return
+		p.AppendLog("  Auto-name skipped: transcript is empty")
+		return sourcePath, sourceName
 	}
 	if fallback.IsZero() {
-		fallback = time.Now()
-	}
-	if item.SourcePath == "" {
-		showError(p.window, fmt.Errorf("source path missing for %s", item.SourceName))
-		finish()
-		return
-	}
-
-	showNotice(p.window, notifyInfo, "Auto-name", "Generating filename for "+item.SourceName+"…")
-
-	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-		defer cancel()
-		s, err := namer.Suggest(ctx, text, fallback)
-		fyne.Do(func() {
-			defer finish()
-			if err != nil {
-				showError(p.window, err)
-				return
-			}
-			srcExt := filepath.Ext(item.SourcePath)
-			if srcExt == "" {
-				srcExt = filepath.Ext(item.SourceName)
-			}
-			suggested := s.Filename(srcExt)
-			dst := filepath.Join(filepath.Dir(item.SourcePath), suggested)
-			if dst == item.SourcePath {
-				showNotice(p.window, notifyInfo, "Auto-name", "Already named: "+suggested)
-				return
-			}
-			if _, err := os.Stat(dst); err == nil {
-				showError(p.window, fmt.Errorf("destination exists: %s", suggested))
-				return
-			}
-			if err := os.Rename(item.SourcePath, dst); err != nil {
-				showError(p.window, fmt.Errorf("rename: %w", err))
-				return
-			}
-			if item.CacheKey != "" {
-				if err := cache.SetSource(item.CacheKey, dst, suggested); err != nil {
-					showError(p.window, fmt.Errorf("update cache: %w", err))
-					return
-				}
-			}
-			showNotice(p.window, notifyInfo, "Auto-name", "Renamed to "+suggested)
-		})
-	}()
-}
-
-func (p *Panel) AISuggestRename(item ExportItem, fallback time.Time) {
-	tr, err := loadTranscript(item.CachePath)
-	if err != nil {
-		showError(p.window, fmt.Errorf("loading %s: %w", item.SourceName, err))
-		return
-	}
-	text := transcriptToText(tr)
-	if strings.TrimSpace(text) == "" {
-		showNotice(p.window, notifyInfo, "Auto-name", "Transcript is empty.")
-		return
-	}
-
-	if fallback.IsZero() {
-		fallback = time.Now()
-	}
-
-	statusLbl := widget.NewLabel("Generating with active LLM…")
-	body := container.NewVBox(statusLbl, newThinProgress())
-	hide := showDialog(dialogConfig{
-		Parent: p.window,
-		Title:  "AUTO-NAME",
-		Body:   body,
-		Actions: []dialogAction{
-			{Label: "CANCEL", Kind: kindSecondary},
-		},
-		WidthFrac: 0.5,
-	})
-
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-
-	go func() {
-		defer cancel()
-		s, err := namer.Suggest(ctx, text, fallback)
-		fyne.Do(func() {
-			hide()
-			if err != nil {
-				showError(p.window, err)
-				return
-			}
-			p.showRenameSuggestion(item, s)
-		})
-	}()
-}
-
-func (p *Panel) showRenameSuggestion(item ExportItem, s namer.Suggestion) {
-	srcExt := filepath.Ext(item.SourcePath)
-	if srcExt == "" {
-		srcExt = filepath.Ext(item.SourceName)
-	}
-	suggested := s.Filename(srcExt)
-
-	stamp := canvas.NewText(suggested, colPrimary)
-	stamp.TextSize = textBody
-	stamp.TextStyle = monoBoldStyle
-
-	hint := canvas.NewText("Suggested filename", colMuted)
-	hint.TextSize = textCaption
-
-	body := container.NewVBox(hint, stamp)
-
-	canRename := item.SourcePath != ""
-	if canRename {
-		if _, err := os.Stat(item.SourcePath); err != nil {
-			canRename = false
+		if st, err := os.Stat(sourcePath); err == nil {
+			fallback = st.ModTime()
+		} else {
+			fallback = time.Now()
 		}
 	}
 
-	actions := []dialogAction{
-		{Label: "CLOSE", Kind: kindSecondary},
-		{Label: "COPY", Kind: kindSecondary, OnTap: func() {
-			fyne.CurrentApp().Clipboard().SetContent(suggested)
-			showNotice(p.window, notifyInfo, "Auto-name", "Filename copied.")
-		}},
-	}
-	if canRename {
-		actions = append(actions, dialogAction{
-			Label: "RENAME FILE", Kind: kindPrimary, OnTap: func() {
-				dst := filepath.Join(filepath.Dir(item.SourcePath), suggested)
-				if dst == item.SourcePath {
-					showNotice(p.window, notifyInfo, "Auto-name", "Already named.")
-					return
-				}
-				if _, err := os.Stat(dst); err == nil {
-					showError(p.window, fmt.Errorf("destination exists: %s", dst))
-					return
-				}
-				if err := os.Rename(item.SourcePath, dst); err != nil {
-					showError(p.window, fmt.Errorf("rename: %w", err))
-					return
-				}
-				showNotice(p.window, notifyInfo, "Auto-name", "File renamed.")
-			},
-		})
+	p.AppendLog("  Auto-naming...")
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
+	s, err := namer.Suggest(ctx, text, fallback)
+	if err != nil {
+		p.AppendLog(fmt.Sprintf("  Auto-name failed: %v", err))
+		return sourcePath, sourceName
 	}
 
-	showDialog(dialogConfig{
-		Parent:    p.window,
-		Title:     "AUTO-NAME",
-		Body:      body,
-		Actions:   actions,
-		WidthFrac: 0.5,
-	})
+	ext := filepath.Ext(sourcePath)
+	suggested := s.Filename(ext)
+	dst := filepath.Join(filepath.Dir(sourcePath), suggested)
+	if dst == sourcePath {
+		p.AppendLog("  Auto-name: already named: " + suggested)
+		return sourcePath, sourceName
+	}
+	if _, err := os.Stat(dst); err == nil {
+		p.AppendLog("  Auto-name skipped: destination exists: " + suggested)
+		return sourcePath, sourceName
+	}
+	if err := os.Rename(sourcePath, dst); err != nil {
+		p.AppendLog(fmt.Sprintf("  Auto-name failed: rename: %v", err))
+		return sourcePath, sourceName
+	}
+	if cacheKey != "" {
+		if err := cache.SetSource(cacheKey, dst, suggested); err != nil {
+			p.AppendLog(fmt.Sprintf("  Auto-name: cache update failed: %v", err))
+		}
+	}
+	p.AppendLog("  Renamed: " + suggested)
+	return dst, suggested
+}
+
+func loadTranscriptText(jsonPath string) (string, error) {
+	tr, err := loadTranscript(jsonPath)
+	if err != nil {
+		return "", err
+	}
+	return transcriptToText(tr), nil
 }
 
 func transcriptToText(tr *transcriber.Transcript) string {
