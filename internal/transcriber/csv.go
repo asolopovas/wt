@@ -14,14 +14,14 @@ import (
 	whisper "github.com/ggerganov/whisper.cpp/bindings/go/pkg/whisper"
 )
 
-func TranscribeToJSON(model *Model, path, outputFilename, modelSize, language string, threads, speakers int, tdrz, noDiarize bool) error {
+func TranscribeToJSON(model *Model, path, outputFilename, modelSize, language string, threads, speakers int, tdrz, noDiarize bool) (string, string, error) {
 	absPath, err := filepath.Abs(path)
 	if err != nil {
-		return fmt.Errorf("resolving path: %w", err)
+		return "", "", fmt.Errorf("resolving path: %w", err)
 	}
 
 	if _, err := os.Stat(absPath); err != nil {
-		return fmt.Errorf("file not found: %s", absPath)
+		return "", "", fmt.Errorf("file not found: %s", absPath)
 	}
 
 	baseDir := filepath.Dir(absPath)
@@ -29,7 +29,7 @@ func TranscribeToJSON(model *Model, path, outputFilename, modelSize, language st
 
 	samples, err := loadAndReport(absPath)
 	if err != nil {
-		return err
+		return "", "", err
 	}
 
 	audioDurSec := float64(len(samples)) / WhisperSampleRate
@@ -45,12 +45,12 @@ func TranscribeToJSON(model *Model, path, outputFilename, modelSize, language st
 
 	ctx, err := configureContext(model, threads, language, tdrz, diarOK, noDiarize, diarName)
 	if err != nil {
-		return err
+		return "", "", err
 	}
 
 	transcriptSegs, err := transcribe(ctx, samples)
 	if err != nil {
-		return err
+		return "", "", err
 	}
 
 	if !diarOK && usedTDRZ {
@@ -85,11 +85,11 @@ func TranscribeToJSON(model *Model, path, outputFilename, modelSize, language st
 
 	actualPath, err := WriteJSON(outputPath, transcript)
 	if err != nil {
-		return err
+		return "", "", err
 	}
 
 	ui.Done(fmt.Sprintf("Output: %s (%d segments)", actualPath, len(transcript.Utterances)))
-	return nil
+	return absPath, actualPath, nil
 }
 
 func loadAndReport(absPath string) ([]float32, error) {

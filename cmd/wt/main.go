@@ -89,8 +89,12 @@ func main() {
 				Name:  "live",
 				Usage: "enable live microphone transcription",
 			},
+			&cli.BoolFlag{
+				Name:  "no-rename",
+				Usage: "skip auto-renaming source + transcript via active LLM",
+			},
 		},
-		Commands: []*cli.Command{modelsCommand(), renameCommand()},
+		Commands: []*cli.Command{modelsCommand()},
 		Action: func(_ context.Context, cmd *cli.Command) error {
 			ui.Verbose = cmd.Bool("verbose")
 			return run(
@@ -102,6 +106,7 @@ func main() {
 				cmd.Bool("tdrz"),
 				cmd.Bool("no-diarize"),
 				cmd.Bool("live"),
+				cmd.Bool("no-rename"),
 				cmd.Args().Slice(),
 			)
 		},
@@ -113,7 +118,7 @@ func main() {
 	}
 }
 
-func run(lang, modelSize, modelPath string, threads, speakers int, tdrz, noDiarize, live bool, args []string) error {
+func run(lang, modelSize, modelPath string, threads, speakers int, tdrz, noDiarize, live, noRename bool, args []string) error {
 	if live {
 		return transcriber.Live(lang, modelSize, modelPath, threads)
 	}
@@ -147,10 +152,14 @@ func run(lang, modelSize, modelPath string, threads, speakers int, tdrz, noDiari
 		filename := filepath.Base(path)
 		output := transcriber.OutputFilename(filename, modelSize)
 		ui.FileHeader(i+1, len(paths), filename)
-		if err := transcriber.TranscribeToJSON(model, path, output, modelSize, lang, threads, speakers, tdrz, noDiarize); err != nil {
+		audioPath, jsonPath, err := transcriber.TranscribeToJSON(model, path, output, modelSize, lang, threads, speakers, tdrz, noDiarize)
+		if err != nil {
 			ui.Errorf("%v", err)
 			errCount++
 			continue
+		}
+		if !noRename {
+			autoRename(audioPath, jsonPath)
 		}
 	}
 

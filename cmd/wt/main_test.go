@@ -66,7 +66,7 @@ func TestExpandFiles_NonexistentSkipped(t *testing.T) {
 }
 
 func TestRun_NoArgs(t *testing.T) {
-	err := run("", "base", "", 1, 0, false, false, false, nil)
+	err := run("", "base", "", 1, 0, false, false, false, true, nil)
 	if err != nil {
 		t.Errorf("expected nil error for no-args usage, got: %v", err)
 	}
@@ -75,7 +75,7 @@ func TestRun_NoArgs(t *testing.T) {
 func TestRun_NoMatchingFiles(t *testing.T) {
 	pterm.DisableOutput()
 	defer pterm.EnableOutput()
-	err := run("", "base", "", 1, 0, false, false, false, []string{"/nonexistent/*.wav"})
+	err := run("", "base", "", 1, 0, false, false, false, true, []string{"/nonexistent/*.wav"})
 	if err == nil {
 		t.Fatal("expected error when no files match")
 	}
