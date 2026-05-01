@@ -75,6 +75,50 @@ func SaveRawSegments(key string, segs []diarizer.TranscriptSegment) error {
 	return os.WriteFile(rawTranscriptPath(key), data, 0o644)
 }
 
+type Partial struct {
+	Segments   []diarizer.TranscriptSegment `json:"segments"`
+	LastEndMs  int64                        `json:"last_end_ms"`
+	AudioDurMs int64                        `json:"audio_dur_ms"`
+	SavedAt    time.Time                    `json:"saved_at"`
+}
+
+func partialPath(key string) string {
+	return filepath.Join(rawTranscriptDir(), key+".partial.json")
+}
+
+func LoadPartial(key string) (*Partial, bool) {
+	data, err := os.ReadFile(partialPath(key))
+	if err != nil {
+		return nil, false
+	}
+	var p Partial
+	if err := json.Unmarshal(data, &p); err != nil {
+		return nil, false
+	}
+	if p.LastEndMs <= 0 || len(p.Segments) == 0 {
+		return nil, false
+	}
+	return &p, true
+}
+
+func SavePartial(key string, p Partial) error {
+	if err := os.MkdirAll(rawTranscriptDir(), 0o755); err != nil {
+		return err
+	}
+	if p.SavedAt.IsZero() {
+		p.SavedAt = time.Now()
+	}
+	data, err := json.Marshal(p)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(partialPath(key), data, 0o644)
+}
+
+func DeletePartial(key string) {
+	_ = os.Remove(partialPath(key))
+}
+
 type Entry struct {
 	Key        string    `json:"key"`
 	SourcePath string    `json:"source_path"`

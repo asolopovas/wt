@@ -336,10 +336,50 @@ func (p *Panel) transcribeFile(model whisper.Model, path, modelSize, deviceLabel
 		}
 		transcriber.SetLanguage(ctx, language)
 
+		var (
+			resumeSegs []diarizer.TranscriptSegment
+			offsetMs   int64
+		)
+		if rawKey != "" {
+			if part, ok := cache.LoadPartial(rawKey); ok {
+				resumeAt := time.Duration(part.LastEndMs) * time.Millisecond
+				switch p.promptResume(sourceName, resumeAt, len(part.Segments)) {
+				case resumeYes:
+					resumeSegs = part.Segments
+					offsetMs = part.LastEndMs
+					ctx.SetOffset(time.Duration(offsetMs) * time.Millisecond)
+					p.AppendLog(fmt.Sprintf("  Resuming from %s (%d segments cached)",
+						transcriber.FormatHMS(resumeAt), len(resumeSegs)))
+				case resumeFresh:
+					cache.DeletePartial(rawKey)
+					p.AppendLog("  Discarded partial transcript; starting from beginning.")
+				case resumeAbort:
+					p.cancelled.Store(true)
+					return fmt.Errorf("cancelled")
+				}
+			}
+		}
+
+		offsetSec := float64(offsetMs) / 1000.0
+		startFrac := 0.0
+		if audioDurSec > 0 {
+			startFrac = offsetSec / audioDurSec
+		}
+		if startFrac < 0 {
+			startFrac = 0
+		}
+		if startFrac > 0.999 {
+			startFrac = 0.999
+		}
+		remainDurSec := audioDurSec - offsetSec
+		if remainDurSec <= 0 {
+			remainDurSec = 1
+		}
+
 		p.AppendLog("  Transcribing...")
 		processStart := time.Now()
 		initialRTF := loadRTF(modelSize, deviceLabel)
-		smoother := progress.NewSmoother(audioDurSec, initialRTF)
+		smoother := progress.NewSmoother(remainDurSec, initialRTF)
 		stopTick := make(chan struct{})
 		tickDone := make(chan struct{})
 		go func() {
@@ -347,7 +387,11 @@ func (p *Panel) transcribeFile(model whisper.Model, path, modelSize, deviceLabel
 			t := time.NewTicker(200 * time.Millisecond)
 			defer t.Stop()
 			render := func() {
-				disp, etaSec := smoother.Snapshot()
+				rawDisp, etaSec := smoother.Snapshot()
+				disp := startFrac*100 + rawDisp*(1-startFrac)
+				if disp > 99.5 {
+					disp = 99.5
+				}
 				p.setLocalProgress(0.10 + disp/100.0*0.70)
 				status := fmt.Sprintf("Transcribing... %.1f%%  ETA: %s", disp, formatETA(etaSec))
 				p.setStatus(status)
@@ -401,8 +445,17 @@ func (p *Panel) transcribeFile(model whisper.Model, path, modelSize, deviceLabel
 		<-tickDone
 		close(stopMon)
 		<-monDone
+
+		newSegs := transcriber.ExtractSegments(ctx)
+		merged := make([]diarizer.TranscriptSegment, 0, len(resumeSegs)+len(newSegs))
+		merged = append(merged, resumeSegs...)
+		merged = append(merged, newSegs...)
+
 		if err != nil {
 			if p.cancelled.Load() {
+				if rawKey != "" {
+					p.savePartialIfUseful(rawKey, merged, audioDurSec)
+				}
 				return fmt.Errorf("cancelled")
 			}
 			return fmt.Errorf("processing audio: %w", err)
@@ -410,10 +463,10 @@ func (p *Panel) transcribeFile(model whisper.Model, path, modelSize, deviceLabel
 		transcribeElapsed := time.Since(processStart).Seconds()
 		p.AppendLog(fmt.Sprintf("  Transcribed (%.0fs)", transcribeElapsed))
 		observedRTF := 0.0
-		if transcribeElapsed > 0 {
-			observedRTF = audioDurSec / transcribeElapsed
+		if transcribeElapsed > 0 && remainDurSec > 0 {
+			observedRTF = remainDurSec / transcribeElapsed
 		}
-		p.debugLog(fmt.Sprintf("RTF=%.2f (%.1fs audio / %.1fs processing)", observedRTF, audioDurSec, transcribeElapsed))
+		p.debugLog(fmt.Sprintf("RTF=%.2f (%.1fs audio / %.1fs processing)", observedRTF, remainDurSec, transcribeElapsed))
 		if observedRTF > 0 {
 			saveRTF(modelSize, deviceLabel, observedRTF)
 		}
@@ -425,9 +478,8 @@ func (p *Panel) transcribeFile(model whisper.Model, path, modelSize, deviceLabel
 		} else {
 			detected = language
 		}
-		rawSegs := transcriber.ExtractSegments(ctx)
-		segs = transcriber.DeduplicateSegments(rawSegs)
-		if dropped := len(rawSegs) - len(segs); dropped > 0 {
+		segs = transcriber.DeduplicateSegments(merged)
+		if dropped := len(merged) - len(segs); dropped > 0 {
 			p.debugLog(fmt.Sprintf("dedup: removed %d repeated segments", dropped))
 		}
 		if rawKey != "" {
@@ -435,6 +487,7 @@ func (p *Panel) transcribeFile(model whisper.Model, path, modelSize, deviceLabel
 				if err := cache.SaveRawSegments(rawKey, segs); err != nil {
 					p.debugLog(fmt.Sprintf("could not save raw transcript cache: %v", err))
 				}
+				cache.DeletePartial(rawKey)
 			} else {
 				p.debugLog(fmt.Sprintf("skipped raw cache save: %s", reason))
 			}
