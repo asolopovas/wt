@@ -17,8 +17,16 @@ func TestCatalog_Unique(t *testing.T) {
 			t.Fatalf("duplicate id: %s", e.ID)
 		}
 		seen[e.ID] = true
-		if e.URL == "" || e.RelPath == "" || e.Family == "" {
-			t.Fatalf("entry %s missing required field", e.ID)
+		if e.Family == "" {
+			t.Fatalf("entry %s missing family", e.ID)
+		}
+		if len(e.Files) == 0 && (e.URL == "" || e.RelPath == "") {
+			t.Fatalf("entry %s missing url/relpath and has no Files", e.ID)
+		}
+		for _, f := range e.Files {
+			if f.URL == "" || f.RelPath == "" {
+				t.Fatalf("entry %s file missing url/relpath", e.ID)
+			}
 		}
 	}
 }

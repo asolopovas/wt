@@ -49,7 +49,9 @@ type settingsPanel struct {
 	debugState     bool
 	saveBtn        *pointerButton
 
-	models *modelsSection
+	models       *modelsSection
+	settingsGrid fyne.CanvasObject
+	actionRow    fyne.CanvasObject
 
 	onCacheCleared func()
 
@@ -130,26 +132,26 @@ func (p *settingsPanel) build() {
 		wrapGhost(p.noDiarizeBtn),
 		wrapGhost(p.debugBtn),
 	)
-
-	cacheRow := container.NewGridWithColumns(2,
+	clearRow := container.NewGridWithColumns(2,
 		wrapAction(clearCacheBtn),
 		wrapAction(clearTranscriptsBtn),
 	)
-
-	saveRow := wrapAction(p.saveBtn)
+	p.actionRow = container.NewVBox(
+		toggleRow,
+		vGap(spaceSM),
+		clearRow,
+		vGap(spaceSM),
+		wrapAction(p.saveBtn),
+	)
 
 	p.models = newModelsSection(p.window)
+	p.settingsGrid = settingsGrid
 
 	p.container = container.NewVBox(
-		layout.NewSpacer(),
 		settingsGrid,
-		container.NewGridWrap(fyne.NewSize(0, spaceLG)),
-		toggleRow,
-		container.NewGridWrap(fyne.NewSize(0, spaceSM)),
-		cacheRow,
-		container.NewGridWrap(fyne.NewSize(0, spaceLG)),
-		saveRow,
-		container.NewGridWrap(fyne.NewSize(0, spaceXL)),
+		vGap(spaceMD),
+		p.actionRow,
+		vGap(spaceMD),
 		newSectionDivider(),
 		p.models.container,
 		layout.NewSpacer(),

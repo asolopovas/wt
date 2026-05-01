@@ -12,7 +12,6 @@ import (
 	shared "github.com/asolopovas/wt/internal"
 	"github.com/asolopovas/wt/internal/appinfo"
 	"github.com/asolopovas/wt/internal/gui/cache"
-	"github.com/asolopovas/wt/internal/gui/decor"
 	"github.com/asolopovas/wt/internal/gui/transcribe"
 )
 
@@ -47,12 +46,13 @@ func Run(version, buildDate string) error {
 
 	transcodeTab := buildTranscodeTab(tp, settings)
 	logTab := transcribe.BuildLogTab(tp)
+	logColumn := container.NewStack(newPanelBackground(), container.NewPadded(logTab))
 	settingsTab := buildSettingsTab(settings, deviceInfo, versionLabel(version, buildDate))
+	workspaceTab := container.New(newSidebarLayout(spaceLG), logColumn, settingsTab)
 
 	tabs := container.NewAppTabs(
 		container.NewTabItemWithIcon("TRANSCODE", theme.MediaRecordIcon(), transcodeTab),
-		container.NewTabItemWithIcon("LOG", theme.DocumentIcon(), logTab),
-		container.NewTabItemWithIcon("SETTINGS", theme.SettingsIcon(), settingsTab),
+		container.NewTabItemWithIcon("WORKSPACE", theme.DocumentIcon(), workspaceTab),
 	)
 	tabs.SetTabLocation(container.TabLocationBottom)
 
@@ -109,21 +109,40 @@ func buildSidebar(tp *transcribe.Panel, settings *settingsPanel, addBtn *pointer
 }
 
 func buildSettingsTab(sp *settingsPanel, deviceInfo, version string) fyne.CanvasObject {
-	deviceHeader := newCaptionText("DEVICE")
-	deviceHeader.TextStyle = monoBoldStyle
 	deviceLabel := canvas.NewText(deviceInfo, colSecondary)
 	deviceLabel.TextSize = textBody
 	deviceLabel.TextStyle = fyne.TextStyle{Monospace: true}
 
-	versionLabel := canvas.NewText(version, colSecondary)
-	versionLabel.TextSize = textCaption
-	versionLabel.TextStyle = monoBoldStyle
-	header := decor.NewPanelHeader(newCaptionText("SETTINGS"), versionLabel)
+	versionText := canvas.NewText(version, colSecondary)
+	versionText.TextSize = textCaption
+	versionText.TextStyle = monoBoldStyle
 
-	return container.NewBorder(
-		header,
-		container.NewVBox(vGap(spaceXL), deviceHeader, deviceLabel),
-		nil, nil,
-		container.NewVScroll(sp.container),
+	optionsBlock := container.NewVBox(
+		newSectionHeader("OPTIONS"),
+		sp.settingsGrid,
 	)
+	modelsBlock := sp.models.container
+	deviceBlock := container.NewVBox(
+		newSectionHeader("DEVICE"),
+		deviceLabel,
+		vGap(spaceXS),
+		versionText,
+	)
+	actionsBlock := container.NewVBox(
+		newSectionHeader("ACTIONS"),
+		sp.actionRow,
+	)
+
+	content := container.NewVBox(
+		optionsBlock,
+		newSectionDivider(),
+		modelsBlock,
+		newSectionDivider(),
+		deviceBlock,
+		newSectionDivider(),
+		actionsBlock,
+	)
+
+	scroll := container.NewVScroll(content)
+	return container.NewStack(newPanelBackground(), container.NewPadded(scroll))
 }

@@ -68,10 +68,12 @@ func (m *Manager) Status(id string) Status {
 	if downloading {
 		return StatusDownloading
 	}
-	if fileExists(PathFor(e)) {
-		return StatusInstalled
+	for _, p := range PathsFor(e) {
+		if !fileExists(p) {
+			return StatusNotInstalled
+		}
 	}
-	return StatusNotInstalled
+	return StatusInstalled
 }
 
 func (m *Manager) Active(f Family) string {
@@ -93,8 +95,10 @@ func (m *Manager) SetActive(id string) error {
 	if !ok {
 		return fmt.Errorf("unknown model: %s", id)
 	}
-	if !fileExists(PathFor(e)) {
-		return fmt.Errorf("model not installed: %s", id)
+	for _, p := range PathsFor(e) {
+		if !fileExists(p) {
+			return fmt.Errorf("model not installed: %s", id)
+		}
 	}
 	m.mu.Lock()
 	m.active[e.Family] = id
@@ -108,10 +112,27 @@ func (m *Manager) Get(ctx context.Context, id string, prog func(Progress)) error
 		return fmt.Errorf("unknown model: %s", id)
 	}
 
-	dst := PathFor(e)
-	if fileExists(dst) {
+	specs := e.FileSpecs()
+	paths := PathsFor(e)
+
+	var totalAll int64
+	for _, s := range specs {
+		totalAll += s.SizeBytes
+	}
+	if totalAll <= 0 {
+		totalAll = e.SizeBytes
+	}
+
+	allPresent := true
+	for _, p := range paths {
+		if !fileExists(p) {
+			allPresent = false
+			break
+		}
+	}
+	if allPresent {
 		if prog != nil {
-			prog(Progress{ID: id, Downloaded: e.SizeBytes, Total: e.SizeBytes, Done: true})
+			prog(Progress{ID: id, Downloaded: totalAll, Total: totalAll, Done: true})
 		}
 		return nil
 	}
@@ -121,30 +142,42 @@ func (m *Manager) Get(ctx context.Context, id string, prog func(Progress)) error
 	}
 	defer m.releaseSlot(id)
 
-	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
-		return err
-	}
-
-	cb := shared.DownloadProgress(func(downloaded, total int64) {
-		if prog == nil {
-			return
+	var completed int64
+	for i, s := range specs {
+		dst := paths[i]
+		if fileExists(dst) {
+			completed += s.SizeBytes
+			continue
 		}
-		prog(Progress{ID: id, Downloaded: downloaded, Total: total})
-	})
-
-	if err := shared.DownloadFile(dst, e.URL, cb); err != nil {
-		return fmt.Errorf("downloading %s: %w", id, err)
-	}
-
-	if e.SHA256 != "" {
-		if err := verifySHA256(dst, e.SHA256); err != nil {
-			_ = os.Remove(dst)
-			return fmt.Errorf("verifying %s: %w", id, err)
+		if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+			return err
 		}
+		base := completed
+		fileTotal := s.SizeBytes
+		cb := shared.DownloadProgress(func(downloaded, total int64) {
+			if prog == nil {
+				return
+			}
+			ft := fileTotal
+			if total > 0 {
+				ft = total
+			}
+			prog(Progress{ID: id, Downloaded: base + downloaded, Total: completed + ft + (totalAll - completed - fileTotal)})
+		})
+		if err := shared.DownloadFile(dst, s.URL, cb); err != nil {
+			return fmt.Errorf("downloading %s: %w", id, err)
+		}
+		if s.SHA256 != "" {
+			if err := verifySHA256(dst, s.SHA256); err != nil {
+				_ = os.Remove(dst)
+				return fmt.Errorf("verifying %s: %w", id, err)
+			}
+		}
+		completed += s.SizeBytes
 	}
 
 	if prog != nil {
-		prog(Progress{ID: id, Downloaded: e.SizeBytes, Total: e.SizeBytes, Done: true})
+		prog(Progress{ID: id, Downloaded: totalAll, Total: totalAll, Done: true})
 	}
 	return nil
 }
@@ -163,12 +196,17 @@ func (m *Manager) Delete(id string) error {
 	if !ok {
 		return fmt.Errorf("unknown model: %s", id)
 	}
-	dst := PathFor(e)
-	if !fileExists(dst) {
-		return nil
+	any := false
+	for _, p := range PathsFor(e) {
+		if fileExists(p) {
+			any = true
+			if err := os.Remove(p); err != nil {
+				return err
+			}
+		}
 	}
-	if err := os.Remove(dst); err != nil {
-		return err
+	if !any {
+		return nil
 	}
 	m.mu.Lock()
 	if m.active[e.Family] == id {
@@ -181,8 +219,10 @@ func (m *Manager) Delete(id string) error {
 func (m *Manager) DiskUsage() int64 {
 	var total int64
 	for _, e := range Catalog() {
-		if st, err := os.Stat(PathFor(e)); err == nil {
-			total += st.Size()
+		for _, p := range PathsFor(e) {
+			if st, err := os.Stat(p); err == nil {
+				total += st.Size()
+			}
 		}
 	}
 	return total
@@ -231,6 +271,9 @@ func (m *Manager) loadActive() {
 		return
 	}
 	for k, v := range raw {
+		if mapped, ok := legacyDiarizerIDs[v]; ok {
+			v = mapped
+		}
 		m.active[Family(k)] = v
 	}
 }

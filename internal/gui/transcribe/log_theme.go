@@ -41,5 +41,8 @@ func (t *logEntryTheme) Font(style fyne.TextStyle) fyne.Resource {
 }
 
 func (t *logEntryTheme) Size(name fyne.ThemeSizeName) float32 {
+	if name == theme.SizeNameInputBorder {
+		return 0
+	}
 	return t.base().Size(name)
 }

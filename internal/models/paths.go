@@ -16,5 +16,16 @@ func familyRoot(f Family) string {
 }
 
 func PathFor(e Entry) string {
-	return filepath.Join(familyRoot(e.Family), e.RelPath)
+	specs := e.FileSpecs()
+	return filepath.Join(familyRoot(e.Family), specs[0].RelPath)
+}
+
+func PathsFor(e Entry) []string {
+	root := familyRoot(e.Family)
+	specs := e.FileSpecs()
+	out := make([]string, len(specs))
+	for i, s := range specs {
+		out[i] = filepath.Join(root, s.RelPath)
+	}
+	return out
 }

@@ -145,6 +145,29 @@ tasks:
             \( -name 'libwhisper.so*' -o -name 'libggml*.so*' \) \
             -exec cp -P {} "$dest/" \;
         if: '[ -n "{{.IS_LINUX}}" ]'
+      # ---- llama-cli (for auto-rename LLM) ----
+      - task: llama-cli-host
+      - cmd: |
+          src="{{.ROOT_DIR | toSlash}}/dist/llama"
+          dest="{{.ROOT_DIR | toSlash}}/dist/bin/llama"
+          mkdir -p "$dest"
+          if [ -f "$src/llama-cli.exe" ]; then
+            cp -f "$src"/llama-cli.exe "$dest/"
+            cp -f "$src"/*.dll "$dest/" 2>/dev/null || true
+          fi
+          true
+        if: '[ -z "{{.IS_LINUX}}" ]'
+      - cmd: |
+          src="{{.ROOT_DIR | toSlash}}/dist/llama"
+          dest="{{.ROOT_DIR | toSlash}}/dist/bin/llama"
+          mkdir -p "$dest"
+          if [ -f "$src/llama-cli" ]; then
+            cp -f "$src"/llama-cli "$dest/"
+            cp -f "$src"/*.so* "$dest/" 2>/dev/null || true
+            chmod +x "$dest/llama-cli"
+          fi
+          true
+        if: '[ -n "{{.IS_LINUX}}" ]'
       # ---- Shared assets ----
       - cp scripts/diarize.py "{{.ROOT_DIR | toSlash}}/dist/bin/diarize.py"
       # ---- Windows installer ----
@@ -181,6 +204,10 @@ tasks:
           cp -f dist/bin/*.exe "$dest/"
           cp -f dist/bin/*.dll "$dest/" 2>/dev/null || true
           cp -f dist/bin/diarize.py "$dest/" 2>/dev/null || true
+          if [ -d dist/bin/llama ]; then
+            mkdir -p "$dest/llama"
+            cp -f dist/bin/llama/* "$dest/llama/" 2>/dev/null || true
+          fi
           echo "Updated $dest"
           "$dest/{{.BINARY}}.exe" --version
         if: '[ -z "{{.IS_LINUX}}" ]'
@@ -681,6 +708,51 @@ tasks:
           cmake --build "{{.ANDROID_BUILD}}" --config Release -j${NUMBER_OF_PROCESSORS:-$(nproc)}
           cp "{{.ANDROID_SYSROOT}}/usr/lib/aarch64-linux-android/28/libvulkan.so" \
             "{{.ANDROID_BUILD}}/ggml/src/ggml-vulkan/libvulkan.so"
+
+  llama-cli-host:
+    desc: 'Download prebuilt llama-cli (Windows CPU x64) from llama.cpp official releases.'
+    vars:
+      HOST_DIR: '{{.ROOT_DIR | toSlash}}/dist/llama'
+      HOST_BIN: '{{if .IS_LINUX}}llama-cli{{else}}llama-cli.exe{{end}}'
+    status:
+      - test -f "{{.HOST_DIR}}/{{.HOST_BIN}}"
+    cmds:
+      - cmd: |
+          set -e
+          mkdir -p "{{.HOST_DIR}}"
+          tag=$(gh release list --repo ggml-org/llama.cpp --limit 1 --json tagName --jq '.[0].tagName')
+          asset="llama-${tag}-bin-win-cpu-x64.zip"
+          tmp="{{.ROOT_DIR | toSlash}}/dist/llama-tmp"
+          rm -rf "$tmp"
+          mkdir -p "$tmp"
+          gh release download "$tag" --repo ggml-org/llama.cpp --pattern "$asset" --dir "$tmp"
+          unzip -o "$tmp/$asset" -d "$tmp/extracted" >/dev/null
+          if [ -f "$tmp/extracted/llama-cli.exe" ]; then
+            src="$tmp/extracted"
+          else
+            src=$(ls -d "$tmp/extracted"/*/ 2>/dev/null | head -1)
+            src="${src%/}"
+          fi
+          cp -f "$src"/llama-cli.exe "{{.HOST_DIR}}/"
+          cp -f "$src"/*.dll "{{.HOST_DIR}}/" 2>/dev/null || true
+          rm -rf "$tmp"
+          echo "Downloaded llama-cli ($tag) to {{.HOST_DIR}}"
+        if: '[ -z "{{.IS_LINUX}}" ]'
+      - cmd: |
+          set -e
+          mkdir -p "{{.HOST_DIR}}"
+          tag=$(gh release list --repo ggml-org/llama.cpp --limit 1 --json tagName --jq '.[0].tagName')
+          asset="llama-${tag}-bin-ubuntu-x64.zip"
+          tmp=$(mktemp -d)
+          gh release download "$tag" --repo ggml-org/llama.cpp --pattern "$asset" --dir "$tmp"
+          unzip -o "$tmp/$asset" -d "$tmp/extracted" >/dev/null
+          src=$(find "$tmp/extracted" -maxdepth 2 -type d | head -2 | tail -1)
+          cp -f "$src"/llama-cli "{{.HOST_DIR}}/"
+          cp -f "$src"/*.so* "{{.HOST_DIR}}/" 2>/dev/null || true
+          chmod +x "{{.HOST_DIR}}/llama-cli"
+          rm -rf "$tmp"
+          echo "Downloaded llama-cli ($tag) to {{.HOST_DIR}}"
+        if: '[ -n "{{.IS_LINUX}}" ]'
 
   android-llama-cli:
     desc: 'Cross-compile llama-cli for Android arm64 (CPU). Slow first time.'

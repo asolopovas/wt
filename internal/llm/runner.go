@@ -181,17 +181,26 @@ func binaryCandidates() []string {
 	name := binaryName()
 	out := []string{}
 	if exe, err := os.Executable(); err == nil {
-		out = append(out, filepath.Join(filepath.Dir(exe), name))
+		exeDir := filepath.Dir(exe)
+		out = append(out,
+			filepath.Join(exeDir, "llama", name),
+			filepath.Join(exeDir, name),
+		)
 	}
 	if runtime.GOOS == "android" {
 		for _, dir := range androidLibDirs() {
 			out = append(out, filepath.Join(dir, "libllama-cli.so"))
 		}
 	}
-	out = append(out, filepath.Join(shared.Dir(), name))
+	out = append(out,
+		filepath.Join(shared.Dir(), "llama", name),
+		filepath.Join(shared.Dir(), name),
+	)
 	if cwd, err := os.Getwd(); err == nil {
 		out = append(out,
+			filepath.Join(cwd, "dist", "bin", "llama", name),
 			filepath.Join(cwd, "dist", "bin", name),
+			filepath.Join(cwd, "dist", "llama", name),
 			filepath.Join(cwd, "dist", "llama", "llama-cli-android-arm64"),
 		)
 	}

@@ -54,8 +54,7 @@ func (h *historyPanel) build() {
 	h.headerRight = container.NewHBox()
 	headerBar := decor.NewPanelHeader(newCaptionText("RECENT"), h.headerRight)
 
-	filesArea := container.NewStack(newPanelBackground(), scroll)
-	h.container = container.NewBorder(headerBar, nil, nil, nil, filesArea)
+	h.container = container.NewBorder(headerBar, nil, nil, nil, scroll)
 }
 
 func (h *historyPanel) Refresh() {

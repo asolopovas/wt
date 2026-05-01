@@ -179,7 +179,7 @@ func (s *modelsSection) buildRow(e models.Entry) fyne.CanvasObject {
 		}
 		cancel := newIconTap(theme.CancelIcon(), 18, func() { s.cancel(e.ID) })
 		row := container.NewBorder(nil, nil, nil, cancel, info)
-		return container.NewVBox(row, bar)
+		return container.NewVBox(row, progressBarFixed(bar))
 	}
 
 	del := newIconTap(theme.DeleteIcon(), 18, func() {
@@ -331,7 +331,7 @@ func (s *modelsSection) buildDownloadRow(e models.Entry) fyne.CanvasObject {
 		}
 		cancel := newIconTap(theme.CancelIcon(), 18, func() { s.cancel(e.ID) })
 		row := container.NewBorder(nil, nil, nil, cancel, info)
-		return container.NewVBox(row, bar)
+		return container.NewVBox(row, progressBarFixed(bar))
 	}
 
 	dl := newIconTap(downloadIcon, 18, func() { s.startDownload(e) })
@@ -430,6 +430,31 @@ func humanBytes(n int64) string {
 	default:
 		return fmt.Sprintf("%d B", n)
 	}
+}
+
+type fixedHeightLayout struct {
+	height float32
+}
+
+func (l *fixedHeightLayout) Layout(objs []fyne.CanvasObject, size fyne.Size) {
+	for _, o := range objs {
+		o.Move(fyne.NewPos(0, 0))
+		o.Resize(fyne.NewSize(size.Width, l.height))
+	}
+}
+
+func (l *fixedHeightLayout) MinSize(objs []fyne.CanvasObject) fyne.Size {
+	var w float32
+	for _, o := range objs {
+		if m := o.MinSize().Width; m > w {
+			w = m
+		}
+	}
+	return fyne.NewSize(w, l.height)
+}
+
+func progressBarFixed(bar *widget.ProgressBar) fyne.CanvasObject {
+	return container.New(&fixedHeightLayout{height: 32}, bar)
 }
 
 type fixedWidthLayoutModels struct {

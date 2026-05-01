@@ -18,6 +18,21 @@ type Entry struct {
 	SHA256        string
 	RAMHintMB     int
 	DefaultActive bool
+	Files         []FileSpec
+}
+
+type FileSpec struct {
+	URL       string
+	RelPath   string
+	SizeBytes int64
+	SHA256    string
+}
+
+func (e Entry) FileSpecs() []FileSpec {
+	if len(e.Files) > 0 {
+		return e.Files
+	}
+	return []FileSpec{{URL: e.URL, RelPath: e.RelPath, SizeBytes: e.SizeBytes, SHA256: e.SHA256}}
 }
 
 func Catalog() []Entry {
@@ -58,16 +73,26 @@ var whisperEntries = []Entry{
 }
 
 var diarizerEntries = []Entry{
-	{ID: "sherpa-pyannote-segmentation-3.0", Family: FamilyDiarizer, DisplayName: "Sherpa pyannote-3.0 segmentation", URL: "https://huggingface.co/csukuangfj/sherpa-onnx-pyannote-segmentation-3-0/resolve/main/model.onnx", RelPath: "sherpa-onnx-pyannote-segmentation-3-0/model.onnx", SizeBytes: 6_000_000, RAMHintMB: 100, DefaultActive: true},
-	{ID: "sherpa-titanet-large", Family: FamilyDiarizer, DisplayName: "NeMo TitaNet-Large embeddings", URL: "https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-recongition-models/nemo_en_titanet_large.onnx", RelPath: "titanet_large.onnx", SizeBytes: 96_000_000, RAMHintMB: 250, DefaultActive: true},
+	{
+		ID:            "sherpa-diarizer",
+		Family:        FamilyDiarizer,
+		DisplayName:   "Sherpa diarizer (pyannote-3.0 + TitaNet-Large)",
+		SizeBytes:     102_000_000,
+		RAMHintMB:     350,
+		DefaultActive: true,
+		Files: []FileSpec{
+			{URL: "https://huggingface.co/csukuangfj/sherpa-onnx-pyannote-segmentation-3-0/resolve/main/model.onnx", RelPath: "sherpa-onnx-pyannote-segmentation-3-0/model.onnx", SizeBytes: 6_000_000},
+			{URL: "https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-recongition-models/nemo_en_titanet_large.onnx", RelPath: "titanet_large.onnx", SizeBytes: 96_000_000},
+		},
+	},
+}
+
+var legacyDiarizerIDs = map[string]string{
+	"sherpa-pyannote-segmentation-3.0": "sherpa-diarizer",
+	"sherpa-titanet-large":             "sherpa-diarizer",
 }
 
 var llmEntries = []Entry{
-	{ID: "qwen3-4b-instruct-q4km", Family: FamilyLLM, DisplayName: "Qwen3 4B Instruct (Q4_K_M)", URL: "https://huggingface.co/bartowski/Qwen_Qwen3-4B-Instruct-2507-GGUF/resolve/main/Qwen_Qwen3-4B-Instruct-2507-Q4_K_M.gguf", RelPath: "qwen3-4b-instruct-q4km.gguf", SizeBytes: 2_500_000_000, RAMHintMB: 3500, DefaultActive: true},
-	{ID: "gemma-3-4b-it-q4km", Family: FamilyLLM, DisplayName: "Gemma 3 4B IT (Q4_K_M)", URL: "https://huggingface.co/lmstudio-community/gemma-3-4b-it-GGUF/resolve/main/gemma-3-4b-it-Q4_K_M.gguf", RelPath: "gemma-3-4b-it-q4km.gguf", SizeBytes: 2_500_000_000, RAMHintMB: 3600},
-	{ID: "gemma-3n-e2b-it-q4km", Family: FamilyLLM, DisplayName: "Gemma 3n E2B IT (Q4_K_M)", URL: "https://huggingface.co/lmstudio-community/gemma-3n-E2B-it-GGUF/resolve/main/gemma-3n-E2B-it-Q4_K_M.gguf", RelPath: "gemma-3n-e2b-it-q4km.gguf", SizeBytes: 1_550_000_000, RAMHintMB: 2200},
-	{ID: "phi-4-mini-instruct-q4km", Family: FamilyLLM, DisplayName: "Phi-4-mini Instruct (Q4_K_M)", URL: "https://huggingface.co/bartowski/microsoft_Phi-4-mini-instruct-GGUF/resolve/main/microsoft_Phi-4-mini-instruct-Q4_K_M.gguf", RelPath: "phi-4-mini-q4km.gguf", SizeBytes: 2_350_000_000, RAMHintMB: 3300},
-	{ID: "smollm3-3b-q4km", Family: FamilyLLM, DisplayName: "SmolLM3 3B (Q4_K_M)", URL: "https://huggingface.co/bartowski/HuggingFaceTB_SmolLM3-3B-GGUF/resolve/main/HuggingFaceTB_SmolLM3-3B-Q4_K_M.gguf", RelPath: "smollm3-3b-q4km.gguf", SizeBytes: 1_900_000_000, RAMHintMB: 2700},
-	{ID: "llama-3.2-3b-instruct-q4km", Family: FamilyLLM, DisplayName: "Llama 3.2 3B Instruct (Q4_K_M)", URL: "https://huggingface.co/bartowski/Llama-3.2-3B-Instruct-GGUF/resolve/main/Llama-3.2-3B-Instruct-Q4_K_M.gguf", RelPath: "llama-3.2-3b-instruct-q4km.gguf", SizeBytes: 2_020_000_000, RAMHintMB: 2900},
-	{ID: "qwen3-1.7b-q4km", Family: FamilyLLM, DisplayName: "Qwen3 1.7B (Q4_K_M, fast pick)", URL: "https://huggingface.co/bartowski/Qwen_Qwen3-1.7B-GGUF/resolve/main/Qwen_Qwen3-1.7B-Q4_K_M.gguf", RelPath: "qwen3-1.7b-q4km.gguf", SizeBytes: 1_080_000_000, RAMHintMB: 1500},
+	{ID: "qwen2.5-0.5b-instruct-q4km", Family: FamilyLLM, DisplayName: "Qwen2.5 0.5B Instruct (Q4_K_M, namer)", URL: "https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/resolve/main/qwen2.5-0.5b-instruct-q4_k_m.gguf", RelPath: "qwen2.5-0.5b-instruct-q4km.gguf", SizeBytes: 400_000_000, RAMHintMB: 700, DefaultActive: true},
 }
+
