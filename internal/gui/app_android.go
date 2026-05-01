@@ -168,7 +168,7 @@ func buildSettingsTab(sp *settingsPanel, deviceInfo, version string) fyne.Canvas
 	settingsGrid := container.NewVBox(
 		inlineField("DEVICE", sp.deviceSelect),
 		inlineField("THREADS", sp.threadsSelect),
-		inlineField("CACHE", sp.expirySelect),
+		inlineField("CACHE EXPIRY", sp.expirySelect),
 	)
 
 	versionLabel := canvas.NewText(version, decor.TextMuted)

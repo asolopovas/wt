@@ -34,6 +34,25 @@ static int wt_check_permission(uintptr_t envPtr, uintptr_t actPtr, const char* p
 	return res == 0 ? 1 : 0;
 }
 
+static int wt_should_show_rationale(uintptr_t envPtr, uintptr_t actPtr, const char* perm) {
+	JNIEnv* env = (JNIEnv*)envPtr;
+	jobject act = (jobject)actPtr;
+	if (!env || !act || !perm) return 0;
+
+	jclass cAct = (*env)->GetObjectClass(env, act);
+	jmethodID mShow = (*env)->GetMethodID(env, cAct, "shouldShowRequestPermissionRationale", "(Ljava/lang/String;)Z");
+	(*env)->DeleteLocalRef(env, cAct);
+	if (!mShow) {
+		if ((*env)->ExceptionCheck(env)) (*env)->ExceptionClear(env);
+		return 0;
+	}
+	jstring jPerm = (*env)->NewStringUTF(env, perm);
+	jboolean res = (*env)->CallBooleanMethod(env, act, mShow, jPerm);
+	(*env)->DeleteLocalRef(env, jPerm);
+	if ((*env)->ExceptionCheck(env)) { (*env)->ExceptionClear(env); return 0; }
+	return res ? 1 : 0;
+}
+
 static void wt_request_permissions(uintptr_t envPtr, uintptr_t actPtr, const char** perms, int n) {
 	JNIEnv* env = (JNIEnv*)envPtr;
 	jobject act = (jobject)actPtr;
@@ -229,6 +248,21 @@ func CheckPermission(id string) bool {
 		return nil
 	})
 	return granted
+}
+
+func ShouldShowPermissionRationale(id string) bool {
+	out := false
+	cID := C.CString(id)
+	defer C.free(unsafe.Pointer(cID))
+	_ = driver.RunNative(func(ctx any) error {
+		ac, ok := ctx.(*driver.AndroidContext)
+		if !ok || ac == nil || ac.Env == 0 || ac.Ctx == 0 {
+			return nil
+		}
+		out = C.wt_should_show_rationale(C.uintptr_t(ac.Env), C.uintptr_t(ac.Ctx), cID) == 1
+		return nil
+	})
+	return out
 }
 
 func RequestPermissions(ids []string) {

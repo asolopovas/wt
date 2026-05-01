@@ -3,6 +3,8 @@
 package gui
 
 import (
+	"sync"
+
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
@@ -11,6 +13,23 @@ import (
 	"github.com/asolopovas/wt/internal/gui/decor"
 	"github.com/asolopovas/wt/internal/gui/platsvc"
 )
+
+var (
+	permRequestedMu sync.Mutex
+	permRequested   = map[string]bool{}
+)
+
+func markPermRequested(id string) {
+	permRequestedMu.Lock()
+	permRequested[id] = true
+	permRequestedMu.Unlock()
+}
+
+func wasPermRequested(id string) bool {
+	permRequestedMu.Lock()
+	defer permRequestedMu.Unlock()
+	return permRequested[id]
+}
 
 type permissionsSection struct {
 	container *fyne.Container
@@ -45,33 +64,29 @@ func (s *permissionsSection) refresh() {
 	s.container.Refresh()
 }
 
-var permLabelShort = map[string]string{
-	"MICROPHONE":    "MIC",
-	"AUDIO FILES":   "FILES",
-	"NOTIFICATIONS": "NOTIF",
-}
-
 func (s *permissionsSection) buildCell(p platsvc.PermissionInfo) fyne.CanvasObject {
 	id := p.ID
 	granted := p.Granted
 	label := p.Label
-	if short, ok := permLabelShort[label]; ok {
-		label = short
-	}
 	return s.assembleCell(label, granted, func(want bool) {
-		if want {
-			platsvc.RequestPermissions([]string{id})
-			go func() {
-				platsvc.PollPermission(id, func() { fyne.Do(s.refresh) })
-			}()
-		} else {
+		if !want {
 			platsvc.OpenAppSettings()
+			return
 		}
+		if wasPermRequested(id) && !platsvc.ShouldShowPermissionRationale(id) {
+			platsvc.OpenAppSettings()
+			return
+		}
+		markPermRequested(id)
+		platsvc.RequestPermissions([]string{id})
+		go func() {
+			platsvc.PollPermission(id, func() { fyne.Do(s.refresh) })
+		}()
 	})
 }
 
 func (s *permissionsSection) buildBatteryCell(ignoring bool) fyne.CanvasObject {
-	return s.assembleCell("BATT", ignoring, func(bool) {
+	return s.assembleCell("BATTERY", ignoring, func(bool) {
 		platsvc.OpenBatteryOptimizationSettings()
 	})
 }
@@ -79,7 +94,7 @@ func (s *permissionsSection) buildBatteryCell(ignoring bool) fyne.CanvasObject {
 func (s *permissionsSection) assembleCell(label string, ok bool, action func(want bool)) fyne.CanvasObject {
 	mark := "✓ "
 	if !ok {
-		mark = "✗ "
+		mark = "× "
 	}
 	btn := newPointerButton(mark+label, func() {
 		action(!ok)
