@@ -75,9 +75,9 @@ func buildSidebar(tp *transcribe.Panel, settings *settingsPanel, addBtn *pointer
 	optionsBlock := container.NewVBox(
 		newSectionHeader("OPTIONS"),
 		container.New(newCappedGrid(3, spaceMD, 0),
-			newFormField("MODEL", settings.modelSelect),
-			newFormField("LANGUAGE", settings.langSelect),
-			newFormField("SPEAKERS", settings.speakersSelect),
+			newFormField("MODEL", settings.newModelSelectMirror()),
+			newFormField("LANGUAGE", settings.newLangSelectMirror()),
+			newFormField("SPEAKERS", settings.newSpeakersSelectMirror()),
 		),
 	)
 

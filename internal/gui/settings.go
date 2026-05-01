@@ -39,6 +39,10 @@ type settingsPanel struct {
 	threadsSelect  *limitSelect
 	speakersSelect *pointerSelect
 	expirySelect   *pointerSelect
+
+	modelMirrors    []*pointerSelect
+	langMirrors     []*limitSelect
+	speakersMirrors []*pointerSelect
 	noDiarizeBtn   *pointerButton
 	noDiarizeState bool
 	debugBtn       *pointerButton
@@ -61,18 +65,20 @@ func newSettingsPanel(cfg shared.Config, window fyne.Window) *settingsPanel {
 func (p *settingsPanel) build() {
 	persist := func(string) { p.persist() }
 
-	p.modelSelect = newPointerSelect(validModels, persist)
+	p.modelSelect = newPointerSelect(validModels, p.onModelChanged)
 	p.modelSelect.Selected = p.cfg.Model
 	if !slices.Contains(validModels, p.modelSelect.Selected) {
 		p.modelSelect.Selected = validModels[0]
 	}
+	p.modelMirrors = append(p.modelMirrors, p.modelSelect)
 
 	langLabel := "auto"
 	if p.cfg.Language != "" {
 		langLabel = p.cfg.Language
 	}
-	p.langSelect = newLimitSelect(languages, 300, persist)
+	p.langSelect = newLimitSelect(languages, 300, p.onLangChanged)
 	p.langSelect.Inner.Selected = langLabel
+	p.langMirrors = append(p.langMirrors, p.langSelect)
 
 	p.deviceSelect = newPointerSelect([]string{"auto", "cuda", "cpu"}, persist)
 	p.deviceSelect.Selected = p.cfg.Device
@@ -85,12 +91,13 @@ func (p *settingsPanel) build() {
 	p.threadsSelect = newLimitSelect(threadOpts, 300, persist)
 	p.threadsSelect.Inner.Selected = strconv.Itoa(p.cfg.Threads)
 
-	p.speakersSelect = newPointerSelect(speakerOptions, persist)
+	p.speakersSelect = newPointerSelect(speakerOptions, p.onSpeakersChanged)
 	spkSel := "auto"
 	if p.cfg.Speakers > 0 {
 		spkSel = strconv.Itoa(p.cfg.Speakers)
 	}
 	p.speakersSelect.Selected = spkSel
+	p.speakersMirrors = append(p.speakersMirrors, p.speakersSelect)
 
 	p.expirySelect = newPointerSelect(cacheExpiryOptions, persist)
 	if p.cfg.CacheExpiryDays <= 0 {
@@ -297,4 +304,55 @@ func (p *settingsPanel) Speakers() int {
 
 func (p *settingsPanel) NoDiarize() bool {
 	return p.noDiarizeState
+}
+
+func (p *settingsPanel) onModelChanged(v string) {
+	for _, m := range p.modelMirrors {
+		if m.Selected != v {
+			m.Selected = v
+			m.Refresh()
+		}
+	}
+	p.persist()
+}
+
+func (p *settingsPanel) onLangChanged(v string) {
+	for _, m := range p.langMirrors {
+		if m.Inner.Selected != v {
+			m.Inner.Selected = v
+			m.Inner.Refresh()
+		}
+	}
+	p.persist()
+}
+
+func (p *settingsPanel) onSpeakersChanged(v string) {
+	for _, m := range p.speakersMirrors {
+		if m.Selected != v {
+			m.Selected = v
+			m.Refresh()
+		}
+	}
+	p.persist()
+}
+
+func (p *settingsPanel) newModelSelectMirror() *pointerSelect {
+	s := newPointerSelect(validModels, p.onModelChanged)
+	s.Selected = p.modelSelect.Selected
+	p.modelMirrors = append(p.modelMirrors, s)
+	return s
+}
+
+func (p *settingsPanel) newLangSelectMirror() *limitSelect {
+	s := newLimitSelect(languages, 300, p.onLangChanged)
+	s.Inner.Selected = p.langSelect.Inner.Selected
+	p.langMirrors = append(p.langMirrors, s)
+	return s
+}
+
+func (p *settingsPanel) newSpeakersSelectMirror() *pointerSelect {
+	s := newPointerSelect(speakerOptions, p.onSpeakersChanged)
+	s.Selected = p.speakersSelect.Selected
+	p.speakersMirrors = append(p.speakersMirrors, s)
+	return s
 }

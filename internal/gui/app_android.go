@@ -119,9 +119,9 @@ func buildTranscodeTabAndroid(tp *transcribe.Panel, settings *settingsPanel) fyn
 	recBtn.Importance = widget.HighImportance
 
 	settingsRow := container.NewGridWithColumns(3,
-		newFormField("MODEL", settings.modelSelect),
-		newFormField("LANGUAGE", settings.langSelect),
-		newFormField("SPEAKERS", settings.speakersSelect),
+		newFormField("MODEL", settings.newModelSelectMirror()),
+		newFormField("LANGUAGE", settings.newLangSelectMirror()),
+		newFormField("SPEAKERS", settings.newSpeakersSelectMirror()),
 	)
 
 	actionRow := container.NewGridWithColumns(3,
