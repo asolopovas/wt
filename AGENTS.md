@@ -67,6 +67,7 @@ Requires Go 1.26+, GCC/MinGW, CMake, ffmpeg, [Task](https://taskfile.dev/). CGo 
 **Ask first:** anything mutating state outside the repo (installs, registry, version bumps).
 
 **Never:**
+- Rely on Unix text tools (`awk`, `grep`, `sed`, `head`, `cut`, ...) in `Taskfile.yml` shell blocks unless that task already exports `PATH=...msys64/mingw64/bin;...` (build/install do; release/bump don't). Task uses `mvdan/sh` and tools missing from the bare Windows PATH die with `"<tool>": executable file not found in $PATH`. Prefer `powershell -NoProfile -Command "..."` for parsing — it's always present and `task bump` already shells out to it. Use `-CaseSensitive` on `Select-String` so a `VERSION:` regex doesn't collide with the `version: '3'` Taskfile schema line.
 - Commit, push, or launch the GUI unless explicitly instructed. If GUI launches by accident: `taskkill /F /IM wt-gui.exe`.
 - Bump the version unless the user types "bump" (`task bump`, scheme `1.0.0 → 1.0.9 → 1.1.0`).
 - Re-add `-tags=android` to `.vscode/settings.json` gopls flags (cascades fake `C.xxx` errors). Use `wt-android.code-workspace` for android-tagged editing; lint via `task lint` / `task lint-android`.
