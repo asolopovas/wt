@@ -904,6 +904,24 @@ tasks:
       - defer: rm -f cmd/wt-gui/buildinfo_generated.go
       - cmd: |
           set -e
+          # Compile WtForegroundService.java -> classes2.dex so the APK can run
+          # a foreground service (keeps cpuset=/top-app when screen is off).
+          android_jar="$LOCALAPPDATA/Android/Sdk/platforms/android-36.1/android.jar"
+          if [ ! -f "$android_jar" ]; then
+            android_jar="$(ls -d $LOCALAPPDATA/Android/Sdk/platforms/android-* 2>/dev/null | sort -V | tail -1)/android.jar"
+          fi
+          rm -rf dist/svc-build
+          mkdir -p dist/svc-build/classes
+          javac -source 1.8 -target 1.8 -Xlint:-options \
+            -bootclasspath "$android_jar" -classpath "$android_jar" \
+            -d dist/svc-build/classes \
+            scripts/android-service/com/asolopovas/wtranscribe/WtForegroundService.java
+          "{{.BUILD_TOOLS}}/d8.bat" --min-api 24 \
+            --output dist/svc-build \
+            dist/svc-build/classes/com/asolopovas/wtranscribe/WtForegroundService.class
+          test -f dist/svc-build/classes.dex
+      - cmd: |
+          set -e
           apk="cmd/wt-gui/wt.apk"
           ndk_libcxx="{{.NDK_ROOT}}/toolchains/llvm/prebuilt/windows-x86_64/sysroot/usr/lib/aarch64-linux-android/libc++_shared.so"
           ndk_libomp="{{.NDK_ROOT}}/toolchains/llvm/prebuilt/windows-x86_64/lib/clang/18/lib/linux/aarch64/libomp.so"
@@ -941,6 +959,8 @@ tasks:
                       zout.write(sherpa_emb, 'assets/sherpa-models/emb.onnx', compress_type=zipfile.ZIP_STORED)
                   if os.path.exists(llama_bin):
                       zout.write(llama_bin, 'lib/arm64-v8a/libllama-cli.so', compress_type=zipfile.ZIP_STORED)
+                  if os.path.exists('dist/svc-build/classes.dex'):
+                      zout.write('dist/svc-build/classes.dex', 'classes2.dex', compress_type=zipfile.ZIP_DEFLATED)
           print('Patched:', os.path.getsize('dist/unsigned.apk'))
           "
           "{{.BUILD_TOOLS}}/zipalign.exe" -f 4 dist/unsigned.apk dist/aligned.apk

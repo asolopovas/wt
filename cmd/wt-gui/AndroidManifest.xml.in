@@ -53,5 +53,7 @@
 				<data android:mimeType="audio/*" />
 			</intent-filter>
 		</activity>
+		<service android:name="com.asolopovas.wtranscribe.WtForegroundService"
+			android:exported="false" />
 	</application>
 </manifest>
