@@ -28,6 +28,7 @@ type historyPanel struct {
 	container   fyne.CanvasObject
 	headerRight *fyne.Container
 	player      player.Player
+	renaming    map[string]bool
 }
 
 func (h *historyPanel) Container() fyne.CanvasObject {
@@ -35,7 +36,7 @@ func (h *historyPanel) Container() fyne.CanvasObject {
 }
 
 func newHistoryPanel(window fyne.Window, tp *transcribe.Panel) *historyPanel {
-	hp := &historyPanel{window: window, transcribe: tp}
+	hp := &historyPanel{window: window, transcribe: tp, renaming: map[string]bool{}}
 	hp.build()
 	hp.rebuild()
 	return hp
@@ -116,6 +117,10 @@ func (h *historyPanel) buildRow(e cache.Entry) fyne.CanvasObject {
 		} else {
 			actions.Add(wrap(container.NewCenter(canvas.NewText("…", colMuted))))
 		}
+	} else if h.renaming[e.Key] {
+		spinner := widget.NewActivity()
+		spinner.Start()
+		actions.Add(wrap(container.NewCenter(spinner)))
 	} else {
 		playBtn := newPointerButtonWithIcon("", playIconResource, nil)
 		playBtn.Importance = widget.LowImportance
@@ -191,14 +196,28 @@ func (h *historyPanel) showRowMenu(e cache.Entry, recorded time.Time, anchor fyn
 					RecordedAt: recorded,
 				}})
 			}),
+			fyne.NewMenuItem("Share", func() {
+				h.transcribe.ExportTranscript([]transcribe.ExportItem{{
+					CachePath:  cache.TranscriptPathForKey(e.Key),
+					SourceName: e.SourceName,
+					SourcePath: e.SourcePath,
+					CacheKey:   e.Key,
+					RecordedAt: recorded,
+				}})
+			}),
 			fyne.NewMenuItem("Auto-name", func() {
+				h.renaming[e.Key] = true
+				h.Refresh()
 				h.transcribe.AIRenameInBackground(transcribe.ExportItem{
 					CachePath:  cache.TranscriptPathForKey(e.Key),
 					SourceName: e.SourceName,
 					SourcePath: e.SourcePath,
 					CacheKey:   e.Key,
 					RecordedAt: recorded,
-				}, recorded, h.Refresh)
+				}, recorded, func() {
+					delete(h.renaming, e.Key)
+					h.Refresh()
+				})
 			}),
 			fyne.NewMenuItem("Re-diarize", func() {
 				if e.SourcePath == "" {

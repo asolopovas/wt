@@ -390,12 +390,55 @@ func (p *Panel) exportSingleAs(f exportFormat, item ExportItem, start time.Time)
 			showError(p.window, writeErr)
 			return
 		}
-		p.AppendLog("Exported: " + w.URI().Path())
+		transcriptPath := w.URI().Path()
+		p.AppendLog("Exported: " + transcriptPath)
+		if audioOut, copyErr := copyAudioBeside(item.SourcePath, transcriptPath); copyErr != nil {
+			p.AppendLog(fmt.Sprintf("  audio copy skipped: %v", copyErr))
+		} else if audioOut != "" {
+			p.AppendLog("Exported: " + audioOut)
+		}
 	}, p.window)
 
 	saveDialog.SetFileName(exportBaseName(item.SourceName, tr.Model) + "." + f.ext)
 	saveDialog.SetFilter(storage.NewExtensionFileFilter([]string{"." + f.ext}))
 	saveDialog.Show()
+}
+
+func copyAudioBeside(srcPath, transcriptPath string) (string, error) {
+	if srcPath == "" {
+		return "", nil
+	}
+	srcInfo, err := os.Stat(srcPath)
+	if err != nil {
+		return "", err
+	}
+	if srcInfo.IsDir() {
+		return "", fmt.Errorf("source is a directory")
+	}
+	transcriptDir := filepath.Dir(transcriptPath)
+	transcriptBase := strings.TrimSuffix(filepath.Base(transcriptPath), filepath.Ext(transcriptPath))
+	dst := filepath.Join(transcriptDir, transcriptBase+filepath.Ext(srcPath))
+	if dst == srcPath {
+		return "", nil
+	}
+	in, err := os.Open(srcPath)
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = in.Close() }()
+	out, err := os.Create(dst)
+	if err != nil {
+		return "", err
+	}
+	if _, err := io.Copy(out, in); err != nil {
+		_ = out.Close()
+		_ = os.Remove(dst)
+		return "", err
+	}
+	if err := out.Close(); err != nil {
+		return "", err
+	}
+	return dst, nil
 }
 
 func (p *Panel) exportBatchAs(f exportFormat, items []ExportItem) {

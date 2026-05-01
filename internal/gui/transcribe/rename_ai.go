@@ -19,14 +19,21 @@ import (
 )
 
 func (p *Panel) AIRenameInBackground(item ExportItem, fallback time.Time, onDone func()) {
+	finish := func() {
+		if onDone != nil {
+			onDone()
+		}
+	}
 	tr, err := loadTranscript(item.CachePath)
 	if err != nil {
 		showError(p.window, fmt.Errorf("loading %s: %w", item.SourceName, err))
+		finish()
 		return
 	}
 	text := transcriptToText(tr)
 	if strings.TrimSpace(text) == "" {
 		showNotice(p.window, notifyInfo, "Auto-name", "Transcript is empty.")
+		finish()
 		return
 	}
 	if fallback.IsZero() {
@@ -34,6 +41,7 @@ func (p *Panel) AIRenameInBackground(item ExportItem, fallback time.Time, onDone
 	}
 	if item.SourcePath == "" {
 		showError(p.window, fmt.Errorf("source path missing for %s", item.SourceName))
+		finish()
 		return
 	}
 
@@ -44,6 +52,7 @@ func (p *Panel) AIRenameInBackground(item ExportItem, fallback time.Time, onDone
 		defer cancel()
 		s, err := namer.Suggest(ctx, text, fallback)
 		fyne.Do(func() {
+			defer finish()
 			if err != nil {
 				showError(p.window, err)
 				return
@@ -73,9 +82,6 @@ func (p *Panel) AIRenameInBackground(item ExportItem, fallback time.Time, onDone
 				}
 			}
 			showNotice(p.window, notifyInfo, "Auto-name", "Renamed to "+suggested)
-			if onDone != nil {
-				onDone()
-			}
 		})
 	}()
 }
