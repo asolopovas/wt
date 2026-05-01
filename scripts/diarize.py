@@ -17,6 +17,18 @@ if sys.platform == "win32":
             kwargs.setdefault("ignore_cleanup_errors", True)
             super().__init__(*args, **kwargs)
 
+        def cleanup(self):
+            try:
+                super().cleanup()
+            except (OSError, PermissionError):
+                pass
+
+        def __exit__(self, exc, value, tb):
+            try:
+                super().__exit__(exc, value, tb)
+            except (OSError, PermissionError):
+                pass
+
     tempfile.TemporaryDirectory = _WinTempDir
 
 
