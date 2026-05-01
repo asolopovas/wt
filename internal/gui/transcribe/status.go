@@ -194,5 +194,5 @@ func (p *Panel) debugLog(msg string) {
 	if !p.Settings.Debug() {
 		return
 	}
-	p.AppendLog("  [debug] " + msg)
+	p.AppendLog(msg)
 }

@@ -32,7 +32,6 @@ func (p *Panel) runDiarization(wavPath string, speakers int, audioDurSec float64
 		p.AppendLog(fmt.Sprintf("  Diarization unavailable: %v", err))
 		return nil, false
 	}
-	p.AppendLog(fmt.Sprintf("  Diarizing [%s]...", dia.Name()))
 	p.debugLog(fmt.Sprintf("diarizer=%s speakers=%d wavPath=%s", dia.Name(), speakers, wavPath))
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -65,7 +64,7 @@ func (p *Panel) runDiarization(wavPath string, speakers int, audioDurSec float64
 	for _, s := range diarSegs {
 		seen[s.Speaker] = struct{}{}
 	}
-	p.AppendLog(fmt.Sprintf("  Diarized (%d speakers, %d segments, %.0fs)",
+	p.debugLog(fmt.Sprintf("diarized: %d speakers, %d segments, %.0fs",
 		len(seen), len(diarSegs), time.Since(diarStart).Seconds()))
 	return diarSegs, true
 }

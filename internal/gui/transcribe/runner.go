@@ -131,9 +131,8 @@ func (p *Panel) runTranscription(files []string) {
 	speakers := p.Settings.Speakers()
 	noDiarize := p.Settings.NoDiarize()
 
-	p.AppendLog(fmt.Sprintf("Loading model: %s (%s)...", modelSize, device))
 	p.setStatus("Loading model...")
-	p.debugLog(fmt.Sprintf("threads=%d language=%q speakers=%d noDiarize=%v", threads, language, speakers, noDiarize))
+	p.debugLog(fmt.Sprintf("model=%s device=%s threads=%d language=%q speakers=%d noDiarize=%v", modelSize, device, threads, language, speakers, noDiarize))
 
 	model, err := p.loadModel(modelSize)
 	if err != nil {
@@ -152,25 +151,25 @@ func (p *Panel) runTranscription(files []string) {
 			gpuFound = true
 			suffix := ""
 			if runtime.GOOS == "android" {
-				suffix = ", shared memory"
+				suffix = ", shared mem"
 			}
-			p.AppendLog(fmt.Sprintf("Model loaded (%s, %s%s)", modelSize, dev.Description, suffix))
+			p.AppendLog(fmt.Sprintf("Model: %s · %s%s", modelSize, dev.Description, suffix))
 			if runtime.GOOS != "android" {
 				usedMB := dev.TotalMB - dev.FreeMB
-				p.AppendLog(fmt.Sprintf("VRAM: %d/%d MB", usedMB, dev.TotalMB))
+				p.debugLog(fmt.Sprintf("VRAM: %d/%d MB", usedMB, dev.TotalMB))
 			}
 			p.debugLog(fmt.Sprintf("GPU: %s (free=%dMB total=%dMB)", dev.Description, dev.FreeMB, dev.TotalMB))
 		}
 	}
 	if !gpuFound {
-		p.AppendLog(fmt.Sprintf("Model loaded (%s, CPU)", modelSize))
+		p.AppendLog(fmt.Sprintf("Model: %s · CPU", modelSize))
 		p.debugLog("no GPU detected, using CPU")
 	}
 	if used, total := sysstats.MemUsageMB(); total > 0 {
-		p.AppendLog(fmt.Sprintf("RAM: %d/%d MB", used, total))
+		p.debugLog(fmt.Sprintf("RAM: %d/%d MB", used, total))
 	}
 	procSnap := sysstats.ProcStats()
-	p.AppendLog(fmt.Sprintf("Process: pid=%d threads=%d rss=%dMB cpuset=%s cores-allowed=%d",
+	p.debugLog(fmt.Sprintf("Process: pid=%d threads=%d rss=%dMB cpuset=%s cores-allowed=%d",
 		procSnap.PID, procSnap.Threads, procSnap.RSSMB, procSnap.Cpuset, procSnap.NumCores))
 	p.debugLog(fmt.Sprintf("system: %d cores total, %d allowed, %s", runtime.NumCPU(), procSnap.NumCores, runtime.GOARCH))
 
@@ -255,7 +254,7 @@ func (p *Panel) loadModel(modelSize string) (whisper.Model, error) {
 		return nil, fmt.Errorf("loading model: %w", err)
 	}
 
-	p.AppendLog(fmt.Sprintf("  Model loaded in %.1fs", time.Since(start).Seconds()))
+	p.debugLog(fmt.Sprintf("model loaded in %.1fs", time.Since(start).Seconds()))
 	return m, nil
 }
 
@@ -270,6 +269,7 @@ func (p *Panel) transcribeFile(model whisper.Model, path, modelSize, deviceLabel
 	}
 
 	sourceName := filepath.Base(absPath)
+	fileStart := time.Now()
 
 	params, keyErr := cache.BuildKeyParams(absPath, modelSize, language, speakers, noDiarize)
 	var cacheKey string
@@ -278,7 +278,7 @@ func (p *Panel) transcribeFile(model whisper.Model, path, modelSize, deviceLabel
 		if hitPath, _, ok := cache.Lookup(cacheKey); ok {
 			p.lastCSVPath = hitPath
 			p.results = append(p.results, ExportItem{CachePath: hitPath, SourceName: sourceName, SourcePath: absPath, CacheKey: cacheKey})
-			p.AppendLog(fmt.Sprintf("  Cached transcript reused for %s", sourceName))
+			p.AppendLog("  ⚡ cached transcript reused")
 			p.setLocalProgress(1.0)
 			if p.History != nil {
 				p.History.Refresh()
@@ -288,7 +288,6 @@ func (p *Panel) transcribeFile(model whisper.Model, path, modelSize, deviceLabel
 	}
 
 	p.setStatus("Loading audio...")
-	p.AppendLog("  Loading audio...")
 	loadStart := time.Now()
 	samples, err := transcriber.LoadAudioSamples(absPath)
 	if err != nil {
@@ -298,8 +297,7 @@ func (p *Panel) transcribeFile(model whisper.Model, path, modelSize, deviceLabel
 	audioDurSec := float64(len(samples)) / transcriber.WhisperSampleRate
 	durStr := transcriber.FormatHMS(time.Duration(audioDurSec * float64(time.Second)))
 	p.setLocalProgress(0.10)
-	p.AppendLog(fmt.Sprintf("  Audio loaded (%s, %.1fs)", durStr, time.Since(loadStart).Seconds()))
-	p.debugLog(fmt.Sprintf("samples=%d sampleRate=%d duration=%.1fs", len(samples), transcriber.WhisperSampleRate, audioDurSec))
+	p.debugLog(fmt.Sprintf("audio loaded (%s, %.1fs) samples=%d rate=%d", durStr, time.Since(loadStart).Seconds(), len(samples), transcriber.WhisperSampleRate))
 
 	if p.cancelled.Load() {
 		return fmt.Errorf("cancelled")
@@ -317,7 +315,7 @@ func (p *Panel) transcribeFile(model whisper.Model, path, modelSize, deviceLabel
 			segs = cached
 			rawHit = true
 			detected = language
-			p.AppendLog(fmt.Sprintf("  Raw transcript reused (%d segments)", len(cached)))
+			p.AppendLog(fmt.Sprintf("  ⚡ raw transcript reused (%d segs)", len(cached)))
 			p.setLocalProgress(0.80)
 		}
 	}
@@ -332,7 +330,7 @@ func (p *Panel) transcribeFile(model whisper.Model, path, modelSize, deviceLabel
 			TDRZ:    false,
 		})
 		if transcriber.ConfigureVAD(ctx) {
-			p.AppendLog("  VAD: Silero v6.2.0")
+			p.debugLog("VAD: Silero v6.2.0")
 		}
 		transcriber.SetLanguage(ctx, language)
 
@@ -376,7 +374,6 @@ func (p *Panel) transcribeFile(model whisper.Model, path, modelSize, deviceLabel
 			remainDurSec = 1
 		}
 
-		p.AppendLog("  Transcribing...")
 		processStart := time.Now()
 		initialRTF := loadRTF(modelSize, deviceLabel)
 		smoother := progress.NewSmoother(remainDurSec, initialRTF)
@@ -461,7 +458,7 @@ func (p *Panel) transcribeFile(model whisper.Model, path, modelSize, deviceLabel
 			return fmt.Errorf("processing audio: %w", err)
 		}
 		transcribeElapsed := time.Since(processStart).Seconds()
-		p.AppendLog(fmt.Sprintf("  Transcribed (%.0fs)", transcribeElapsed))
+		p.debugLog(fmt.Sprintf("transcribed in %.0fs", transcribeElapsed))
 		observedRTF := 0.0
 		if transcribeElapsed > 0 && remainDurSec > 0 {
 			observedRTF = remainDurSec / transcribeElapsed
@@ -473,9 +470,7 @@ func (p *Panel) transcribeFile(model whisper.Model, path, modelSize, deviceLabel
 		p.setLocalProgress(0.80)
 
 		detected = ctx.DetectedLanguage()
-		if detected != "" {
-			p.AppendLog(fmt.Sprintf("  Language: %s", detected))
-		} else {
+		if detected == "" {
 			detected = language
 		}
 		segs = transcriber.DeduplicateSegments(merged)
@@ -572,7 +567,18 @@ func (p *Panel) transcribeFile(model whisper.Model, path, modelSize, deviceLabel
 
 	p.lastCSVPath = storedPath
 	p.setLocalProgress(1.0)
-	p.AppendLog(fmt.Sprintf("  Transcript ready (%d segments)", len(transcript.Utterances)))
+	spkSet := make(map[int]struct{})
+	for _, s := range diarSegs {
+		spkSet[s.Speaker] = struct{}{}
+	}
+	parts := []string{fmt.Sprintf("%.0fs", time.Since(fileStart).Seconds()), fmt.Sprintf("%d segs", len(transcript.Utterances))}
+	if detected != "" {
+		parts = append(parts, detected)
+	}
+	if diarOK && len(spkSet) > 0 {
+		parts = append(parts, fmt.Sprintf("%d spk", len(spkSet)))
+	}
+	p.AppendLog("  ✓ " + strings.Join(parts, " · "))
 
 	newSrc, newName := p.autoRenameAfterTranscribe(entry.Key, storedPath, absPath, sourceName, time.Time{})
 	p.results = append(p.results, ExportItem{CachePath: storedPath, SourceName: newName, SourcePath: newSrc, CacheKey: entry.Key})

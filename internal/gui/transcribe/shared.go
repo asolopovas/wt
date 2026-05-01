@@ -73,7 +73,6 @@ func buildLogPanel(content fyne.CanvasObject, leftHeader fyne.CanvasObject, copy
 }
 
 func appendLogInit(p *Panel) {
-	p.AppendLog("Initializing Whisper Core ...")
 	p.AppendLog("Ready.")
 }
 
@@ -286,7 +285,7 @@ func (p *Panel) onShareLog() {
 }
 
 func (p *Panel) AppendLog(msg string) {
-	line := time.Now().Format("[15:04:05]") + "  " + msg
+	line := time.Now().Format("15:04:05") + " " + msg
 	p.logBufMu.Lock()
 	p.logBuf = append(p.logBuf, line)
 	p.logBufMu.Unlock()
