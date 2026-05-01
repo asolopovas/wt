@@ -1,6 +1,7 @@
 package transcribe
 
 import (
+	"archive/zip"
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
@@ -36,6 +37,7 @@ var exportFormats = []exportFormat{
 	{"CSV", "csv"},
 	{"XLSX", "xlsx"},
 	{"Text", "txt"},
+	{"ZIP (audio + transcript)", "zip"},
 }
 
 type ExportItem struct {
@@ -386,6 +388,14 @@ func (p *Panel) exportSingleAs(f exportFormat, item ExportItem, start time.Time)
 			return
 		}
 		defer func() { _ = w.Close() }()
+		if f.ext == "zip" {
+			if writeErr := writeBundleZip(w, tr, item, start); writeErr != nil {
+				showError(p.window, writeErr)
+				return
+			}
+			p.AppendLog("Exported: " + w.URI().Path())
+			return
+		}
 		if writeErr := writeExport(w, tr, f, start); writeErr != nil {
 			showError(p.window, writeErr)
 			return
@@ -402,6 +412,40 @@ func (p *Panel) exportSingleAs(f exportFormat, item ExportItem, start time.Time)
 	saveDialog.SetFileName(exportBaseName(item.SourceName, tr.Model) + "." + f.ext)
 	saveDialog.SetFilter(storage.NewExtensionFileFilter([]string{"." + f.ext}))
 	saveDialog.Show()
+}
+
+func writeBundleZip(w io.Writer, tr *transcriber.Transcript, item ExportItem, start time.Time) error {
+	zw := zip.NewWriter(w)
+	defer func() { _ = zw.Close() }()
+
+	base := exportBaseName(item.SourceName, tr.Model)
+	for _, f := range []exportFormat{{"JSON", "json"}, {"CSV", "csv"}, {"Text", "txt"}} {
+		entry, err := zw.Create(base + "." + f.ext)
+		if err != nil {
+			return err
+		}
+		if err := writeExport(entry, tr, f, start); err != nil {
+			return err
+		}
+	}
+
+	if item.SourcePath == "" {
+		return zw.Close()
+	}
+	in, err := os.Open(item.SourcePath)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = in.Close() }()
+	audioName := base + filepath.Ext(item.SourcePath)
+	audioEntry, err := zw.CreateHeader(&zip.FileHeader{Name: audioName, Method: zip.Store})
+	if err != nil {
+		return err
+	}
+	if _, err := io.Copy(audioEntry, in); err != nil {
+		return err
+	}
+	return zw.Close()
 }
 
 func copyAudioBeside(srcPath, transcriptPath string) (string, error) {
@@ -469,7 +513,12 @@ func (p *Panel) exportBatchAs(f exportFormat, items []ExportItem) {
 				failed++
 				continue
 			}
-			werr := writeExport(out, tr, f, itemStartTime(item))
+			var werr error
+			if f.ext == "zip" {
+				werr = writeBundleZip(out, tr, item, itemStartTime(item))
+			} else {
+				werr = writeExport(out, tr, f, itemStartTime(item))
+			}
 			_ = out.Close()
 			if werr != nil {
 				p.AppendLog(fmt.Sprintf("Export failed for %s: %v", item.SourceName, werr))
