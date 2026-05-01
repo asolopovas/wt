@@ -208,6 +208,8 @@ func buildSettingsTab(sp *settingsPanel, deviceInfo, version string) fyne.Canvas
 
 	bodySection := container.NewVBox(
 		vGap(spaceSM),
+		newSectionDivider(),
+		vGap(spaceSM),
 		statsBlock,
 		vGap(spaceLG),
 		settingsGrid,
