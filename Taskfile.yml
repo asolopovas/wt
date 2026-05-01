@@ -34,8 +34,7 @@ vars:
       done
       echo ""
 
-  CUDA_ARCH:
-    sh: echo "61;75;80;86;89"
+  CUDA_ARCH: '61;75;80;86;89'
 
   GCC_PATH:
     sh: |
@@ -64,6 +63,9 @@ vars:
       fi
       echo "$p"
 
+  # Reusable env-prefix for Go invocations: PATH for whisper DLLs/MinGW + LD_LIBRARY_PATH on Linux.
+  GO_ENV: 'export PATH="{{.WHISPER_BUILD}}/bin;{{.EXTRA_PATH}};$PATH" LD_LIBRARY_PATH="{{.WHISPER_BUILD}}/src:{{.WHISPER_BUILD}}/ggml/src:{{.WHISPER_BUILD}}/ggml/src/ggml-cuda${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"'
+
 env:
   CGO_ENABLED: '1'
   CC: '{{if .IS_LINUX}}gcc{{else}}{{.GCC_PATH}}{{end}}'
@@ -80,45 +82,15 @@ tasks:
   whisper-lib:
     desc: Build whisper.cpp (with CUDA if available)
     internal: true
+    run: once
+    status:
+      - '[ -n "{{.IS_LINUX}}"  ] && test -f "{{.WHISPER_BUILD}}/src/libwhisper.so"'
+      - '[ -z "{{.IS_LINUX}}"  ] && [ -n "{{.CUDA_DIR}}" ] && test -f "{{.WHISPER_BUILD}}/bin/whisper.dll"'
+      - '[ -z "{{.IS_LINUX}}"  ] && [ -z "{{.CUDA_DIR}}" ] && test -f "{{.WHISPER_ROOT}}/build/src/libwhisper.a"'
     cmds:
       - cmd: git clone --depth 1 https://github.com/ggml-org/whisper.cpp.git {{.WHISPER_ROOT}}
         if: '[ ! -d "{{.WHISPER_ROOT}}" ]'
-      - cmd: |
-          echo "CUDA detected: {{.CUDA_DIR}} (arch {{.CUDA_ARCH}})"
-          echo "Building whisper.cpp with CUDA (via MSVC + Ninja)..."
-          export CUDA_ARCH="{{.CUDA_ARCH}}"
-          cmd.exe /c "{{.ROOT_DIR | toSlash}}/scripts/build-whisper-cuda.bat" "{{.WHISPER_ROOT}}"
-        if: '[ -n "{{.CUDA_DIR}}" ] && [ ! -f "{{.WHISPER_BUILD}}/bin/whisper.dll" ]'
-      - cmd: |
-          echo "CUDA not found, building CPU-only..."
-          cd "{{.WHISPER_ROOT}}"
-          cmake -B build -G "MinGW Makefiles" \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DBUILD_SHARED_LIBS=OFF \
-            -DWHISPER_BUILD_EXAMPLES=OFF \
-            -DWHISPER_BUILD_TESTS=OFF
-          cmake --build build -j${NUMBER_OF_PROCESSORS:-$(nproc)}
-          cd build/ggml/src
-          for f in ggml.a ggml-base.a ggml-cpu.a; do
-            [ -f "$f" ] && cp "$f" "lib$f" 2>/dev/null
-          done
-        if: '[ -z "{{.IS_LINUX}}" ] && [ -z "{{.CUDA_DIR}}" ] && [ ! -f "{{.WHISPER_ROOT}}/build/src/libwhisper.a" ]'
-      - cmd: |
-          echo "Linux: building whisper.cpp (CUDA={{.LINUX_CUDA}})..."
-          cd "{{.WHISPER_ROOT}}"
-          extra=""
-          if [ -n "{{.LINUX_CUDA}}" ]; then
-            extra="-DGGML_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES=native"
-          fi
-          cmake -B build \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DBUILD_SHARED_LIBS=ON \
-            -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
-            -DWHISPER_BUILD_EXAMPLES=OFF \
-            -DWHISPER_BUILD_TESTS=OFF \
-            $extra
-          cmake --build build -j$(nproc)
-        if: '[ -n "{{.IS_LINUX}}" ] && [ ! -f "{{.WHISPER_BUILD}}/src/libwhisper.so" ]'
+      - bash scripts/build-whisper.sh "{{.WHISPER_ROOT}}" "{{.WHISPER_BUILD}}" "{{.CUDA_DIR}}" "{{.CUDA_ARCH}}" "{{.ROOT_DIR | toSlash}}" "{{.LINUX_CUDA}}"
 
   build:
     desc: 'Build binaries, copy runtime DLLs, and produce dist/wt-setup.exe. Use ONLY=cli or ONLY=gui to limit (skips installer).'
@@ -138,9 +110,9 @@ tasks:
     cmds:
       - mkdir -p dist/bin
       # ---- Windows builds ----
-      - cmd: 'export PATH="{{.WHISPER_BUILD}}/bin;{{.EXTRA_PATH}};$PATH" && go build -ldflags "-X main.Version={{.VERSION}}" -o dist/bin/{{.BINARY}}.exe ./cmd/wt'
+      - cmd: '{{.GO_ENV}} && go build -ldflags "-X main.Version={{.VERSION}}" -o dist/bin/{{.BINARY}}.exe ./cmd/wt'
         if: '[ -z "{{.IS_LINUX}}" ] && [ "{{.ONLY}}" != "gui" ]'
-      - cmd: 'export PATH="{{.WHISPER_BUILD}}/bin;{{.EXTRA_PATH}};$PATH" && go build -ldflags "-X main.Version={{.VERSION}} -X main.BuildDate={{.GIT_DATE}} -H windowsgui" -o dist/bin/{{.BINARY}}-gui.exe ./cmd/wt-gui'
+      - cmd: '{{.GO_ENV}} && go build -ldflags "-X main.Version={{.VERSION}} -X main.BuildDate={{.GIT_DATE}} -H windowsgui" -o dist/bin/{{.BINARY}}-gui.exe ./cmd/wt-gui'
         if: '[ -z "{{.IS_LINUX}}" ] && [ "{{.ONLY}}" != "cli" ]'
       - cmd: |
           dlldir="{{.WHISPER_BUILD}}/bin"
@@ -154,11 +126,9 @@ tasks:
           done
         if: '[ -z "{{.IS_LINUX}}" ] && [ -n "{{.CUDA_DIR}}" ]'
       # ---- Linux builds ----
-      - cmd: |
-          go build -ldflags "-X main.Version={{.VERSION}}" -o dist/bin/{{.BINARY}} ./cmd/wt
+      - cmd: 'go build -ldflags "-X main.Version={{.VERSION}}" -o dist/bin/{{.BINARY}} ./cmd/wt'
         if: '[ -n "{{.IS_LINUX}}" ] && [ "{{.ONLY}}" != "gui" ]'
-      - cmd: |
-          go build -ldflags "-X main.Version={{.VERSION}} -X main.BuildDate={{.GIT_DATE}}" -o dist/bin/{{.BINARY}}-gui ./cmd/wt-gui
+      - cmd: 'go build -ldflags "-X main.Version={{.VERSION}} -X main.BuildDate={{.GIT_DATE}}" -o dist/bin/{{.BINARY}}-gui ./cmd/wt-gui'
         if: '[ -n "{{.IS_LINUX}}" ] && [ "{{.ONLY}}" != "cli" ]'
       - cmd: |
           dest="{{.ROOT_DIR | toSlash}}/dist/bin"
@@ -245,6 +215,7 @@ tasks:
 
   fetch-deps:
     internal: true
+    run: once
     cmds:
       - mkdir -p dist/deps
       - cmd: |
@@ -315,99 +286,7 @@ tasks:
     desc: 'Build dist/wt_{{.VERSION}}_amd64.deb (Linux). Installs to /opt/wt with /usr/bin symlinks.'
     deps: [fetch-deps]
     cmds:
-      - cmd: |
-          set -e
-          if ! command -v dpkg-deb >/dev/null 2>&1; then
-            echo "ERROR: dpkg-deb not found (install: sudo apt install dpkg-dev fakeroot)"; exit 1
-          fi
-          root="dist/wt-deb"
-          rm -rf "$root"
-          mkdir -p "$root/DEBIAN" "$root/opt/wt" "$root/opt/wt/models" \
-                   "$root/usr/bin" "$root/usr/share/applications" \
-                   "$root/usr/share/icons/hicolor/256x256/apps" \
-                   "$root/usr/share/doc/wt"
-
-          cp -P dist/bin/{{.BINARY}} dist/bin/{{.BINARY}}-gui "$root/opt/wt/"
-          cp -P dist/bin/*.so* "$root/opt/wt/" 2>/dev/null || true
-          cp dist/bin/diarize.py "$root/opt/wt/"
-          cp dist/deps/uv-linux "$root/opt/wt/uv"
-          cp scripts/setup-linux-user.sh "$root/opt/wt/wt-setup"
-          chmod +x "$root/opt/wt/uv" "$root/opt/wt/wt-setup" "$root/opt/wt/{{.BINARY}}" "$root/opt/wt/{{.BINARY}}-gui"
-
-          # Bundled models (whisper turbo + Silero VAD)
-          src_models="${XDG_CONFIG_HOME:-$HOME/.config}/wt/models"
-          for f in ggml-large-v3-turbo.bin ggml-silero-v6.2.0.bin; do
-            if [ -f "$src_models/$f" ]; then
-              echo "  bundling $f"
-              cp "$src_models/$f" "$root/opt/wt/models/$f"
-            else
-              echo "  WARN: $src_models/$f missing (run 'task models-import' first)"
-            fi
-          done
-
-          # Docs
-          cp LICENSE "$root/usr/share/doc/wt/copyright" 2>/dev/null || true
-          cp THIRD-PARTY-LICENSES.txt "$root/usr/share/doc/wt/" 2>/dev/null || true
-          cp README.md "$root/usr/share/doc/wt/" 2>/dev/null || true
-          cp AGENTS.md "$root/usr/share/doc/wt/" 2>/dev/null || true
-
-          ln -sf /opt/wt/{{.BINARY}}     "$root/usr/bin/{{.BINARY}}"
-          ln -sf /opt/wt/{{.BINARY}}-gui "$root/usr/bin/{{.BINARY}}-gui"
-          ln -sf /opt/wt/wt-setup        "$root/usr/bin/wt-setup"
-
-          if [ -f winres/icon.png ]; then
-            cp winres/icon.png "$root/usr/share/icons/hicolor/256x256/apps/wt.png"
-          fi
-
-          cat > "$root/usr/share/applications/wt.desktop" <<EOF
-          [Desktop Entry]
-          Type=Application
-          Name=wt
-          Comment=Whisper transcription with diarization
-          Exec=/opt/wt/wt-gui
-          Icon=wt
-          Terminal=false
-          Categories=AudioVideo;Audio;Utility;
-          EOF
-
-          inst_size=$(du -sk "$root/opt" | cut -f1)
-          cat > "$root/DEBIAN/control" <<EOF
-          Package: wt
-          Version: {{.VERSION}}
-          Section: sound
-          Priority: optional
-          Architecture: amd64
-          Maintainer: A. Solopovas <info@lyntouch.com>
-          Installed-Size: ${inst_size}
-          Depends: libc6, libgcc-s1, libstdc++6
-          Recommends: ffmpeg, nvidia-driver-535 | nvidia-driver-550 | nvidia-driver-560 | nvidia-driver-570
-          Description: Whisper.cpp CLI + GUI with NeMo speaker diarization
-           wt transcribes audio using whisper.cpp (CUDA-accelerated when an NVIDIA GPU
-           is present) and performs speaker diarization via NVIDIA NeMo Sortformer.
-           After install, run 'wt-setup' once to provision the per-user Python venv
-           with NeMo (one-time, ~2 GB) and link bundled models into your config dir.
-          EOF
-
-          cat > "$root/DEBIAN/postinst" <<'EOF'
-          #!/bin/sh
-          set -e
-          if [ -d /usr/share/icons/hicolor ] && command -v gtk-update-icon-cache >/dev/null 2>&1; then
-            gtk-update-icon-cache -f -t /usr/share/icons/hicolor 2>/dev/null || true
-          fi
-          if command -v update-desktop-database >/dev/null 2>&1; then
-            update-desktop-database -q /usr/share/applications 2>/dev/null || true
-          fi
-          echo
-          echo "wt installed. To finish setup, each user must run once:"
-          echo "  wt-setup"
-          echo "(creates ~/.config/wt/python with nemo_toolkit[asr], ~2 GB download,"
-          echo " and links bundled whisper models into ~/.config/wt/models)"
-          EOF
-          chmod 0755 "$root/DEBIAN/postinst"
-
-          out="dist/wt_{{.VERSION}}_amd64.deb"
-          fakeroot dpkg-deb --build -Zxz "$root" "$out"
-          ls -l "$out"
+      - cmd: bash scripts/build-deb.sh "{{.VERSION}}" "{{.BINARY}}" "{{.ROOT_DIR | toSlash}}"
         if: '[ -n "{{.IS_LINUX}}" ]'
 
   models-import:
@@ -438,17 +317,12 @@ tasks:
 
   release:
     desc: 'End-to-end release: bump version, build artifacts, push commits + tag, create GitHub release and upload assets'
+    preconditions:
+      - sh: command -v gh >/dev/null 2>&1
+        msg: 'gh CLI not found. Install via: winget install GitHub.cli'
+      - sh: '[ -z "$(git status --porcelain)" ]'
+        msg: 'Working tree has uncommitted changes; commit or stash first.'
     cmds:
-      - |
-        if ! command -v gh >/dev/null 2>&1; then
-          echo "ERROR: gh CLI not found. Install via: winget install GitHub.cli"
-          exit 1
-        fi
-        if [ -n "$(git status --porcelain)" ]; then
-          echo "ERROR: working tree has uncommitted changes; commit or stash first."
-          git status --short
-          exit 1
-        fi
       - task: bump
       # IMPORTANT: spawn a fresh `task` subprocess for build so the freshly-bumped
       # VERSION is re-parsed from Taskfile.yml. `- task: build` would reuse the
@@ -482,37 +356,22 @@ tasks:
           echo "ERROR: no artifacts found to upload"; exit 1
         fi
 
-        # Create the release first (without assets) so large/slow uploads can't
-        # cause `gh release create` to error before the release exists. Then
-        # upload artifacts in a retry loop — uploads of 200+ MB occasionally
-        # fail with transient HTTP errors and need a second attempt.
+        # Create the release first (without assets) so a slow/failing upload can't
+        # leave us with a tag pushed but no release. Then upload with retry.
         if ! gh release view "$tag" >/dev/null 2>&1; then
           gh release create "$tag" --title "$tag" --generate-notes
         fi
-        attempt=0
-        until gh release upload "$tag" $artifacts --clobber; do
-          attempt=$((attempt+1))
-          if [ "$attempt" -ge 3 ]; then
-            echo "ERROR: gh release upload failed after $attempt attempts"; exit 1
-          fi
-          echo "Upload attempt $attempt failed; retrying in 5s..."
-          sleep 5
-        done
+        bash scripts/gh-release-upload.sh "$tag" $artifacts
         echo "Released $tag: https://github.com/asolopovas/wt/releases/tag/$tag"
 
   release-latest:
     desc: 'Rolling release: build current main and update the "rolling" tag + GitHub prerelease (no version bump)'
+    preconditions:
+      - sh: command -v gh >/dev/null 2>&1
+        msg: 'gh CLI not found. Install via: winget install GitHub.cli'
+      - sh: '[ -z "$(git status --porcelain)" ]'
+        msg: 'Working tree has uncommitted changes; commit or stash first.'
     cmds:
-      - |
-        if ! command -v gh >/dev/null 2>&1; then
-          echo "ERROR: gh CLI not found. Install via: winget install GitHub.cli"
-          exit 1
-        fi
-        if [ -n "$(git status --porcelain)" ]; then
-          echo "ERROR: working tree has uncommitted changes; commit or stash first."
-          git status --short
-          exit 1
-        fi
       - task: build
       - cmd: 'task android-apk'
         if: '[ -z "{{.IS_LINUX}}" ]'
@@ -558,15 +417,7 @@ tasks:
           --title "Rolling ($branch @ $sha)" \
           --prerelease \
           --notes "Rolling build of $branch. Commit \`$sha\`, version $ver. Updated automatically; not a stable release."
-        attempt=0
-        until gh release upload "$tag" $artifacts --clobber; do
-          attempt=$((attempt+1))
-          if [ "$attempt" -ge 3 ]; then
-            echo "ERROR: gh release upload failed after $attempt attempts"; exit 1
-          fi
-          echo "Upload attempt $attempt failed; retrying in 5s..."
-          sleep 5
-        done
+        bash scripts/gh-release-upload.sh "$tag" $artifacts
         echo "Rolling release: https://github.com/asolopovas/wt/releases/tag/$tag"
 
   bump:
@@ -600,7 +451,7 @@ tasks:
     desc: Run all tests
     deps: [whisper-lib]
     cmds:
-      - cmd: 'export PATH="{{.EXTRA_PATH}};$PATH" LD_LIBRARY_PATH="{{.WHISPER_BUILD}}/src:{{.WHISPER_BUILD}}/ggml/src:{{.WHISPER_BUILD}}/ggml/src/ggml-cuda${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" && go test -v ./...'
+      - '{{.GO_ENV}} && go test -v ./...'
 
   fetch-samples:
     desc: Download diarization test samples (sherpa-onnx clips + VoxConverse RTTMs)
@@ -641,18 +492,18 @@ tasks:
   test-unit:
     desc: Run unit tests (no CGo / model required)
     cmds:
-      - cmd: 'export PATH="{{.EXTRA_PATH}};$PATH" && go test -v -short ./...'
+      - 'export PATH="{{.EXTRA_PATH}};$PATH" && go test -v -short ./...'
 
   test-integration:
     desc: Run diarization integration tests (downloads samples on demand)
     deps: [whisper-lib]
     cmds:
-      - cmd: 'export PATH="{{.EXTRA_PATH}};$PATH" LD_LIBRARY_PATH="{{.WHISPER_BUILD}}/src:{{.WHISPER_BUILD}}/ggml/src:{{.WHISPER_BUILD}}/ggml/src/ggml-cuda${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" && go test -v -tags=integration ./internal/diarizer/...'
+      - '{{.GO_ENV}} && go test -v -tags=integration ./internal/diarizer/...'
 
   vet:
     desc: Run go vet with the right CGo env
     cmds:
-      - cmd: 'export PATH="{{.EXTRA_PATH}};$PATH" && go vet ./cmd/... ./internal/...'
+      - 'export PATH="{{.EXTRA_PATH}};$PATH" && go vet ./cmd/... ./internal/...'
 
   lint:
     desc: Run golangci-lint (falls back to go vet)
@@ -859,26 +710,10 @@ tasks:
     desc: 'Build Android APK (dist/wt-{{.VERSION}}.apk).'
     deps: [android-whisper-lib]
     cmds:
-      - cmd: |
-          set -e
-          # Materialize cmd/wt-gui/AndroidManifest.xml from .in template so Fyne
-          # picks it up (build_androidapp.go reads AndroidManifest.xml from the
-          # main-package dir verbatim and skips the generated default).
-          python -c "
-          import sys
-          ver = '{{.VERSION}}'
-          parts = (ver.split('.') + ['0','0','0'])[:3]
-          maj, mn, pat = (int(x) if x.isdigit() else 0 for x in parts)
-          code = maj * 10000 + mn * 100 + pat
-          with open('cmd/wt-gui/AndroidManifest.xml.in', 'r', encoding='utf-8') as f:
-              data = f.read()
-          data = data.replace('@@VERSION_NAME@@', ver) \
-                     .replace('@@VERSION_CODE@@', str(code)) \
-                     .replace('@@APP_NAME@@', '{{.APP_NAME}}') \
-                     .replace('@@DEBUG@@', 'true')
-          with open('cmd/wt-gui/AndroidManifest.xml', 'w', encoding='utf-8') as f:
-              f.write(data)
-          "
+      # Materialize cmd/wt-gui/AndroidManifest.xml from .in template so Fyne
+      # picks it up (build_androidapp.go reads AndroidManifest.xml from the
+      # main-package dir verbatim and skips the generated default).
+      - python scripts/android-manifest.py "{{.VERSION}}" "{{.APP_NAME}}"
       - defer: rm -f cmd/wt-gui/AndroidManifest.xml
       - cmd: |
           export ANDROID_HOME="$LOCALAPPDATA/Android/Sdk"
@@ -934,46 +769,21 @@ tasks:
       - cmd: |
           set -e
           apk="cmd/wt-gui/{{.APP_NAME}}.apk"
-          ndk_libcxx="{{.ANDROID_SYSROOT}}/usr/lib/aarch64-linux-android/libc++_shared.so"
-          ndk_libomp="{{.NDK_TOOLCHAIN}}/lib/clang/18/lib/linux/aarch64/libomp.so"
           sherpa_bin="dist/sherpa/sherpa-diar-android"
           if [ ! -f "$sherpa_bin" ]; then
             echo "WARNING: $sherpa_bin missing — APK will lack on-device diarization (transcripts collapse to 1 speaker)" >&2
           fi
-          sherpa_seg="dist/sherpa/models/sherpa-onnx-pyannote-segmentation-3-0/model.onnx"
-          sherpa_emb="dist/sherpa/models/titanet_large.onnx"
-          llama_bin="dist/llama/llama-cli-android-arm64"
           mkdir -p dist
-          libcxx_fwd="${ndk_libcxx//\\//}"
-          libomp_fwd="${ndk_libomp//\\//}"
-          python -c "
-          import zipfile, os, sys
-          libcxx = r'$libcxx_fwd'.replace('\\\\', '/')
-          libomp = r'$libomp_fwd'.replace('\\\\', '/')
-          sherpa_bin = r'$sherpa_bin'
-          sherpa_seg = r'$sherpa_seg'
-          sherpa_emb = r'$sherpa_emb'
-          llama_bin = r'$llama_bin'
-          with zipfile.ZipFile('$apk', 'r') as zin:
-              with zipfile.ZipFile('dist/unsigned.apk', 'w', zipfile.ZIP_DEFLATED) as zout:
-                  for item in zin.infolist():
-                      if item.filename.startswith('META-INF/'):
-                          continue
-                      zout.writestr(item, zin.read(item.filename))
-                  zout.write(libcxx, 'lib/arm64-v8a/libc++_shared.so', compress_type=zipfile.ZIP_STORED)
-                  zout.write(libomp, 'lib/arm64-v8a/libomp.so', compress_type=zipfile.ZIP_STORED)
-                  if os.path.exists(sherpa_bin):
-                      zout.write(sherpa_bin, 'lib/arm64-v8a/libsherpa-diar.so', compress_type=zipfile.ZIP_STORED)
-                  if os.path.exists(sherpa_seg):
-                      zout.write(sherpa_seg, 'assets/sherpa-models/seg.onnx', compress_type=zipfile.ZIP_STORED)
-                  if os.path.exists(sherpa_emb):
-                      zout.write(sherpa_emb, 'assets/sherpa-models/emb.onnx', compress_type=zipfile.ZIP_STORED)
-                  if os.path.exists(llama_bin):
-                      zout.write(llama_bin, 'lib/arm64-v8a/libllama-cli.so', compress_type=zipfile.ZIP_STORED)
-                  if os.path.exists('dist/svc-build/classes.dex'):
-                      zout.write('dist/svc-build/classes.dex', 'classes2.dex', compress_type=zipfile.ZIP_DEFLATED)
-          print('Patched:', os.path.getsize('dist/unsigned.apk'))
-          "
+          APK="$apk" \
+          LIBCXX="{{.ANDROID_SYSROOT}}/usr/lib/aarch64-linux-android/libc++_shared.so" \
+          LIBOMP="{{.NDK_TOOLCHAIN}}/lib/clang/18/lib/linux/aarch64/libomp.so" \
+          SHERPA_BIN="$sherpa_bin" \
+          SHERPA_SEG="dist/sherpa/models/sherpa-onnx-pyannote-segmentation-3-0/model.onnx" \
+          SHERPA_EMB="dist/sherpa/models/titanet_large.onnx" \
+          LLAMA_BIN="dist/llama/llama-cli-android-arm64" \
+          SVC_DEX="dist/svc-build/classes.dex" \
+          OUT="dist/unsigned.apk" \
+            python scripts/android-apk-patch.py
           "{{.BUILD_TOOLS}}/zipalign.exe" -f 4 dist/unsigned.apk dist/aligned.apk
           if [ ! -f "$USERPROFILE/.android/debug.keystore" ]; then
             keytool -genkey -v -keystore "$USERPROFILE/.android/debug.keystore" \
