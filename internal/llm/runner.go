@@ -110,7 +110,7 @@ func (r *Runner) Generate(ctx context.Context, opts Options) (string, error) {
 	}
 
 	cpuOnly := os.Getenv("WT_LLM_DEVICE") == "cpu"
-	out, waitErr, stderrStr, runErr := r.runOnce(ctx, buildArgs(cpuOnly))
+	out, waitErr, stderrStr, runErr := r.runOnce(ctx, buildArgs(cpuOnly), cpuOnly)
 	if runErr != nil {
 		return "", runErr
 	}
@@ -120,7 +120,7 @@ func (r *Runner) Generate(ctx context.Context, opts Options) (string, error) {
 
 	// Crashed (e.g. CUDA access violation 0xc0000005) and produced no JSON — retry on CPU.
 	if !cpuOnly && waitErr != nil {
-		out2, waitErr2, stderrStr2, runErr2 := r.runOnce(ctx, buildArgs(true))
+		out2, waitErr2, stderrStr2, runErr2 := r.runOnce(ctx, buildArgs(true), true)
 		if runErr2 == nil {
 			if obj := lastBalancedJSON(out2); obj != "" {
 				return obj, nil
@@ -133,12 +133,15 @@ func (r *Runner) Generate(ctx context.Context, opts Options) (string, error) {
 		waitErr, stderrTail(stderrStr, 6), stdoutTail(out, 400))
 }
 
-func (r *Runner) runOnce(ctx context.Context, args []string) (string, error, string, error) {
+func (r *Runner) runOnce(ctx context.Context, args []string, hideCUDA bool) (string, error, string, error) {
 	rctx, cancel := context.WithTimeout(ctx, 120*time.Second)
 	defer cancel()
 
 	cmd := exec.CommandContext(rctx, r.BinaryPath, args...)
 	cmd.Env = os.Environ()
+	if hideCUDA {
+		cmd.Env = append(cmd.Env, "CUDA_VISIBLE_DEVICES=-1", "GGML_CUDA_DISABLE=1")
+	}
 	cmd.Stdin = nil
 	hideLlamaWindow(cmd)
 
