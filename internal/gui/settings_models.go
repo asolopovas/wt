@@ -24,9 +24,10 @@ type modelsSection struct {
 	rows      *fyne.Container
 	diskLabel *canvas.Text
 
-	mu       sync.Mutex
-	cancels  map[string]context.CancelFunc
-	progress map[string]*widget.ProgressBar
+	mu            sync.Mutex
+	cancels       map[string]context.CancelFunc
+	progress      map[string]*widget.ProgressBar
+	dialogRefresh func()
 }
 
 func newModelsSection(win fyne.Window) *modelsSection {
@@ -45,11 +46,62 @@ func newModelsSection(win fyne.Window) *modelsSection {
 	s.diskLabel.TextSize = textCaption
 	s.diskLabel.TextStyle = fyne.TextStyle{Monospace: true}
 
-	head := container.NewBorder(nil, nil, header, s.diskLabel, nil)
-	s.rows = container.NewVBox()
+	addBtn := widget.NewButtonWithIcon("ADD", theme.ContentAddIcon(), s.openDownloadDialog)
+	addBtn.Importance = widget.LowImportance
+
+	right := container.NewHBox(s.diskLabel, addBtn)
+	head := container.NewBorder(nil, nil, header, right, nil)
+	s.rows = container.New(&tightVBox{gap: 0})
 	s.container = container.NewVBox(head, vGap(spaceSM), s.rows)
 	s.refresh()
 	return s
+}
+
+type iconTap struct {
+	widget.BaseWidget
+	icon  fyne.Resource
+	size  float32
+	onTap func()
+}
+
+func newIconTap(icon fyne.Resource, size float32, onTap func()) *iconTap {
+	t := &iconTap{icon: icon, size: size, onTap: onTap}
+	t.ExtendBaseWidget(t)
+	return t
+}
+
+func (t *iconTap) CreateRenderer() fyne.WidgetRenderer {
+	img := canvas.NewImageFromResource(t.icon)
+	img.FillMode = canvas.ImageFillContain
+	img.SetMinSize(fyne.NewSize(t.size, t.size))
+	return widget.NewSimpleRenderer(container.New(&fixedSquareLayout{size: t.size + spaceMD*2, inner: t.size}, img))
+}
+
+func (t *iconTap) MinSize() fyne.Size {
+	w := t.size + spaceMD*2
+	return fyne.NewSize(w, w)
+}
+
+func (t *iconTap) Tapped(_ *fyne.PointEvent) {
+	if t.onTap != nil {
+		t.onTap()
+	}
+}
+
+type fixedSquareLayout struct {
+	size  float32
+	inner float32
+}
+
+func (l *fixedSquareLayout) Layout(objs []fyne.CanvasObject, size fyne.Size) {
+	for _, o := range objs {
+		o.Move(fyne.NewPos((size.Width-l.inner)/2, (size.Height-l.inner)/2))
+		o.Resize(fyne.NewSize(l.inner, l.inner))
+	}
+}
+
+func (l *fixedSquareLayout) MinSize(_ []fyne.CanvasObject) fyne.Size {
+	return fyne.NewSize(l.size, l.size)
 }
 
 func (s *modelsSection) refresh() {
@@ -68,8 +120,17 @@ func (s *modelsSection) refresh() {
 
 	first := true
 	for _, fam := range families {
-		entries := models.ByFamily(fam.f)
-		if len(entries) == 0 {
+		var visible []models.Entry
+		for _, e := range models.ByFamily(fam.f) {
+			st := s.mgr.Status(e.ID)
+			s.mu.Lock()
+			_, dl := s.cancels[e.ID]
+			s.mu.Unlock()
+			if st == models.StatusInstalled || dl {
+				visible = append(visible, e)
+			}
+		}
+		if len(visible) == 0 {
 			continue
 		}
 		if !first {
@@ -81,13 +142,23 @@ func (s *modelsSection) refresh() {
 		sub.TextSize = textCaption
 		sub.TextStyle = monoBoldStyle
 		s.rows.Add(sub)
+		s.rows.Add(vGap(spaceMD))
 
-		for _, e := range entries {
+		for _, e := range visible {
 			s.rows.Add(s.buildRow(e))
 		}
 	}
+	if len(s.rows.Objects) == 0 {
+		empty := canvas.NewText("No models installed — tap ADD to download.", decor.TextMuted)
+		empty.TextSize = textCaption
+		empty.TextStyle = fyne.TextStyle{Monospace: true}
+		s.rows.Add(empty)
+	}
 	s.rows.Refresh()
 	s.container.Refresh()
+	if s.dialogRefresh != nil {
+		s.dialogRefresh()
+	}
 }
 
 func (s *modelsSection) buildRow(e models.Entry) fyne.CanvasObject {
@@ -98,6 +169,45 @@ func (s *modelsSection) buildRow(e models.Entry) fyne.CanvasObject {
 	_, downloading := s.cancels[e.ID]
 	s.mu.Unlock()
 
+	info := s.modelInfoBlock(e, status, isActive, downloading)
+
+	if downloading {
+		bar := s.progress[e.ID]
+		if bar == nil {
+			bar = widget.NewProgressBar()
+			s.progress[e.ID] = bar
+		}
+		cancel := newIconTap(theme.CancelIcon(), 18, func() { s.cancel(e.ID) })
+		row := container.NewBorder(nil, nil, nil, cancel, info)
+		return container.NewVBox(row, bar)
+	}
+
+	del := newIconTap(theme.DeleteIcon(), 18, func() {
+		showConfirm(s.window, "Delete model",
+			fmt.Sprintf("Delete %s (%s)?", e.DisplayName, humanBytes(e.SizeBytes)),
+			func() {
+				if err := s.mgr.Delete(e.ID); err != nil {
+					showError(s.window, err)
+					return
+				}
+				fyne.Do(s.refresh)
+			})
+	})
+
+	row := container.NewBorder(nil, nil, nil, del, info)
+	if isActive {
+		return row
+	}
+	return newTappableRow(row, func() {
+		if err := s.mgr.SetActive(e.ID); err != nil {
+			showError(s.window, err)
+			return
+		}
+		fyne.Do(s.refresh)
+	})
+}
+
+func (s *modelsSection) modelInfoBlock(e models.Entry, status models.Status, isActive, downloading bool) fyne.CanvasObject {
 	glyph, glyphCol := modelStatusGlyph(status, isActive, downloading)
 	lead := canvas.NewText(glyph, glyphCol)
 	lead.TextSize = textRow
@@ -116,58 +226,116 @@ func (s *modelsSection) buildRow(e models.Entry) fyne.CanvasObject {
 	size.TextSize = textCaption
 	size.TextStyle = fyne.TextStyle{Monospace: true}
 
-	info := container.NewBorder(nil, nil, leadBox, size, name)
+	return container.NewBorder(nil, nil, leadBox, size, name)
+}
 
-	mkIconBtn := func(icon fyne.Resource, importance widget.Importance, onTap func()) fyne.CanvasObject {
-		b := widget.NewButtonWithIcon("", icon, onTap)
-		b.Importance = importance
-		return container.New(&fixedWidthLayoutModels{width: iconBtnW}, b)
+type tappableRow struct {
+	widget.BaseWidget
+	content fyne.CanvasObject
+	onTap   func()
+}
+
+func newTappableRow(content fyne.CanvasObject, onTap func()) *tappableRow {
+	r := &tappableRow{content: content, onTap: onTap}
+	r.ExtendBaseWidget(r)
+	return r
+}
+
+func (r *tappableRow) CreateRenderer() fyne.WidgetRenderer {
+	return widget.NewSimpleRenderer(r.content)
+}
+
+func (r *tappableRow) Tapped(_ *fyne.PointEvent) {
+	if r.onTap != nil {
+		r.onTap()
 	}
+}
 
-	deleteBtn := func() fyne.CanvasObject {
-		return mkIconBtn(theme.DeleteIcon(), widget.LowImportance, func() {
-			showConfirm(s.window, "Delete model",
-				fmt.Sprintf("Delete %s (%s)? You can re-download it from this panel later.", e.DisplayName, humanBytes(e.SizeBytes)),
-				func() {
-					if err := s.mgr.Delete(e.ID); err != nil {
-						showError(s.window, err)
-						return
-					}
-					fyne.Do(s.refresh)
-				})
-		})
+func (s *modelsSection) openDownloadDialog() {
+	body := container.NewVBox()
+
+	rebuild := func() {
+		body.Objects = nil
+		families := []struct {
+			f     models.Family
+			title string
+		}{
+			{models.FamilyWhisper, "TRANSCRIPTION"},
+			{models.FamilyDiarizer, "DIARIZATION"},
+			{models.FamilyLLM, "LANGUAGE MODELS"},
+		}
+		any := false
+		first := true
+		for _, fam := range families {
+			var available []models.Entry
+			for _, e := range models.ByFamily(fam.f) {
+				if s.mgr.Status(e.ID) != models.StatusInstalled {
+					available = append(available, e)
+				}
+			}
+			if len(available) == 0 {
+				continue
+			}
+			any = true
+			if !first {
+				body.Add(vGap(spaceMD))
+			}
+			first = false
+			h := canvas.NewText(fam.title, decor.TextMuted)
+			h.TextSize = textCaption
+			h.TextStyle = monoBoldStyle
+			body.Add(h)
+			for _, e := range available {
+				body.Add(s.buildDownloadRow(e))
+			}
+		}
+		if !any {
+			t := canvas.NewText("All available models are installed.", decor.TextMuted)
+			t.TextSize = textCaption
+			t.TextStyle = fyne.TextStyle{Monospace: true}
+			body.Add(t)
+		}
+		body.Refresh()
 	}
+	rebuild()
 
-	var action fyne.CanvasObject
-	switch {
-	case downloading:
+	scroll := container.NewVScroll(body)
+	scroll.SetMinSize(fyne.NewSize(280, 400))
+
+	s.dialogRefresh = func() { fyne.Do(rebuild) }
+
+	hide := showDialog(dialogConfig{
+		Parent: s.window,
+		Title:  "DOWNLOAD MODEL",
+		Body:   scroll,
+		Actions: []dialogAction{
+			{Label: "DONE", Kind: kindPrimary},
+		},
+	})
+	_ = hide
+}
+
+func (s *modelsSection) buildDownloadRow(e models.Entry) fyne.CanvasObject {
+	status := s.mgr.Status(e.ID)
+	s.mu.Lock()
+	_, downloading := s.cancels[e.ID]
+	s.mu.Unlock()
+
+	info := s.modelInfoBlock(e, status, false, downloading)
+
+	if downloading {
 		bar := s.progress[e.ID]
 		if bar == nil {
 			bar = widget.NewProgressBar()
 			s.progress[e.ID] = bar
 		}
-		action = mkIconBtn(theme.CancelIcon(), widget.MediumImportance, func() { s.cancel(e.ID) })
-		row := container.NewBorder(nil, nil, nil, action, info)
+		cancel := newIconTap(theme.CancelIcon(), 18, func() { s.cancel(e.ID) })
+		row := container.NewBorder(nil, nil, nil, cancel, info)
 		return container.NewVBox(row, bar)
-
-	case status == models.StatusInstalled && !isActive:
-		activate := mkIconBtn(theme.ConfirmIcon(), widget.HighImportance, func() {
-			if err := s.mgr.SetActive(e.ID); err != nil {
-				showError(s.window, err)
-				return
-			}
-			fyne.Do(s.refresh)
-		})
-		action = container.NewHBox(activate, deleteBtn())
-
-	case status == models.StatusInstalled && isActive:
-		action = deleteBtn()
-
-	default:
-		action = mkIconBtn(downloadIcon, widget.HighImportance, func() { s.startDownload(e) })
 	}
 
-	return container.NewBorder(nil, nil, nil, action, info)
+	dl := newIconTap(downloadIcon, 18, func() { s.startDownload(e) })
+	return container.NewBorder(nil, nil, nil, dl, info)
 }
 
 func modelStatusGlyph(st models.Status, active, downloading bool) (string, color.Color) {
@@ -191,7 +359,6 @@ func modelShortName(s string) string {
 	return s
 }
 
-const iconBtnW float32 = 32
 
 func (s *modelsSection) startDownload(e models.Entry) {
 	ctx, cancel := context.WithCancel(context.Background())
