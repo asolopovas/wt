@@ -3,6 +3,7 @@ package gui
 import (
 	"context"
 	"fmt"
+	"image/color"
 	"strings"
 	"sync"
 
@@ -93,28 +94,48 @@ func (s *modelsSection) buildRow(e models.Entry) fyne.CanvasObject {
 	status := s.mgr.Status(e.ID)
 	isActive := s.mgr.Active(e.Family) == e.ID
 
-	name := widget.NewLabel(modelShortName(e.DisplayName))
-	name.TextStyle = fyne.TextStyle{Bold: true}
-	name.Truncation = fyne.TextTruncateEllipsis
-
-	statusCol := decor.TextMuted
-	if isActive {
-		statusCol = decor.StatusActive
-	}
-	sub := canvas.NewText(fmt.Sprintf("%s · %s", humanBytes(e.SizeBytes), statusText(status, isActive)), statusCol)
-	sub.TextSize = textCaption
-	sub.TextStyle = fyne.TextStyle{Monospace: true}
-
-	info := container.NewBorder(nil, nil, nil, sub, name)
-
 	s.mu.Lock()
 	_, downloading := s.cancels[e.ID]
 	s.mu.Unlock()
+
+	glyph, glyphCol := modelStatusGlyph(status, isActive, downloading)
+	lead := canvas.NewText(glyph, glyphCol)
+	lead.TextSize = textRow
+	lead.TextStyle = fyne.TextStyle{Bold: true, Monospace: true}
+	leadBox := container.New(&fixedWidthLayoutModels{width: 16}, lead)
+
+	nameCol := decor.TextPrimary
+	if isActive {
+		nameCol = decor.StatusActive
+	}
+	name := canvas.NewText(modelShortName(e.DisplayName), nameCol)
+	name.TextSize = textBody
+	name.TextStyle = fyne.TextStyle{Bold: true}
+
+	size := canvas.NewText(humanBytes(e.SizeBytes), decor.TextMuted)
+	size.TextSize = textCaption
+	size.TextStyle = fyne.TextStyle{Monospace: true}
+
+	info := container.NewBorder(nil, nil, leadBox, size, name)
 
 	mkIconBtn := func(icon fyne.Resource, importance widget.Importance, onTap func()) fyne.CanvasObject {
 		b := widget.NewButtonWithIcon("", icon, onTap)
 		b.Importance = importance
 		return container.New(&fixedWidthLayoutModels{width: iconBtnW}, b)
+	}
+
+	deleteBtn := func() fyne.CanvasObject {
+		return mkIconBtn(theme.DeleteIcon(), widget.LowImportance, func() {
+			showConfirm(s.window, "Delete model",
+				fmt.Sprintf("Delete %s (%s)? You can re-download it from this panel later.", e.DisplayName, humanBytes(e.SizeBytes)),
+				func() {
+					if err := s.mgr.Delete(e.ID); err != nil {
+						showError(s.window, err)
+						return
+					}
+					fyne.Do(s.refresh)
+				})
+		})
 	}
 
 	var action fyne.CanvasObject
@@ -129,35 +150,38 @@ func (s *modelsSection) buildRow(e models.Entry) fyne.CanvasObject {
 		row := container.NewBorder(nil, nil, nil, action, info)
 		return container.NewVBox(row, bar)
 
-	case status == models.StatusInstalled:
-		var btns []fyne.CanvasObject
-		if !isActive {
-			btns = append(btns, mkIconBtn(theme.ConfirmIcon(), widget.HighImportance, func() {
-				if err := s.mgr.SetActive(e.ID); err != nil {
-					showError(s.window, err)
-					return
-				}
-				fyne.Do(s.refresh)
-			}))
-		}
-		btns = append(btns, mkIconBtn(theme.CancelIcon(), widget.DangerImportance, func() {
-			showConfirm(s.window, "Delete model",
-				fmt.Sprintf("Delete %s (%s)? You can re-download it from this panel later.", e.DisplayName, humanBytes(e.SizeBytes)),
-				func() {
-					if err := s.mgr.Delete(e.ID); err != nil {
-						showError(s.window, err)
-						return
-					}
-					fyne.Do(s.refresh)
-				})
-		}))
-		action = container.NewHBox(btns...)
+	case status == models.StatusInstalled && !isActive:
+		activate := mkIconBtn(theme.ConfirmIcon(), widget.HighImportance, func() {
+			if err := s.mgr.SetActive(e.ID); err != nil {
+				showError(s.window, err)
+				return
+			}
+			fyne.Do(s.refresh)
+		})
+		action = container.NewHBox(activate, deleteBtn())
+
+	case status == models.StatusInstalled && isActive:
+		action = deleteBtn()
 
 	default:
 		action = mkIconBtn(downloadIcon, widget.HighImportance, func() { s.startDownload(e) })
 	}
 
 	return container.NewBorder(nil, nil, nil, action, info)
+}
+
+func modelStatusGlyph(st models.Status, active, downloading bool) (string, color.Color) {
+	if downloading {
+		return "↓", decor.ActionPrimary
+	}
+	switch {
+	case active:
+		return "●", decor.StatusActive
+	case st == models.StatusInstalled:
+		return "○", decor.TextMuted
+	default:
+		return "·", decor.TextMuted
+	}
 }
 
 func modelShortName(s string) string {
@@ -167,7 +191,7 @@ func modelShortName(s string) string {
 	return s
 }
 
-const iconBtnW float32 = 36
+const iconBtnW float32 = 32
 
 func (s *modelsSection) startDownload(e models.Entry) {
 	ctx, cancel := context.WithCancel(context.Background())
@@ -220,20 +244,6 @@ func (s *modelsSection) cancel(id string) {
 	s.mu.Unlock()
 	if cancel != nil {
 		cancel()
-	}
-}
-
-func statusText(st models.Status, active bool) string {
-	switch st {
-	case models.StatusDownloading:
-		return "DOWNLOADING"
-	case models.StatusInstalled:
-		if active {
-			return "ACTIVE"
-		}
-		return "INSTALLED"
-	default:
-		return "NOT INSTALLED"
 	}
 }
 
