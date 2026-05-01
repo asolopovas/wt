@@ -292,7 +292,9 @@ func extractZipEntry(f *zip.File, dst string) error {
 	return os.Rename(tmp, dst)
 }
 
-func (d *sherpaDiarizer) Name() string { return "sherpa-onnx-pyannote" }
+func (d *sherpaDiarizer) Name() string {
+	return "sherpa-onnx-pyannote+" + filepath.Base(d.embModel)
+}
 
 var sherpaSegRE = regexp.MustCompile(`^\s*([0-9]+\.[0-9]+)\s+--\s+([0-9]+\.[0-9]+)\s+speaker_(\d+)\s*$`)
 
@@ -303,8 +305,8 @@ func (d *sherpaDiarizer) Diarize(ctx context.Context, wavPath string, numSpeaker
 		"--segmentation.pyannote-model=" + d.segModel,
 		"--embedding.model=" + d.embModel,
 
-		"--min-duration-on=0.3",
-		"--min-duration-off=0.5",
+		"--min-duration-on=0.2",
+		"--min-duration-off=0.2",
 	}
 	if numSpeakers > 0 {
 		args = append(args, fmt.Sprintf("--clustering.num-clusters=%d", numSpeakers))

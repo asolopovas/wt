@@ -205,6 +205,13 @@ func saveManifest(entries []Entry) error {
 	return os.WriteFile(transcriptIndexPath(), data, 0o644)
 }
 
+func InvalidateTranscript(key string) error {
+	if err := os.Remove(TranscriptPathForKey(key)); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return nil
+}
+
 func Lookup(key string) (string, *Entry, bool) {
 	path := TranscriptPathForKey(key)
 	if _, err := os.Stat(path); err != nil {

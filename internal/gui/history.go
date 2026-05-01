@@ -205,6 +205,10 @@ func (h *historyPanel) showRowMenu(e cache.Entry, recorded time.Time, anchor fyn
 					showError(h.window, fmt.Errorf("source file path missing"))
 					return
 				}
+				if err := cache.InvalidateTranscript(e.Key); err != nil {
+					showError(h.window, fmt.Errorf("invalidating cache: %w", err))
+					return
+				}
 				h.transcribe.StartTranscription([]string{e.SourcePath})
 			}),
 		)
