@@ -74,32 +74,66 @@ func (r *Runner) Generate(ctx context.Context, opts Options) (string, error) {
 	_ = pf.Close()
 	defer func() { _ = os.Remove(pPath) }()
 
-	args := []string{
-		"-m", r.ModelPath,
-		"-f", pPath,
-		"-n", fmt.Sprintf("%d", opts.MaxTokens),
-		"-t", fmt.Sprintf("%d", r.Threads),
-		"--temp", fmt.Sprintf("%.2f", opts.Temp),
-		"--no-display-prompt",
-		"--log-disable",
-		"--no-conversation",
-		"--single-turn",
-		"--simple-io",
-		"--no-warmup",
-	}
-
+	var gPath string
 	if opts.Grammar != "" {
 		gf, err := os.CreateTemp("", "wt-llm-grammar-*.gbnf")
 		if err != nil {
 			return "", err
 		}
-		gPath := gf.Name()
+		gPath = gf.Name()
 		_, _ = gf.WriteString(opts.Grammar)
 		_ = gf.Close()
 		defer func() { _ = os.Remove(gPath) }()
-		args = append(args, "--grammar-file", gPath)
 	}
 
+	buildArgs := func(cpuOnly bool) []string {
+		a := []string{
+			"-m", r.ModelPath,
+			"-f", pPath,
+			"-n", fmt.Sprintf("%d", opts.MaxTokens),
+			"-t", fmt.Sprintf("%d", r.Threads),
+			"--temp", fmt.Sprintf("%.2f", opts.Temp),
+			"--no-display-prompt",
+			"--log-disable",
+			"--no-conversation",
+			"--single-turn",
+			"--simple-io",
+			"--no-warmup",
+		}
+		if cpuOnly {
+			a = append(a, "-ngl", "0")
+		}
+		if gPath != "" {
+			a = append(a, "--grammar-file", gPath)
+		}
+		return a
+	}
+
+	cpuOnly := os.Getenv("WT_LLM_DEVICE") == "cpu"
+	out, waitErr, stderrStr, runErr := r.runOnce(ctx, buildArgs(cpuOnly))
+	if runErr != nil {
+		return "", runErr
+	}
+	if obj := lastBalancedJSON(out); obj != "" {
+		return obj, nil
+	}
+
+	// Crashed (e.g. CUDA access violation 0xc0000005) and produced no JSON — retry on CPU.
+	if !cpuOnly && waitErr != nil {
+		out2, waitErr2, stderrStr2, runErr2 := r.runOnce(ctx, buildArgs(true))
+		if runErr2 == nil {
+			if obj := lastBalancedJSON(out2); obj != "" {
+				return obj, nil
+			}
+			waitErr, stderrStr, out = waitErr2, stderrStr2, out2
+		}
+	}
+
+	return "", fmt.Errorf("no JSON object in llm output (waitErr=%v): stderr=%s; stdout=%s",
+		waitErr, stderrTail(stderrStr, 6), stdoutTail(out, 400))
+}
+
+func (r *Runner) runOnce(ctx context.Context, args []string) (string, error, string, error) {
 	rctx, cancel := context.WithTimeout(ctx, 120*time.Second)
 	defer cancel()
 
@@ -110,13 +144,13 @@ func (r *Runner) Generate(ctx context.Context, opts Options) (string, error) {
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		return "", err
+		return "", nil, "", err
 	}
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 
 	if err := cmd.Start(); err != nil {
-		return "", fmt.Errorf("starting llama-cli: %w", err)
+		return "", nil, "", fmt.Errorf("starting llama-cli: %w", err)
 	}
 
 	raw, readErr := io.ReadAll(stdout)
@@ -124,17 +158,12 @@ func (r *Runner) Generate(ctx context.Context, opts Options) (string, error) {
 	out := string(raw)
 
 	if rctx.Err() != nil && rctx.Err() != context.Canceled {
-		return "", fmt.Errorf("llm timeout: %s", stderrTail(stderr.String(), 8))
+		return out, waitErr, stderr.String(), fmt.Errorf("llm timeout: %s", stderrTail(stderr.String(), 8))
 	}
 	if readErr != nil && !errors.Is(readErr, io.EOF) {
-		return "", fmt.Errorf("reading llm output: %w", readErr)
+		return out, waitErr, stderr.String(), fmt.Errorf("reading llm output: %w", readErr)
 	}
-
-	if obj := lastBalancedJSON(out); obj != "" {
-		return obj, nil
-	}
-	return "", fmt.Errorf("no JSON object in llm output (waitErr=%v): stderr=%s; stdout=%s",
-		waitErr, stderrTail(stderr.String(), 6), stdoutTail(out, 400))
+	return out, waitErr, stderr.String(), nil
 }
 
 func lastBalancedJSON(s string) string {
