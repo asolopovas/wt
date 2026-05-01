@@ -303,7 +303,7 @@ var sherpaProgRE = regexp.MustCompile(`progress\s+([0-9]+\.[0-9]+)%`)
 func sherpaNumThreads() int {
 	n := runtime.NumCPU() / 2
 	if runtime.GOOS == "android" {
-		n = 2
+		n = 4
 	}
 	if n < 2 {
 		n = 2
