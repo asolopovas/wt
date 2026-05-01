@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 # Build whisper.cpp for the host platform.
-# Args: $1 = WHISPER_ROOT, $2 = WHISPER_BUILD, $3 = CUDA_DIR (may be empty), $4 = CUDA_ARCH, $5 = ROOT_DIR, $6 = LINUX_CUDA flag
+# Args: $1 = WHISPER_ROOT, $2 = WHISPER_BUILD, $3 = CUDA_DIR (may be empty),
+#       $4 = CUDA_ARCH, $5 = ROOT_DIR, $6 = LINUX_CUDA flag, $7 = IS_LINUX flag
+#
+# IS_LINUX is passed from Taskfile rather than re-detected via `uname -s`.
+# When `bash scripts/...` resolves to WSL bash on a Windows host (because
+# bash.exe is on PATH ahead of MSYS), uname -s reports Linux and the script
+# wrongly took the Linux branch, attempting to cd into an unbuilt source tree.
 set -e
 
 WHISPER_ROOT="$1"
@@ -9,15 +15,11 @@ CUDA_DIR="$3"
 CUDA_ARCH="$4"
 ROOT_DIR="$5"
 LINUX_CUDA="$6"
-
-case "$(uname -s 2>/dev/null)" in
-  Linux) IS_LINUX=1 ;;
-  *)     IS_LINUX=  ;;
-esac
+IS_LINUX="$7"
 
 jobs() { echo "${NUMBER_OF_PROCESSORS:-$(nproc 2>/dev/null || echo 4)}"; }
 
-if [ -n "$IS_LINUX" ]; then
+if [ "$IS_LINUX" = "1" ]; then
   [ -f "$WHISPER_BUILD/src/libwhisper.so" ] && exit 0
   echo "Linux: building whisper.cpp (CUDA=$LINUX_CUDA)..."
   cd "$WHISPER_ROOT"

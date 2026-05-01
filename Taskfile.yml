@@ -83,14 +83,22 @@ tasks:
     desc: Build whisper.cpp (with CUDA if available)
     internal: true
     run: once
+    # Single status entry — Task skips only when ALL entries exit 0, so the
+    # three mutually-exclusive conditions previously here meant the task
+    # always ran and unconditionally re-invoked the build script.
     status:
-      - '[ -n "{{.IS_LINUX}}"  ] && test -f "{{.WHISPER_BUILD}}/src/libwhisper.so"'
-      - '[ -z "{{.IS_LINUX}}"  ] && [ -n "{{.CUDA_DIR}}" ] && test -f "{{.WHISPER_BUILD}}/bin/whisper.dll"'
-      - '[ -z "{{.IS_LINUX}}"  ] && [ -z "{{.CUDA_DIR}}" ] && test -f "{{.WHISPER_ROOT}}/build/src/libwhisper.a"'
+      - |
+        if [ -n "{{.IS_LINUX}}" ]; then
+          test -f "{{.WHISPER_BUILD}}/src/libwhisper.so"
+        elif [ -n "{{.CUDA_DIR}}" ]; then
+          test -f "{{.WHISPER_BUILD}}/bin/whisper.dll"
+        else
+          test -f "{{.WHISPER_ROOT}}/build/src/libwhisper.a"
+        fi
     cmds:
       - cmd: git clone --depth 1 https://github.com/ggml-org/whisper.cpp.git {{.WHISPER_ROOT}}
         if: '[ ! -d "{{.WHISPER_ROOT}}" ]'
-      - bash scripts/build-whisper.sh "{{.WHISPER_ROOT}}" "{{.WHISPER_BUILD}}" "{{.CUDA_DIR}}" "{{.CUDA_ARCH}}" "{{.ROOT_DIR | toSlash}}" "{{.LINUX_CUDA}}"
+      - bash scripts/build-whisper.sh "{{.WHISPER_ROOT}}" "{{.WHISPER_BUILD}}" "{{.CUDA_DIR}}" "{{.CUDA_ARCH}}" "{{.ROOT_DIR | toSlash}}" "{{.LINUX_CUDA}}" "{{.IS_LINUX}}"
 
   build:
     desc: 'Build binaries, copy runtime DLLs, and produce dist/wt-setup.exe. Use ONLY=cli or ONLY=gui to limit (skips installer).'
