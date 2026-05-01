@@ -134,7 +134,7 @@ func (s *modelsSection) refresh() {
 			continue
 		}
 		if !first {
-			s.rows.Add(vGap(spaceMD))
+			s.rows.Add(vGap(20))
 		}
 		first = false
 
@@ -142,7 +142,7 @@ func (s *modelsSection) refresh() {
 		sub.TextSize = textCaption
 		sub.TextStyle = monoBoldStyle
 		s.rows.Add(sub)
-		s.rows.Add(vGap(spaceMD))
+		s.rows.Add(vGap(20))
 
 		for _, e := range visible {
 			s.rows.Add(s.buildRow(e))
