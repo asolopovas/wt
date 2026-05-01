@@ -12,6 +12,7 @@ import (
 	"fyne.io/fyne/v2/widget"
 
 	shared "github.com/asolopovas/wt/internal"
+	"github.com/asolopovas/wt/internal/appinfo"
 	"github.com/asolopovas/wt/internal/gui/assets"
 	"github.com/asolopovas/wt/internal/gui/cache"
 	"github.com/asolopovas/wt/internal/gui/decor"
@@ -26,7 +27,7 @@ func Run(version, buildDate string) error {
 	a.SetIcon(appIcon)
 	a.Settings().SetTheme(&whisperTheme{})
 
-	w := a.NewWindow("wt " + version)
+	w := a.NewWindow(appinfo.Name + " " + version)
 	w.SetIcon(appIcon)
 
 	settings := newSettingsPanel(cfg, w)

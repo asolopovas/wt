@@ -21,9 +21,9 @@
 
 	<uses-feature android:name="android.hardware.microphone" android:required="false" />
 
-	<application android:label="wt" android:debuggable="@@DEBUG@@">
+	<application android:label="@@APP_NAME@@" android:debuggable="@@DEBUG@@">
 		<activity android:name="org.golang.app.GoNativeActivity"
-			android:label="wt"
+			android:label="@@APP_NAME@@"
 			android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden|uiMode"
 			android:exported="true"
 			android:launchMode="singleTask"

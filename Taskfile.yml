@@ -2,6 +2,7 @@ version: '3'
 
 vars:
   BINARY: wt
+  APP_NAME: WTranscribe
   VERSION: '0.0.5'
   WHISPER_ROOT: '{{.ROOT_DIR | toSlash}}/third_party/whisper.cpp'
   WHISPER_BUILD: '{{.WHISPER_ROOT}}/build'
@@ -873,6 +874,7 @@ tasks:
               data = f.read()
           data = data.replace('@@VERSION_NAME@@', ver) \
                      .replace('@@VERSION_CODE@@', str(code)) \
+                     .replace('@@APP_NAME@@', '{{.APP_NAME}}') \
                      .replace('@@DEBUG@@', 'true')
           with open('cmd/wt-gui/AndroidManifest.xml', 'w', encoding='utf-8') as f:
               f.write(data)
@@ -895,13 +897,22 @@ tasks:
               BuildDate = "$GIT_DATE"
           }
           EOF
+          cat > internal/appinfo/appinfo_generated.go <<EOF
+          package appinfo
+
+          func init() {
+              Name = "{{.APP_NAME}}"
+              Version = "{{.VERSION}}"
+              BuildDate = "$GIT_DATE"
+          }
+          EOF
           fyne package --os android/arm64 \
             --app-id com.asolopovas.wtranscribe \
-            --name wt \
+            --name {{.APP_NAME}} \
             --app-version {{.VERSION}} \
             --icon "{{.ROOT_DIR | toSlash}}/winres/icon.png" \
             --src "{{.ROOT_DIR | toSlash}}/cmd/wt-gui"
-      - defer: rm -f cmd/wt-gui/buildinfo_generated.go
+      - defer: rm -f cmd/wt-gui/buildinfo_generated.go internal/appinfo/appinfo_generated.go
       - cmd: |
           set -e
           # Compile WtForegroundService.java -> classes2.dex so the APK can run
@@ -922,7 +933,7 @@ tasks:
           test -f dist/svc-build/classes.dex
       - cmd: |
           set -e
-          apk="cmd/wt-gui/wt.apk"
+          apk="cmd/wt-gui/{{.APP_NAME}}.apk"
           ndk_libcxx="{{.NDK_ROOT}}/toolchains/llvm/prebuilt/windows-x86_64/sysroot/usr/lib/aarch64-linux-android/libc++_shared.so"
           ndk_libomp="{{.NDK_ROOT}}/toolchains/llvm/prebuilt/windows-x86_64/lib/clang/18/lib/linux/aarch64/libomp.so"
           sherpa_bin="dist/sherpa/sherpa-diar-android"

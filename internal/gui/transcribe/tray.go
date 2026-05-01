@@ -9,6 +9,8 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/driver/desktop"
+
+	"github.com/asolopovas/wt/internal/appinfo"
 )
 
 func SetupTray(a fyne.App, w fyne.Window, tp *Panel, icon fyne.Resource) {
@@ -19,7 +21,7 @@ func SetupTray(a fyne.App, w fyne.Window, tp *Panel, icon fyne.Resource) {
 
 	dApp.SetSystemTrayIcon(icon)
 
-	showItem := fyne.NewMenuItem("Show wt", func() {
+	showItem := fyne.NewMenuItem("Show "+appinfo.Name, func() {
 		w.Show()
 		w.RequestFocus()
 	})
@@ -32,7 +34,7 @@ func SetupTray(a fyne.App, w fyne.Window, tp *Panel, icon fyne.Resource) {
 		}
 	})
 
-	menu := fyne.NewMenu("wt", showItem, cancelItem)
+	menu := fyne.NewMenu(appinfo.Name, showItem, cancelItem)
 	dApp.SetSystemTrayMenu(menu)
 
 	go func() {

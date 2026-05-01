@@ -6,16 +6,20 @@ import android.app.NotificationManager;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.ApplicationInfo;
+import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.IBinder;
 
 public class WtForegroundService extends Service {
     private static final String CHANNEL_ID = "wt_transcribe";
     private static final int NOTIF_ID = 1;
+    private static volatile WtForegroundService instance;
 
     @Override
     public void onCreate() {
         super.onCreate();
+        instance = this;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationChannel ch = new NotificationChannel(
                     CHANNEL_ID, "Transcription", NotificationManager.IMPORTANCE_LOW);
@@ -25,29 +29,48 @@ public class WtForegroundService extends Service {
         }
     }
 
-    @Override
-    public int onStartCommand(Intent intent, int flags, int startId) {
+    private String appLabel() {
+        try {
+            PackageManager pm = getPackageManager();
+            ApplicationInfo ai = pm.getApplicationInfo(getPackageName(), 0);
+            CharSequence cs = pm.getApplicationLabel(ai);
+            if (cs != null) return cs.toString();
+        } catch (Exception ignored) {
+        }
+        return "wt";
+    }
+
+    private Notification buildNotification(int percent, String contentText) {
         Notification.Builder b;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             b = new Notification.Builder(this, CHANNEL_ID);
         } else {
             b = new Notification.Builder(this);
         }
-        b.setContentTitle("wt")
-                .setContentText("Transcribing audio")
+        b.setContentTitle(appLabel() + ": Transcribing")
+                .setContentText(contentText)
                 .setSmallIcon(android.R.drawable.ic_media_play)
-                .setOngoing(true);
-        Notification n = b.build();
-        // Don't pass a foregroundServiceType at runtime: gomobile pins the
-        // resource table to API 16, so we cannot declare the matching
-        // foregroundServiceType attr in the manifest. With targetSdkVersion
-        // <= 33, the 2-arg startForeground is permitted without a type.
-        startForeground(NOTIF_ID, n);
+                .setOngoing(true)
+                .setOnlyAlertOnce(true);
+        if (percent >= 0 && percent <= 100) {
+            b.setProgress(100, percent, false);
+        } else {
+            b.setProgress(0, 0, true);
+        }
+        return b.build();
+    }
+
+    @Override
+    public int onStartCommand(Intent intent, int flags, int startId) {
+        // 2-arg startForeground: targetSdk<=33 doesn't require manifest
+        // foregroundServiceType (which gomobile's API-16 resource table cannot represent).
+        startForeground(NOTIF_ID, buildNotification(-1, "Starting…"));
         return START_NOT_STICKY;
     }
 
     @Override
     public void onDestroy() {
+        instance = null;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             stopForeground(Service.STOP_FOREGROUND_REMOVE);
         } else {
@@ -59,5 +82,15 @@ public class WtForegroundService extends Service {
     @Override
     public IBinder onBind(Intent intent) {
         return null;
+    }
+
+    // Called from native (JNI). Updates the foreground notification in-place.
+    // percent: 0..100 for determinate bar, -1 for indeterminate.
+    public static void updateProgress(int percent, String contentText) {
+        WtForegroundService s = instance;
+        if (s == null) return;
+        NotificationManager nm = (NotificationManager) s.getSystemService(Context.NOTIFICATION_SERVICE);
+        if (nm == null) return;
+        nm.notify(NOTIF_ID, s.buildNotification(percent, contentText));
     }
 }

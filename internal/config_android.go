@@ -52,9 +52,12 @@ func affinityCPUs() int {
 
 func defaultThreads() int {
 	avail := affinityCPUs()
-	n := avail - 1
-	if n > 8 {
-		n = 8
+	// Reserve 2 cores for the UI/render thread + Go runtime so the GUI stays
+	// responsive during transcription. Cap at 6 because turbo+Vulkan saturates
+	// memory bandwidth before more CPU threads help.
+	n := avail - 2
+	if n > 6 {
+		n = 6
 	}
 	if n < 1 {
 		n = 1

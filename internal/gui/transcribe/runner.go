@@ -14,8 +14,10 @@ import (
 	"fyne.io/fyne/v2/widget"
 
 	shared "github.com/asolopovas/wt/internal"
+	"github.com/asolopovas/wt/internal/appinfo"
 	"github.com/asolopovas/wt/internal/diarizer"
 	"github.com/asolopovas/wt/internal/gui/cache"
+	"github.com/asolopovas/wt/internal/gui/platsvc"
 	"github.com/asolopovas/wt/internal/gui/sysstats"
 	"github.com/asolopovas/wt/internal/progress"
 	"github.com/asolopovas/wt/internal/transcriber"
@@ -120,7 +122,7 @@ func (p *Panel) runTranscription(files []string) {
 	p.results = nil
 	p.resetSpeakerRenames()
 
-	notify("wt", fmt.Sprintf("Transcribing %d file(s)…", len(files)))
+	notify(appinfo.Name,fmt.Sprintf("Transcribing %d file(s)…", len(files)))
 
 	modelSize := p.Settings.ModelSize()
 	device := p.Settings.Device()
@@ -187,7 +189,7 @@ func (p *Panel) runTranscription(files []string) {
 		if p.cancelled.Load() {
 			p.AppendLog("Cancelled by user.")
 			p.setStatus("Cancelled.")
-			notify("wt", "Cancelled.")
+			notify(appinfo.Name,"Cancelled.")
 			return
 		}
 
@@ -208,7 +210,7 @@ func (p *Panel) runTranscription(files []string) {
 			if p.cancelled.Load() {
 				p.AppendLog("Cancelled by user.")
 				p.setStatus("Cancelled.")
-				notify("wt", "Cancelled.")
+				notify(appinfo.Name,"Cancelled.")
 				return
 			}
 			p.AppendLog(fmt.Sprintf("  Error: %v", err))
@@ -229,7 +231,7 @@ func (p *Panel) runTranscription(files []string) {
 	}
 	p.AppendLog(summary)
 	p.setStatus(summary)
-	notify("wt", summary)
+	notify(appinfo.Name,summary)
 }
 
 func (p *Panel) loadModel(modelSize string) (whisper.Model, error) {
@@ -347,7 +349,9 @@ func (p *Panel) transcribeFile(model whisper.Model, path, modelSize, deviceLabel
 			render := func() {
 				disp, etaSec := smoother.Snapshot()
 				p.setLocalProgress(0.10 + disp/100.0*0.70)
-				p.setStatus(fmt.Sprintf("Transcribing... %.1f%%  ETA: %s", disp, formatETA(etaSec)))
+				status := fmt.Sprintf("Transcribing... %.1f%%  ETA: %s", disp, formatETA(etaSec))
+				p.setStatus(status)
+				platsvc.UpdateProgress(int(disp+0.5), fmt.Sprintf("%.1f%% • ETA %s", disp, formatETA(etaSec)))
 			}
 			render()
 			for {
@@ -383,7 +387,16 @@ func (p *Panel) transcribeFile(model whisper.Model, path, modelSize, deviceLabel
 				}
 			}
 		}()
+		// Pin the process to the lower CPU cluster so the prime/big cores
+		// stay free for the UI thread. Worker threads spawned by whisper.cpp
+		// inherit affinity from the calling OS thread on Linux.
+		runtime.LockOSThread()
+		saved, reserved := sysstats.ReserveTopCores(2)
 		err = ctx.Process(samples, abortCb, nil, whisper.ProgressCallback(progressCb))
+		if reserved {
+			sysstats.RestoreAffinity(saved)
+		}
+		runtime.UnlockOSThread()
 		close(stopTick)
 		<-tickDone
 		close(stopMon)

@@ -10,6 +10,7 @@ import (
 	"fyne.io/fyne/v2/theme"
 
 	shared "github.com/asolopovas/wt/internal"
+	"github.com/asolopovas/wt/internal/appinfo"
 	"github.com/asolopovas/wt/internal/gui/cache"
 	"github.com/asolopovas/wt/internal/gui/decor"
 	"github.com/asolopovas/wt/internal/gui/transcribe"
@@ -22,7 +23,7 @@ func Run(version, buildDate string) error {
 	a.SetIcon(appIcon)
 	a.Settings().SetTheme(&whisperTheme{})
 
-	w := a.NewWindow("wt " + version)
+	w := a.NewWindow(appinfo.Name + " " + version)
 	w.SetIcon(appIcon)
 	w.Resize(fyne.NewSize(1040, 720))
 
