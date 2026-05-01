@@ -51,6 +51,7 @@ type Panel struct {
 	TimerText  *canvas.Text
 	StatsLine   *fyne.Container
 	StatsFooter *fyne.Container
+	lastStatsKey string
 
 	runStart    time.Time
 	timerStop   chan struct{}

@@ -27,14 +27,19 @@ func (p *Panel) startRunTimer() {
 		p.TimerText.Refresh()
 	})
 	go func() {
-		ticker := time.NewTicker(500 * time.Millisecond)
+		ticker := time.NewTicker(time.Second)
 		defer ticker.Stop()
+		last := "0:00"
 		for {
 			select {
 			case <-stop:
 				return
 			case <-ticker.C:
 				txt := transcriber.FormatHMS(time.Since(p.runStart))
+				if txt == last {
+					continue
+				}
+				last = txt
 				fyne.Do(func() {
 					p.TimerText.Text = txt
 					p.TimerText.Refresh()
@@ -89,6 +94,11 @@ func renderStatsRow(segs []statSegment, verbose bool) []fyne.CanvasObject {
 }
 
 func (p *Panel) setStats(segs []statSegment) {
+	key := statsKey(segs)
+	if key == p.lastStatsKey {
+		return
+	}
+	p.lastStatsKey = key
 	fyne.Do(func() {
 		if p.StatsLine != nil {
 			p.StatsLine.Objects = renderStatsRow(segs, false)
@@ -99,6 +109,17 @@ func (p *Panel) setStats(segs []statSegment) {
 			p.StatsFooter.Refresh()
 		}
 	})
+}
+
+func statsKey(segs []statSegment) string {
+	var b strings.Builder
+	for _, s := range segs {
+		b.WriteString(s.compact)
+		b.WriteByte('|')
+		b.WriteString(s.verbose)
+		b.WriteByte(';')
+	}
+	return b.String()
 }
 
 func (p *Panel) setRunning(running bool) {

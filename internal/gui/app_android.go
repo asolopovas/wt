@@ -36,7 +36,10 @@ func Run(version, buildDate string) error {
 	tp.History = history
 	attachLibrary(tp, history)
 	if history.headerRight != nil {
-		history.headerRight.Objects = []fyne.CanvasObject{tp.StatsLine, tp.TimerText}
+		sep := canvas.NewText(" | ", colMuted)
+		sep.TextSize = textBody
+		sep.TextStyle = fyne.TextStyle{Monospace: true}
+		history.headerRight.Objects = []fyne.CanvasObject{tp.StatsLine, container.NewCenter(sep), tp.TimerText}
 		history.headerRight.Refresh()
 	}
 	settings.onCacheCleared = history.Refresh
