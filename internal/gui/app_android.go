@@ -192,6 +192,20 @@ func buildSettingsTab(sp *settingsPanel, deviceInfo, version string) fyne.Canvas
 		sp.models = newModelsSection(sp.window)
 	}
 
+	toggleRow := container.NewGridWithColumns(2,
+		wrapGhost(sp.noDiarizeBtn),
+		wrapGhost(sp.debugBtn),
+	)
+
+	clearCacheBtn := newSecondaryButton("CLEAR CACHE", sp.onClearCache)
+	clearTranscriptsBtn := newSecondaryButton("CLEAR TRANSCRIPTS", sp.onClearTranscripts)
+
+	clearRow := container.NewGridWithColumns(2,
+		wrapAction(clearCacheBtn),
+		wrapAction(clearTranscriptsBtn),
+	)
+	saveRow := wrapAction(sp.saveBtn)
+
 	bodySection := container.NewVBox(
 		vGap(spaceSM),
 		statsBlock,
@@ -202,28 +216,15 @@ func buildSettingsTab(sp *settingsPanel, deviceInfo, version string) fyne.Canvas
 		vGap(spaceLG),
 		newSectionDivider(),
 		sp.models.container,
-	)
-
-	toggleRow := container.NewGridWithColumns(2,
-		wrapGhost(sp.noDiarizeBtn),
-		wrapGhost(sp.debugBtn),
-	)
-
-	clearCacheBtn := newSecondaryButton("CACHE", sp.onClearCache)
-	clearTranscriptsBtn := newSecondaryButton("TEXT", sp.onClearTranscripts)
-
-	cacheRow := container.NewGridWithColumns(3,
-		wrapAction(clearCacheBtn),
-		wrapAction(clearTranscriptsBtn),
-		wrapAction(sp.saveBtn),
-	)
-
-	bottomSection := container.NewVBox(
-		vGap(spaceSM),
+		vGap(spaceLG),
+		newSectionDivider(),
+		vGap(spaceMD),
 		toggleRow,
-		vGap(spaceSM),
-		cacheRow,
-		vGap(spaceSM),
+		vGap(spaceMD),
+		clearRow,
+		vGap(spaceMD),
+		saveRow,
+		vGap(spaceLG),
 	)
 
 	pad := func(o fyne.CanvasObject) fyne.CanvasObject {
@@ -231,7 +232,7 @@ func buildSettingsTab(sp *settingsPanel, deviceInfo, version string) fyne.Canvas
 	}
 
 	return container.NewBorder(
-		header, pad(bottomSection), nil, nil,
+		header, nil, nil, nil,
 		container.NewVScroll(pad(bodySection)),
 	)
 }
