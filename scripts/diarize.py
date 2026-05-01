@@ -3,10 +3,21 @@ import io
 import json
 import os
 import sys
+import tempfile
 
 os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
 os.environ["HF_HUB_DISABLE_SYMLINKS"] = "1"
 os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
+
+if sys.platform == "win32":
+    _OrigTempDir = tempfile.TemporaryDirectory
+
+    class _WinTempDir(_OrigTempDir):
+        def __init__(self, *args, **kwargs):
+            kwargs.setdefault("ignore_cleanup_errors", True)
+            super().__init__(*args, **kwargs)
+
+    tempfile.TemporaryDirectory = _WinTempDir
 
 
 def _fix_hf_symlinks(model_id: str) -> None:
