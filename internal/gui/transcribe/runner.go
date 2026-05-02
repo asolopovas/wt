@@ -411,23 +411,6 @@ func (p *Panel) transcribeFile(model whisper.Model, path, modelSize, deviceLabel
 			}
 			smoother.Report(pct)
 		}
-		stopMon := make(chan struct{})
-		monDone := make(chan struct{})
-		go func() {
-			defer close(monDone)
-			t := time.NewTicker(5 * time.Second)
-			defer t.Stop()
-			for {
-				select {
-				case <-stopMon:
-					return
-				case <-t.C:
-					s := sysstats.ProcStats()
-					p.debugLog(fmt.Sprintf("proc: cpu=%d%% threads=%d rss=%dMB cpuset=%s cores=%d",
-						s.CPUPct, s.Threads, s.RSSMB, s.Cpuset, s.NumCores))
-				}
-			}
-		}()
 		// Pin the process to the lower CPU cluster so the prime/big cores
 		// stay free for the UI thread. Worker threads spawned by whisper.cpp
 		// inherit affinity from the calling OS thread on Linux.
@@ -440,8 +423,6 @@ func (p *Panel) transcribeFile(model whisper.Model, path, modelSize, deviceLabel
 		runtime.UnlockOSThread()
 		close(stopTick)
 		<-tickDone
-		close(stopMon)
-		<-monDone
 
 		newSegs := transcriber.ExtractSegments(ctx)
 		merged := make([]diarizer.TranscriptSegment, 0, len(resumeSegs)+len(newSegs))
