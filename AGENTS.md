@@ -1,7 +1,7 @@
 # AGENTS.md — wt
 
 Go CLI + GUI wrapping whisper.cpp for audio transcription with speaker diarization.
-Module: `github.com/asolopovas/wt` (Go 1.26). Deps: `fyne.io/fyne/v2`, `pterm`, `urfave/cli/v3`, `yaml.v3`.
+Module: `github.com/asolopovas/wt`. Deps: `fyne.io/fyne/v2`, `pterm`, `urfave/cli/v3`, `yaml.v3`.
 
 @CLAUDE.local.md
 
@@ -22,6 +22,8 @@ task models FETCH=samples|import          Fetch diarization samples / import mod
 Internal tasks (callable but hidden): `whisper-lib`, `fetch-deps`, `installer-exe`, `linux-deb`, `bump`, `clean-comments`, `android-apk`, `android-whisper-lib`, `android-vulkan-headers`, `ffmpeg-android`, `llama-cli-host`, `android-llama-cli`, `android-test`. The `_build-host`, `_install-host`, `_install-android`, `_lint-android`, `_fetch-samples`, `_models-import`, `_release-stable`, `_release-rolling` tasks are dispatch helpers — invoke via the public flag-driven entrypoints.
 
 GUI compile-checks **only** through `task build ONLY=gui` — `CGO_LDFLAGS` differs between MinGW (`-lwhisper`) and CUDA/MSVC (`whisper.lib`).
+
+Never dispatch to an `internal: true` task via `cmd: 'task X'` — that spawns a new task process which sees the internal flag and exits 202. Always use `task: X` cmd entries (supports `vars:` and `if:` in Task v3.30+). Same applies to compound shell calls like `task whisper-lib && go test ...` — split into a `task:` step plus a `cmd:` step.
 
 Release tasks create the GH release empty first, then upload artifacts in a 3-attempt retry loop (large APK/EXE uploads occasionally fail mid-stream). `task release` re-reads `VERSION` from `Taskfile.yml` post-bump because `{{.VERSION}}` captures at parse time.
 
