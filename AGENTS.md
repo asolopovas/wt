@@ -7,18 +7,19 @@ Module: `github.com/asolopovas/wt` (Go 1.26). Deps: `fyne.io/fyne/v2`, `pterm`, 
 
 ## Commands (always via `task`, never bare `go build`)
 
+User-facing tasks are flag-driven; internals are hidden (`internal: true`).
+
 ```
-task build [ONLY=cli|gui]   Build binaries → dist/bin (compile-only, never launches)
-task install                Replace binaries at %LOCALAPPDATA%\wt
-task install-android        Build APK, install, launch
-task check | clean [DEEP=1] Verify toolchain | clean dist/ (+ whisper.cpp build)
-task test | test-unit | test-integration   (-short skips CGo/model; integration needs build tag)
-task fetch-samples          Stage diarization samples → samples/diarization/ (gitignored)
-task lint | lint-android | vet | vet-android | fmt | clean-comments
-task bump                   Auto-increment version (1.0.0→1.0.9→1.1.0), build, install, commit
-task release                Bump → build installer + APK → push tag → GH release + upload
-task release-latest         Build current HEAD, force-update `rolling` prerelease tag
+task build [ONLY=cli|gui|android]        Build binaries + installer; android = APK
+task install [TARGET=android]            Replace local install (or push APK + launch)
+task test [SHORT=1|INTEGRATION=1]        Default = full; SHORT skips CGo; INTEGRATION = diarizer
+task lint [FIX=1] [ANDROID=1]            golangci-lint (+gofumpt with FIX); ANDROID = NDK toolchain
+task release [ROLLING=1]                 Default bumps + publishes; ROLLING updates `rolling` prerelease
+task clean [DEEP=1]                       Clean dist/ (+ whisper.cpp build)
+task models FETCH=samples|import          Fetch diarization samples / import models from Windows mounts
 ```
+
+Internal tasks (callable but hidden): `whisper-lib`, `fetch-deps`, `installer-exe`, `linux-deb`, `bump`, `clean-comments`, `android-apk`, `android-whisper-lib`, `android-vulkan-headers`, `ffmpeg-android`, `llama-cli-host`, `android-llama-cli`, `android-test`. The `_build-host`, `_install-host`, `_install-android`, `_lint-android`, `_fetch-samples`, `_models-import`, `_release-stable`, `_release-rolling` tasks are dispatch helpers — invoke via the public flag-driven entrypoints.
 
 GUI compile-checks **only** through `task build ONLY=gui` — `CGO_LDFLAGS` differs between MinGW (`-lwhisper`) and CUDA/MSVC (`whisper.lib`).
 

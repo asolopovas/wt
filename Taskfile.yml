@@ -66,7 +66,6 @@ vars:
       fi
       echo "$p"
 
-  # Reusable env-prefix for Go invocations: PATH for whisper DLLs/MinGW + LD_LIBRARY_PATH on Linux.
   GO_ENV: 'export PATH="{{.WHISPER_BUILD}}/bin;{{.EXTRA_PATH}};$PATH" LD_LIBRARY_PATH="{{.WHISPER_BUILD}}/src:{{.WHISPER_BUILD}}/ggml/src:{{.WHISPER_BUILD}}/ggml/src/ggml-cuda${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"'
 
 env:
@@ -82,65 +81,98 @@ tasks:
     cmds:
       - task --list
 
-  whisper-lib:
-    desc: Build whisper.cpp (with CUDA if available)
-    internal: true
-    run: once
-    # Single status entry — Task skips only when ALL entries exit 0, so the
-    # three mutually-exclusive conditions previously here meant the task
-    # always ran and unconditionally re-invoked the build script.
-    status:
-      - |
-        if [ -n "{{.IS_LINUX}}" ]; then
-          test -f "{{.WHISPER_BUILD}}/src/libwhisper.so"
-        elif [ -n "{{.CUDA_DIR}}" ]; then
-          test -f "{{.WHISPER_BUILD}}/bin/whisper.dll"
-        else
-          test -f "{{.WHISPER_ROOT}}/build/src/libwhisper.a"
-        fi
-    cmds:
-      - cmd: git clone --depth 1 https://github.com/ggml-org/whisper.cpp.git {{.WHISPER_ROOT}}
-        if: '[ ! -d "{{.WHISPER_ROOT}}" ]'
-      - bash scripts/build-whisper.sh "{{.WHISPER_ROOT}}" "{{.WHISPER_BUILD}}" "{{.CUDA_DIR}}" "{{.CUDA_ARCH}}" "{{.ROOT_DIR | toSlash}}" "{{.LINUX_CUDA}}" "{{.IS_LINUX}}"
-
-  installer-exe:
-    desc: 'Compile dist/wt-setup-{{.VERSION}}.exe via Inno Setup. Skipped when dist/bin and installer.iss are unchanged.'
-    vars:
-      ISCC_PATH:
-        sh: |
-          for d in \
-            "$LOCALAPPDATA/Programs/Inno Setup 6" \
-            "C:/Program Files (x86)/Inno Setup 6" \
-            "C:/Program Files/Inno Setup 6"; do
-            if [ -f "$d/ISCC.exe" ]; then echo "$d/ISCC.exe"; exit 0; fi
-          done
-          echo ""
-    sources:
-      - dist/bin/**/*
-      - scripts/installer.iss
-    generates:
-      - dist/wt-setup-{{.VERSION}}.exe
-    cmds:
-      - cmd: |
-          if [ -z "{{.ISCC_PATH}}" ]; then
-            echo "ERROR: Inno Setup not found. Install via: winget install JRSoftware.InnoSetup"
-            exit 1
-          fi
-      - '"{{.ISCC_PATH}}" /DMyAppVersion={{.VERSION}} scripts/installer.iss'
-      - 'ls -l dist/wt-setup-{{.VERSION}}.exe'
+  # =========================================================================
+  # User-facing tasks
+  # =========================================================================
 
   build:
-    desc: 'Build binaries, copy runtime DLLs, and produce dist/wt-setup.exe. Use ONLY=cli or ONLY=gui to limit (skips installer).'
+    desc: 'Build binaries + installer. ONLY=cli|gui|android to limit (cli/gui skip installer; android builds APK).'
+    cmds:
+      - cmd: 'task android-apk'
+        if: '[ "{{.ONLY}}" = "android" ]'
+      - cmd: 'task _build-host ONLY={{.ONLY}}'
+        if: '[ "{{.ONLY}}" != "android" ]'
+
+  install:
+    desc: 'Build + replace local install. TARGET=android pushes APK to device and launches.'
+    cmds:
+      - cmd: 'task _install-android'
+        if: '[ "{{.TARGET}}" = "android" ]'
+      - cmd: 'task _install-host'
+        if: '[ "{{.TARGET}}" != "android" ]'
+
+  test:
+    desc: 'Run tests. SHORT=1 skips CGo/model. INTEGRATION=1 runs diarization integration suite.'
+    cmds:
+      - cmd: 'export PATH="{{.EXTRA_PATH}};$PATH" && go test -v -short ./...'
+        if: '[ -n "{{.SHORT}}" ]'
+      - cmd: 'task whisper-lib && {{.GO_ENV}} && go test -v -tags=integration ./internal/diarizer/...'
+        if: '[ -n "{{.INTEGRATION}}" ]'
+      - cmd: 'task whisper-lib && {{.GO_ENV}} && go test -v ./...'
+        if: '[ -z "{{.SHORT}}" ] && [ -z "{{.INTEGRATION}}" ]'
+
+  lint:
+    desc: 'Run golangci-lint (falls back to go vet). FIX=1 also runs gofumpt. ANDROID=1 uses NDK toolchain.'
+    cmds:
+      - cmd: 'task _lint-android'
+        if: '[ -n "{{.ANDROID}}" ]'
+      - cmd: |
+          export PATH="{{.EXTRA_PATH}};$PATH"
+          if command -v golangci-lint >/dev/null 2>&1; then
+            golangci-lint run ./cmd/... ./internal/...
+          else
+            echo "golangci-lint not found, falling back to go vet"
+            go vet ./cmd/... ./internal/...
+          fi
+        if: '[ -z "{{.ANDROID}}" ]'
+      - cmd: |
+          if command -v gofumpt >/dev/null 2>&1; then
+            gofumpt -w ./cmd/ ./internal/
+          else
+            gofmt -w ./cmd/ ./internal/
+          fi
+        if: '[ -n "{{.FIX}}" ]'
+
+  release:
+    desc: 'Bump → build → push tag → GH release + upload. ROLLING=1 skips bump and updates "rolling" prerelease.'
+    preconditions:
+      - sh: command -v gh >/dev/null 2>&1
+        msg: 'gh CLI not found. Install via: winget install GitHub.cli'
+      - sh: '[ -z "$(git status --porcelain)" ]'
+        msg: 'Working tree has uncommitted changes; commit or stash first.'
+    cmds:
+      - cmd: 'task _release-rolling'
+        if: '[ -n "{{.ROLLING}}" ]'
+      - cmd: 'task _release-stable'
+        if: '[ -z "{{.ROLLING}}" ]'
+
+  clean:
+    desc: 'Remove dist/ and samples/*.json. DEEP=1 also clears whisper.cpp build.'
+    cmds:
+      - rm -rf build dist
+      - rm -f samples/*.json
+      - cmd: rm -rf {{.WHISPER_BUILD}}
+        if: '[ -n "{{.DEEP}}" ]'
+
+  models:
+    desc: 'Model utilities. FETCH=samples downloads diarization test samples. FETCH=import copies models from Windows mounts (Linux/WSL).'
+    cmds:
+      - cmd: 'task _fetch-samples'
+        if: '[ "{{.FETCH}}" = "samples" ]'
+      - cmd: 'task _models-import'
+        if: '[ "{{.FETCH}}" = "import" ]'
+      - cmd: |
+          echo "Usage: task models FETCH=samples | FETCH=import"
+          exit 1
+        if: '[ "{{.FETCH}}" != "samples" ] && [ "{{.FETCH}}" != "import" ]'
+
+  # =========================================================================
+  # Internal: host build pipeline
+  # =========================================================================
+
+  _build-host:
+    internal: true
     deps: [whisper-lib, fetch-deps]
-    # Top-level source-tracking: when no Go file, Taskfile.yml, or whisper
-    # header has changed, skip the entire task (which transitively skips the
-    # inner go-build invocations + the installer-exe call). On a real change
-    # the whole task runs, including ISCC — same as before.
-    # NOTE: Includes ONLY in sources via Taskfile.yml is irrelevant; ONLY is an
-    # env-var passed by the caller, not a file. Top-level cache cannot
-    # distinguish ONLY values, so `task build ONLY=cli` after a no-op `task build`
-    # also short-circuits. That is fine: the prior full build already produced
-    # both binaries.
     sources:
       - cmd/**/*.go
       - internal/**/*.go
@@ -155,7 +187,6 @@ tasks:
       - dist/bin/diarize.py
     cmds:
       - mkdir -p dist/bin
-      # ---- Windows builds ----
       - cmd: '{{.GO_ENV}} && go build -ldflags "-X main.Version={{.VERSION}}" -o dist/bin/{{.BINARY}}.exe ./cmd/wt'
         if: '[ -z "{{.IS_LINUX}}" ] && [ "{{.ONLY}}" != "gui" ]'
       - cmd: '{{.GO_ENV}} && go build -ldflags "-X main.Version={{.VERSION}} -X main.BuildDate={{.GIT_DATE}} -H windowsgui" -o dist/bin/{{.BINARY}}-gui.exe ./cmd/wt-gui'
@@ -171,7 +202,6 @@ tasks:
             [ -f "$f" ] && cp "$f" "$dest/"
           done
         if: '[ -z "{{.IS_LINUX}}" ] && [ -n "{{.CUDA_DIR}}" ]'
-      # ---- Linux builds ----
       - cmd: 'go build -ldflags "-X main.Version={{.VERSION}}" -o dist/bin/{{.BINARY}} ./cmd/wt'
         if: '[ -n "{{.IS_LINUX}}" ] && [ "{{.ONLY}}" != "gui" ]'
       - cmd: 'go build -ldflags "-X main.Version={{.VERSION}} -X main.BuildDate={{.GIT_DATE}}" -o dist/bin/{{.BINARY}}-gui ./cmd/wt-gui'
@@ -183,7 +213,6 @@ tasks:
             \( -name 'libwhisper.so*' -o -name 'libggml*.so*' \) \
             -exec cp -P {} "$dest/" \;
         if: '[ -n "{{.IS_LINUX}}" ]'
-      # ---- llama-cli (for auto-rename LLM) ----
       - task: llama-cli-host
       - cmd: |
           src="{{.ROOT_DIR | toSlash}}/dist/llama"
@@ -206,17 +235,14 @@ tasks:
           fi
           true
         if: '[ -n "{{.IS_LINUX}}" ]'
-      # ---- Shared assets ----
       - cp scripts/diarize.py "{{.ROOT_DIR | toSlash}}/dist/bin/diarize.py"
-      # ---- Windows installer (gated: skips when dist/bin + installer.iss unchanged) ----
       - cmd: 'task installer-exe'
         if: '[ -z "{{.IS_LINUX}}" ] && [ -z "{{.ONLY}}" ]'
-      # ---- Linux .deb ----
       - cmd: 'task linux-deb'
         if: '[ -n "{{.IS_LINUX}}" ] && [ -z "{{.ONLY}}" ]'
 
-  install:
-    desc: 'Build then replace binaries (Win: {localappdata}/wt; Linux: ~/.local/share/wt + ~/.local/bin). Skips installer build (use `task setup` or `task package` for that).'
+  _install-host:
+    internal: true
     cmds:
       - cmd: 'task build ONLY=both'
         if: '[ -z "{{.IS_LINUX}}" ]'
@@ -225,7 +251,7 @@ tasks:
       - cmd: |
           dest="$LOCALAPPDATA/{{.BINARY}}"
           if [ ! -d "$dest" ]; then
-            echo "ERROR: $dest not found. Run 'task setup' for initial install."
+            echo "ERROR: $dest not found. Run installer first (dist/wt-setup-{{.VERSION}}.exe)."
             exit 1
           fi
           taskkill //F //IM {{.BINARY}}-gui.exe 2>/dev/null || true
@@ -254,22 +280,19 @@ tasks:
           {{.BINARY}} --version
         if: '[ -n "{{.IS_LINUX}}" ]'
 
-  install-android:
-    desc: Build APK, install on device, and launch
+  _install-android:
+    internal: true
     deps: [android-apk]
     cmds:
       - cmd: |
           export MSYS_NO_PATHCONV=1
-          # -r reinstalls preserving /data/data/<pkg>/files (config + models + cache).
-          # -d allows downgrades. We never automatically uninstall, since that wipes
-          # transcript cache and downloaded models. If install fails, fix manually.
           install_out=$(adb install -r -d dist/wt-{{.VERSION}}.apk 2>&1)
           echo "$install_out"
           case "$install_out" in
             *Success*) ;;
             *)
               echo "install failed; NOT auto-uninstalling (would wipe cache + models)."
-              echo "Run: adb uninstall com.asolopovas.wtranscribe && task install-android"
+              echo "Run: adb uninstall com.asolopovas.wtranscribe && task install TARGET=android"
               exit 1
               ;;
           esac
@@ -278,84 +301,62 @@ tasks:
           python -c "import time; time.sleep(2)"
           adb logcat -d | python -c "import sys,re,itertools;p=re.compile(r'wtranscribe|GoLog|dlopen|FATAL|panic|AndroidRuntime');sys.stdout.writelines(itertools.islice((l for l in sys.stdin if p.search(l)),30))"
 
-  fetch-deps:
+  # =========================================================================
+  # Internal: lint, test, models, release
+  # =========================================================================
+
+  _lint-android:
     internal: true
-    run: once
     cmds:
-      - mkdir -p dist/deps
       - cmd: |
-          if [ ! -f dist/deps/uv.exe ]; then
-            echo "Downloading uv (windows)..."
-            curl -sL "https://github.com/astral-sh/uv/releases/latest/download/uv-x86_64-pc-windows-msvc.zip" -o dist/deps/uv.zip
-            powershell -NoProfile -Command "Expand-Archive -Force 'dist/deps/uv.zip' 'dist/deps/uv-tmp'"
-            cp dist/deps/uv-tmp/uv.exe dist/deps/uv.exe
-            rm -rf dist/deps/uv-tmp dist/deps/uv.zip
+          if [ ! -d "{{.NDK_ROOT}}" ]; then
+            echo "NDK not found at {{.NDK_ROOT}} — skipping android lint"
+            exit 0
           fi
-        if: '[ -z "{{.IS_LINUX}}" ]'
-      - cmd: |
-          if [ ! -f dist/deps/uv-linux ]; then
-            echo "Downloading uv (linux)..."
-            curl -sL "https://github.com/astral-sh/uv/releases/latest/download/uv-x86_64-unknown-linux-gnu.tar.gz" -o dist/deps/uv.tgz
-            tar -xzf dist/deps/uv.tgz -C dist/deps
-            cp dist/deps/uv-x86_64-unknown-linux-gnu/uv dist/deps/uv-linux
-            chmod +x dist/deps/uv-linux
-            rm -rf dist/deps/uv-x86_64-unknown-linux-gnu dist/deps/uv.tgz
-          fi
-        if: '[ -n "{{.IS_LINUX}}" ]'
-
-  package:
-    desc: Alias for build (installer is produced by build)
-    deps: [build]
-
-  setup:
-    desc: Full install via silent installer (+ launch GUI)
-    deps: [package]
-    vars:
-      SETUP_LOG:
-        sh: echo "$USERPROFILE/.wt/setup.log"
-    cmds:
-      - cmd: 'taskkill //F //IM {{.BINARY}}-gui.exe 2>/dev/null || true'
-      - cmd: 'rm -f "{{.SETUP_LOG}}"'
-      - cmd: |
-          export MSYS_NO_PATHCONV=1
-          dist/wt-setup-{{.VERSION}}.exe /VERYSILENT /SUPPRESSMSGBOXES /SP- &
-          INSTALLER_PID=$!
-          echo "=== Installer started (PID $INSTALLER_PID) ==="
-          echo "=== Tailing {{.SETUP_LOG}} ==="
-          while ! [ -f "{{.SETUP_LOG}}" ]; do
-            if ! kill -0 $INSTALLER_PID 2>/dev/null; then break; fi
-            sleep 0.5
-          done
-          if [ -f "{{.SETUP_LOG}}" ]; then
-            tail -f "{{.SETUP_LOG}}" &
-            TAIL_PID=$!
-            wait $INSTALLER_PID 2>/dev/null
-            sleep 1
-            kill $TAIL_PID 2>/dev/null
+          export GOOS=android GOARCH=arm64 CGO_ENABLED=1
+          export CC="{{.ANDROID_CC}}"
+          export CGO_CFLAGS="--sysroot={{.ANDROID_SYSROOT}} -I{{.ANDROID_SYSROOT}}/usr/include"
+          export CGO_LDFLAGS="--sysroot={{.ANDROID_SYSROOT}} -L{{.ANDROID_SYSROOT}}/usr/lib/aarch64-linux-android/28"
+          export CGO_LDFLAGS_ALLOW='.*'
+          if command -v golangci-lint >/dev/null 2>&1; then
+            golangci-lint run ./cmd/wt-gui/... ./cmd/wt-test/... ./internal/...
           else
-            wait $INSTALLER_PID 2>/dev/null
+            echo "golangci-lint not found, falling back to go vet"
+            go vet ./cmd/wt-gui/... ./cmd/wt-test/... ./internal/...
           fi
-      - cmd: '"$LOCALAPPDATA/{{.BINARY}}/{{.BINARY}}-gui.exe" &'
 
-  dist:
-    desc: Create distributable zip (dist/wt-dist.zip)
-    deps: [package]
+  _fetch-samples:
+    internal: true
     cmds:
-      - |
-        cd dist
-        rm -f wt-dist.zip
-        powershell -NoProfile -Command "Compress-Archive -Path 'wt-setup-{{.VERSION}}.exe' -DestinationPath 'wt-dist.zip'"
-        ls -l wt-dist.zip
+      - cmd: |
+          set -e
+          dest="{{.ROOT_DIR | toSlash}}/samples/diarization"
+          mkdir -p "$dest/sherpa" "$dest/voxconverse"
 
-  linux-deb:
-    desc: 'Build dist/wt_{{.VERSION}}_amd64.deb (Linux). Installs to /opt/wt with /usr/bin symlinks.'
-    deps: [fetch-deps]
-    cmds:
-      - cmd: bash scripts/build-deb.sh "{{.VERSION}}" "{{.BINARY}}" "{{.ROOT_DIR | toSlash}}"
-        if: '[ -n "{{.IS_LINUX}}" ]'
+          base="https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-segmentation-models"
+          for f in 0-four-speakers-zh.wav 1-two-speakers-en.wav 2-two-speakers-en.wav 3-two-speakers-en.wav; do
+            out="$dest/sherpa/$f"
+            if [ -s "$out" ]; then
+              echo "skip (exists): $f"
+            else
+              echo "fetch: $f"
+              curl -fsSL --retry 3 -o "$out" "$base/$f"
+            fi
+          done
 
-  models-import:
-    desc: 'Copy whisper + diarization models from /mnt/c Windows mounts to ~/.config/wt/models'
+          rttm_base="https://raw.githubusercontent.com/joonson/voxconverse/master/dev"
+          for id in abjxc afjiv; do
+            out="$dest/voxconverse/$id.rttm"
+            if [ -s "$out" ]; then
+              echo "skip (exists): $id.rttm"
+            else
+              echo "fetch: $id.rttm"
+              curl -fsSL --retry 3 -o "$out" "$rttm_base/$id.rttm"
+            fi
+          done
+
+  _models-import:
+    internal: true
     cmds:
       - cmd: |
           set -e
@@ -380,42 +381,21 @@ tasks:
           echo "Models in $dest:"
           ls -lh "$dest"
 
-  release:
-    desc: 'End-to-end release: bump version, build artifacts, push commits + tag, create GitHub release and upload assets'
-    preconditions:
-      - sh: command -v gh >/dev/null 2>&1
-        msg: 'gh CLI not found. Install via: winget install GitHub.cli'
-      - sh: '[ -z "$(git status --porcelain)" ]'
-        msg: 'Working tree has uncommitted changes; commit or stash first.'
+  _release-stable:
+    internal: true
     cmds:
       - task: bump
-      # IMPORTANT: spawn a fresh `task` subprocess for build so the freshly-bumped
-      # VERSION is re-parsed from Taskfile.yml. `- task: build` would reuse the
-      # already-parsed (stale) {{.VERSION}} from before the bump, producing
-      # artifacts with the previous version baked into ldflags + installer name.
       - cmd: 'task build'
-      # Force installer build: `task install` (called by bump) passes ONLY=both,
-      # which short-circuits the gated installer-exe step inside build. Without
-      # this explicit call, dist/wt-setup-<ver>.exe is never produced and the
-      # upload step below fails with "no artifacts found".
       - cmd: 'task installer-exe'
         if: '[ -z "{{.IS_LINUX}}" ]'
       - cmd: 'task android-apk'
         if: '[ -z "{{.IS_LINUX}}" ]'
-      # Delegate publish flow to msys64 bash. Task's embedded mvdan/sh
-      # silently aborts after `git push origin <tag>` on Windows, never
-      # reaching the gh-release commands.
       - |
         ver=$(powershell -NoProfile -Command "[Console]::Write((Select-String -Path Taskfile.yml -Pattern \"VERSION: '([^']+)'\" -CaseSensitive | Select-Object -First 1).Matches[0].Groups[1].Value)")
         C:/msys64/usr/bin/bash.exe scripts/release-publish.sh "$ver"
 
-  release-latest:
-    desc: 'Rolling release: build current main and update the "rolling" tag + GitHub prerelease (no version bump)'
-    preconditions:
-      - sh: command -v gh >/dev/null 2>&1
-        msg: 'gh CLI not found. Install via: winget install GitHub.cli'
-      - sh: '[ -z "$(git status --porcelain)" ]'
-        msg: 'Working tree has uncommitted changes; commit or stash first.'
+  _release-rolling:
+    internal: true
     cmds:
       - task: build
       - cmd: 'task android-apk'
@@ -466,7 +446,7 @@ tasks:
         echo "Rolling release: https://github.com/asolopovas/wt/releases/tag/$tag"
 
   bump:
-    desc: Bump patch version, build, install, verify, and commit
+    internal: true
     vars:
       NEW_VERSION:
         sh: |
@@ -492,115 +472,10 @@ tasks:
         git add Taskfile.yml
         git commit -m "Bump version $cur -> $new"
 
-  test:
-    desc: Run all tests
-    deps: [whisper-lib]
+  clean-comments:
+    internal: true
     cmds:
-      - '{{.GO_ENV}} && go test -v ./...'
-
-  fetch-samples:
-    desc: Download diarization test samples (sherpa-onnx clips + VoxConverse RTTMs)
-    cmds:
-      - cmd: |
-          set -e
-          dest="{{.ROOT_DIR | toSlash}}/samples/diarization"
-          mkdir -p "$dest/sherpa" "$dest/voxconverse"
-
-          base="https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-segmentation-models"
-          for f in 0-four-speakers-zh.wav 1-two-speakers-en.wav 2-two-speakers-en.wav 3-two-speakers-en.wav; do
-            out="$dest/sherpa/$f"
-            if [ -s "$out" ]; then
-              echo "skip (exists): $f"
-            else
-              echo "fetch: $f"
-              curl -fsSL --retry 3 -o "$out" "$base/$f"
-            fi
-          done
-
-          rttm_base="https://raw.githubusercontent.com/joonson/voxconverse/master/dev"
-          for id in abjxc afjiv; do
-            out="$dest/voxconverse/$id.rttm"
-            if [ -s "$out" ]; then
-              echo "skip (exists): $id.rttm"
-            else
-              echo "fetch: $id.rttm"
-              curl -fsSL --retry 3 -o "$out" "$rttm_base/$id.rttm"
-            fi
-          done
-
-          echo
-          echo "Sherpa clips (speaker count in filename):  $dest/sherpa"
-          echo "VoxConverse RTTMs (audio is 2 GB zip — fetch separately if needed):"
-          echo "  https://www.robots.ox.ac.uk/~vgg/data/voxconverse/data/voxconverse_dev_wav.zip"
-          echo "  $dest/voxconverse"
-
-  test-unit:
-    desc: Run unit tests (no CGo / model required)
-    cmds:
-      - 'export PATH="{{.EXTRA_PATH}};$PATH" && go test -v -short ./...'
-
-  test-integration:
-    desc: Run diarization integration tests (downloads samples on demand)
-    deps: [whisper-lib]
-    cmds:
-      - '{{.GO_ENV}} && go test -v -tags=integration ./internal/diarizer/...'
-
-  vet:
-    desc: Run go vet with the right CGo env
-    cmds:
-      - 'export PATH="{{.EXTRA_PATH}};$PATH" && go vet ./cmd/... ./internal/...'
-
-  lint:
-    desc: Run golangci-lint (falls back to go vet)
-    cmds:
-      - cmd: |
-          export PATH="{{.EXTRA_PATH}};$PATH"
-          if command -v golangci-lint >/dev/null 2>&1; then
-            golangci-lint run ./cmd/... ./internal/...
-          else
-            echo "golangci-lint not found, falling back to go vet"
-            go vet ./cmd/... ./internal/...
-          fi
-      - task: vet-android
-
-  vet-android:
-    desc: go vet for android-tagged files (covers _android.go that the windows lint pass skips)
-    cmds:
-      - cmd: |
-          if [ ! -d "{{.NDK_ROOT}}" ]; then
-            echo "NDK not found at {{.NDK_ROOT}} — skipping android vet"
-            exit 0
-          fi
-          export GOOS=android GOARCH=arm64 CGO_ENABLED=1
-          export CC="{{.ANDROID_CC}}"
-          export CGO_CFLAGS="--sysroot={{.ANDROID_SYSROOT}} -I{{.ANDROID_SYSROOT}}/usr/include"
-          export CGO_LDFLAGS="--sysroot={{.ANDROID_SYSROOT}} -L{{.ANDROID_SYSROOT}}/usr/lib/aarch64-linux-android/28"
-          export CGO_LDFLAGS_ALLOW='.*'
-          go vet ./cmd/wt-gui/... ./cmd/wt-test/... ./internal/...
-
-  lint-android:
-    desc: golangci-lint for android-tagged files (uses NDK toolchain)
-    cmds:
-      - cmd: |
-          if [ ! -d "{{.NDK_ROOT}}" ]; then
-            echo "NDK not found at {{.NDK_ROOT}} — skipping android lint"
-            exit 0
-          fi
-          export GOOS=android GOARCH=arm64 CGO_ENABLED=1
-          export CC="{{.ANDROID_CC}}"
-          export CGO_CFLAGS="--sysroot={{.ANDROID_SYSROOT}} -I{{.ANDROID_SYSROOT}}/usr/include"
-          export CGO_LDFLAGS="--sysroot={{.ANDROID_SYSROOT}} -L{{.ANDROID_SYSROOT}}/usr/lib/aarch64-linux-android/28"
-          export CGO_LDFLAGS_ALLOW='.*'
-          if command -v golangci-lint >/dev/null 2>&1; then
-            golangci-lint run ./cmd/wt-gui/... ./cmd/wt-test/... ./internal/...
-          else
-            echo "golangci-lint not found, falling back to go vet"
-            go vet ./cmd/wt-gui/... ./cmd/wt-test/... ./internal/...
-          fi
-
-  fmt:
-    desc: Run gofumpt (falls back to gofmt)
-    cmds:
+      - go run ./scripts/clean-comments ./cmd ./internal ./bindings
       - cmd: |
           if command -v gofumpt >/dev/null 2>&1; then
             gofumpt -w ./cmd/ ./internal/
@@ -608,60 +483,84 @@ tasks:
             gofmt -w ./cmd/ ./internal/
           fi
 
-  clean-comments:
-    desc: Strip non-directive comments from Go files (excluding third_party)
-    cmds:
-      - go run ./scripts/clean-comments ./cmd ./internal ./bindings
-      - task: fmt
+  # =========================================================================
+  # Internal: native dependency builds
+  # =========================================================================
 
-  clean:
-    desc: 'Remove dist/ and samples/*.json. DEEP=1 also clears whisper.cpp build.'
-    cmds:
-      - rm -rf build dist
-      - rm -f samples/*.json
-      - cmd: rm -rf {{.WHISPER_BUILD}}
-        if: '[ -n "{{.DEEP}}" ]'
-
-  deps:
-    desc: Tidy Go modules
-    cmds:
-      - go mod tidy
-
-  check:
-    desc: Verify toolchain installation
-    cmds:
+  whisper-lib:
+    internal: true
+    run: once
+    status:
       - |
-        echo "Go version:"
-        go version
-        echo ""
-        echo "GCC:"
-        export PATH="{{.EXTRA_PATH}};$PATH"
-        gcc --version 2>/dev/null || echo "  NOT FOUND (required for CGo)"
-      - cmd: 'echo "OS: linux  CUDA(linux nvcc): {{if .LINUX_CUDA}}yes{{else}}no{{end}}"'
+        if [ -n "{{.IS_LINUX}}" ]; then
+          test -f "{{.WHISPER_BUILD}}/src/libwhisper.so"
+        elif [ -n "{{.CUDA_DIR}}" ]; then
+          test -f "{{.WHISPER_BUILD}}/bin/whisper.dll"
+        else
+          test -f "{{.WHISPER_ROOT}}/build/src/libwhisper.a"
+        fi
+    cmds:
+      - cmd: git clone --depth 1 https://github.com/ggml-org/whisper.cpp.git {{.WHISPER_ROOT}}
+        if: '[ ! -d "{{.WHISPER_ROOT}}" ]'
+      - bash scripts/build-whisper.sh "{{.WHISPER_ROOT}}" "{{.WHISPER_BUILD}}" "{{.CUDA_DIR}}" "{{.CUDA_ARCH}}" "{{.ROOT_DIR | toSlash}}" "{{.LINUX_CUDA}}" "{{.IS_LINUX}}"
+
+  fetch-deps:
+    internal: true
+    run: once
+    cmds:
+      - mkdir -p dist/deps
+      - cmd: |
+          if [ ! -f dist/deps/uv.exe ]; then
+            echo "Downloading uv (windows)..."
+            curl -sL "https://github.com/astral-sh/uv/releases/latest/download/uv-x86_64-pc-windows-msvc.zip" -o dist/deps/uv.zip
+            powershell -NoProfile -Command "Expand-Archive -Force 'dist/deps/uv.zip' 'dist/deps/uv-tmp'"
+            cp dist/deps/uv-tmp/uv.exe dist/deps/uv.exe
+            rm -rf dist/deps/uv-tmp dist/deps/uv.zip
+          fi
+        if: '[ -z "{{.IS_LINUX}}" ]'
+      - cmd: |
+          if [ ! -f dist/deps/uv-linux ]; then
+            echo "Downloading uv (linux)..."
+            curl -sL "https://github.com/astral-sh/uv/releases/latest/download/uv-x86_64-unknown-linux-gnu.tar.gz" -o dist/deps/uv.tgz
+            tar -xzf dist/deps/uv.tgz -C dist/deps
+            cp dist/deps/uv-x86_64-unknown-linux-gnu/uv dist/deps/uv-linux
+            chmod +x dist/deps/uv-linux
+            rm -rf dist/deps/uv-x86_64-unknown-linux-gnu dist/deps/uv.tgz
+          fi
         if: '[ -n "{{.IS_LINUX}}" ]'
-      - cmd: 'echo "CUDA: {{.CUDA_DIR}} (arch {{.CUDA_ARCH}})"'
-        if: '[ -z "{{.IS_LINUX}}" ] && [ -n "{{.CUDA_DIR}}" ]'
-      - cmd: 'echo "CUDA: not found (CPU-only build)"'
-        if: '[ -z "{{.IS_LINUX}}" ] && [ -z "{{.CUDA_DIR}}" ]'
+
+  installer-exe:
+    internal: true
+    vars:
+      ISCC_PATH:
+        sh: |
+          for d in \
+            "$LOCALAPPDATA/Programs/Inno Setup 6" \
+            "C:/Program Files (x86)/Inno Setup 6" \
+            "C:/Program Files/Inno Setup 6"; do
+            if [ -f "$d/ISCC.exe" ]; then echo "$d/ISCC.exe"; exit 0; fi
+          done
+          echo ""
+    sources:
+      - dist/bin/**/*
+      - scripts/installer.iss
+    generates:
+      - dist/wt-setup-{{.VERSION}}.exe
+    cmds:
       - cmd: |
-          echo "whisper.cpp:"
-          if [ -f "{{.WHISPER_BUILD}}/src/libwhisper.so" ]; then echo "  Built (Linux shared)";
-          else echo "  NOT BUILT (run: task build)"; fi
+          if [ -z "{{.ISCC_PATH}}" ]; then
+            echo "ERROR: Inno Setup not found. Install via: winget install JRSoftware.InnoSetup"
+            exit 1
+          fi
+      - '"{{.ISCC_PATH}}" /DMyAppVersion={{.VERSION}} scripts/installer.iss'
+      - 'ls -l dist/wt-setup-{{.VERSION}}.exe'
+
+  linux-deb:
+    internal: true
+    deps: [fetch-deps]
+    cmds:
+      - cmd: bash scripts/build-deb.sh "{{.VERSION}}" "{{.BINARY}}" "{{.ROOT_DIR | toSlash}}"
         if: '[ -n "{{.IS_LINUX}}" ]'
-      - cmd: |
-          echo "whisper.cpp:"
-          if [ -f "{{.WHISPER_BUILD}}/bin/whisper.dll" ]; then echo "  Built (CUDA)";
-          else echo "  NOT BUILT (run: task build)"; fi
-        if: '[ -z "{{.IS_LINUX}}" ] && [ -n "{{.CUDA_DIR}}" ]'
-      - cmd: |
-          echo "whisper.cpp:"
-          if [ -f "{{.WHISPER_ROOT}}/build/src/libwhisper.a" ]; then echo "  Built (CPU)";
-          else echo "  NOT BUILT (run: task build)"; fi
-        if: '[ -z "{{.IS_LINUX}}" ] && [ -z "{{.CUDA_DIR}}" ]'
-      - |
-        echo ""
-        echo "ffmpeg:"
-        ffmpeg -version 2>/dev/null || echo "  NOT FOUND (needed for non-WAV audio)"
 
   android-vulkan-headers:
     internal: true
@@ -686,7 +585,7 @@ tasks:
           done
 
   ffmpeg-android:
-    desc: 'Build static audio-only ffmpeg for android-arm64 (dist/ffmpeg/ffmpeg-android-arm64).'
+    internal: true
     status:
       - test -f "{{.ROOT_DIR | toSlash}}/dist/ffmpeg/ffmpeg-android-arm64"
     cmds:
@@ -733,7 +632,7 @@ tasks:
             "{{.ANDROID_BUILD}}/ggml/src/ggml-vulkan/libvulkan.so"
 
   llama-cli-host:
-    desc: 'Download prebuilt llama-cli (Windows CPU x64) from llama.cpp official releases.'
+    internal: true
     vars:
       HOST_DIR: '{{.ROOT_DIR | toSlash}}/dist/llama'
       HOST_BIN: '{{if .IS_LINUX}}llama-cli{{else}}llama-cli.exe{{end}}'
@@ -778,7 +677,7 @@ tasks:
         if: '[ -n "{{.IS_LINUX}}" ]'
 
   android-llama-cli:
-    desc: 'Cross-compile llama-cli for Android arm64 (CPU). Slow first time.'
+    internal: true
     vars:
       ANDROID_BUILD: '{{.LLAMA_ROOT}}/build-android-arm64'
     status:
@@ -810,12 +709,9 @@ tasks:
           cp "{{.ANDROID_BUILD}}/bin/llama-cli" dist/llama/llama-cli-android-arm64
 
   android-apk:
-    desc: 'Build Android APK (dist/wt-{{.VERSION}}.apk).'
+    internal: true
     deps: [android-whisper-lib, ffmpeg-android]
     cmds:
-      # Materialize cmd/wt-gui/AndroidManifest.xml from .in template so Fyne
-      # picks it up (build_androidapp.go reads AndroidManifest.xml from the
-      # main-package dir verbatim and skips the generated default).
       - python scripts/android-manifest.py "{{.VERSION}}" "{{.APP_NAME}}"
       - defer: rm -f cmd/wt-gui/AndroidManifest.xml
       - cmd: |
@@ -853,8 +749,6 @@ tasks:
       - defer: rm -f cmd/wt-gui/buildinfo_generated.go internal/appinfo/appinfo_generated.go
       - cmd: |
           set -e
-          # Compile WtForegroundService.java -> classes2.dex so the APK can run
-          # a foreground service (keeps cpuset=/top-app when screen is off).
           android_jar="$LOCALAPPDATA/Android/Sdk/platforms/android-36.1/android.jar"
           if [ ! -f "$android_jar" ]; then
             android_jar="$(ls -d $LOCALAPPDATA/Android/Sdk/platforms/android-* 2>/dev/null | sort -V | tail -1)/android.jar"
@@ -904,7 +798,7 @@ tasks:
           rm -f "$apk" "${apk}.idsig"
 
   android-test:
-    desc: Build native Android test CLI, push to device, run (pass args via -- ...)
+    internal: true
     deps: [android-whisper-lib]
     vars:
       NDK_CC: '{{.NDK_TOOLCHAIN}}/bin/aarch64-linux-android35-clang'
