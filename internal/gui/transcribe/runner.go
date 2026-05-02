@@ -282,6 +282,11 @@ func (p *Panel) transcribeFile(model whisper.Model, path, modelSize, deviceLabel
 	}
 	sourceName := filepath.Base(absPath)
 	fileStart := time.Now()
+	if st, statErr := os.Stat(absPath); statErr == nil {
+		p.debugLog(fmt.Sprintf("transcribeFile: path=%q size=%dB", absPath, st.Size()))
+	} else {
+		p.debugLog(fmt.Sprintf("transcribeFile: path=%q size=unknown (%v)", absPath, statErr))
+	}
 
 	jobCtx, cancel := context.WithCancel(context.Background())
 	defer cancel()

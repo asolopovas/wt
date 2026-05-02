@@ -341,20 +341,24 @@ func (d *playerDock) onSaveTrim() {
 		out,
 	)
 	shared.HideWindow(cmd)
-	if err := cmd.Run(); err != nil {
-		showError(d.window, fmt.Errorf("ffmpeg trim: %w", err))
-		_ = os.Remove(out)
-		return
-	}
-	key, err := cache.StorePending(out)
-	if err != nil {
-		showError(d.window, fmt.Errorf("register trim: %w", err))
-		return
-	}
-	if d.transcribe != nil && d.transcribe.History != nil {
-		d.transcribe.History.Refresh()
-	}
-	d.Load(key, out, name, false)
+	go func() {
+		if err := cmd.Run(); err != nil {
+			_ = os.Remove(out)
+			fyne.Do(func() { showError(d.window, fmt.Errorf("ffmpeg trim: %w", err)) })
+			return
+		}
+		key, err := cache.StorePending(out)
+		if err != nil {
+			fyne.Do(func() { showError(d.window, fmt.Errorf("register trim: %w", err)) })
+			return
+		}
+		fyne.Do(func() {
+			if d.transcribe != nil && d.transcribe.History != nil {
+				d.transcribe.History.Refresh()
+			}
+			d.Load(key, out, name, false)
+		})
+	}()
 }
 
 func secTag(s float64) string {
