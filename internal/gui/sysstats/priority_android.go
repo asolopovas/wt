@@ -14,6 +14,9 @@ const (
 	bgNice      = 5
 )
 
+func setWorkerAffinityMask(saved []byte) {}
+func clearWorkerAffinityMask()           {}
+
 func demoteThreadToBackground(tid int) {
 	_ = syscall.Setpriority(prioProcess, tid, bgNice)
 }
@@ -44,22 +47,43 @@ func RestoreThreadPriority(tp ThreadPriority) {
 	_ = syscall.Setpriority(prioProcess, tp.tid, tp.prevNice)
 }
 
-func snapshotThreadTIDs() map[int]struct{} {
-	ents, err := os.ReadDir("/proc/self/task")
-	if err != nil {
-		return nil
-	}
-	out := make(map[int]struct{}, len(ents))
-	for _, e := range ents {
-		if n, perr := strconv.Atoi(e.Name()); perr == nil {
-			out[n] = struct{}{}
+var uiThreadNamePrefixes = []string{
+	"RenderThread",
+	"GLThread",
+	"hwuiTask",
+	"ANGLE",
+	"binder:",
+	"HwBinder",
+	"Jit thread",
+	"Profile Saver",
+	"Signal Catcher",
+	"FinalizerDaemon",
+	"FinalizerWatchd",
+	"ReferenceQueueD",
+	"HeapTaskDaemon",
+	"NDK MediaCodec",
+	"CCodecWatchdog",
+	"perfetto",
+	"android.bg",
+	"android.fg",
+	"android.ui",
+	"android.io",
+	"android.display",
+	"queued-work",
+	"FyneRender",
+	"vas.wtranscribe",
+}
+
+func isUIOrSystemThread(name string) bool {
+	for _, p := range uiThreadNamePrefixes {
+		if len(name) >= len(p) && name[:len(p)] == p {
+			return true
 		}
 	}
-	return out
+	return false
 }
 
 func PinNewThreadsBackground(stop <-chan struct{}, baselineSelf int) {
-	baseline := snapshotThreadTIDs()
 	t := time.NewTicker(500 * time.Millisecond)
 	defer t.Stop()
 	for {
@@ -79,7 +103,15 @@ func PinNewThreadsBackground(stop <-chan struct{}, baselineSelf int) {
 				if tid == baselineSelf {
 					continue
 				}
-				if _, old := baseline[tid]; old {
+				name, rerr := os.ReadFile("/proc/self/task/" + e.Name() + "/comm")
+				if rerr != nil {
+					continue
+				}
+				trimmed := string(name)
+				if n := len(trimmed); n > 0 && trimmed[n-1] == '\n' {
+					trimmed = trimmed[:n-1]
+				}
+				if isUIOrSystemThread(trimmed) {
 					continue
 				}
 				demoteThreadToBackground(tid)

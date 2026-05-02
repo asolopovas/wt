@@ -14,6 +14,7 @@ var (
 	procLastCPU   uint64
 	procLastClock time.Time
 	procWarmed    bool
+	procSmoothPct float64 = -1
 )
 
 func clockTicksPerSec() float64 { return 100.0 }
@@ -53,14 +54,20 @@ func ProcessCPU() int {
 		return -1
 	}
 	dCPU := float64(total-prev) / clockTicksPerSec()
-	pct := int(dCPU / dWall / float64(runtime.NumCPU()) * 100)
-	if pct < 0 {
-		pct = 0
+	raw := dCPU / dWall / float64(runtime.NumCPU()) * 100
+	if raw < 0 {
+		raw = 0
 	}
-	if pct > 100 {
-		pct = 100
+	if raw > 100 {
+		raw = 100
 	}
-	return pct
+	const alpha = 0.4
+	if procSmoothPct < 0 {
+		procSmoothPct = raw
+	} else {
+		procSmoothPct = alpha*raw + (1-alpha)*procSmoothPct
+	}
+	return int(procSmoothPct + 0.5)
 }
 
 func ProcessRSSMB() int {

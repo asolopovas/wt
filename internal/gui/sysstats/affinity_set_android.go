@@ -41,6 +41,7 @@ func ReserveTopCores(reserve int) ([]byte, bool) {
 	if errno != 0 {
 		return nil, false
 	}
+	setWorkerAffinityMask(saved[:used])
 	return saved, true
 }
 
@@ -48,5 +49,6 @@ func RestoreAffinity(saved []byte) {
 	if len(saved) == 0 {
 		return
 	}
+	clearWorkerAffinityMask()
 	_, _, _ = syscall.RawSyscall(syscall.SYS_SCHED_SETAFFINITY, 0, uintptr(len(saved)), uintptr(unsafe.Pointer(&saved[0])))
 }
