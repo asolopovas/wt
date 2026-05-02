@@ -41,10 +41,10 @@ func modelsCommand() *cli.Command {
 				Action:    modelsSetActive,
 			},
 			{
-				Name:   "path",
-				Usage:  "Print on-disk path for a model id",
+				Name:      "path",
+				Usage:     "Print on-disk path for a model id",
 				ArgsUsage: "<id>",
-				Action: modelsPath,
+				Action:    modelsPath,
 			},
 		},
 	}

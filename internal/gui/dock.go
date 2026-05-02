@@ -29,28 +29,24 @@ type playerDock struct {
 	window     fyne.Window
 	transcribe *transcribe.Panel
 
-	// onVisibilityChange is invoked from the UI thread whenever the dock
-	// transitions between hidden and shown. The mounting code wires this to
-	// a SetContent rebuild because Fyne's Border layout doesn't reflow when a
-	// pre-hidden child becomes visible later — a child Refresh isn't enough.
 	onVisibilityChange func()
 
-	wave       *waveform.Widget
-	playBtn    *pointerButton
-	stopBtn    *pointerButton
-	saveBtn    *pointerButton
-	rerunBtn   *pointerButton
-	closeBtn   *pointerButton
-	titleLbl   *canvas.Text
+	wave     *waveform.Widget
+	playBtn  *pointerButton
+	stopBtn  *pointerButton
+	saveBtn  *pointerButton
+	rerunBtn *pointerButton
+	closeBtn *pointerButton
+	titleLbl *canvas.Text
 
-	root       *fyne.Container
-	body       *fyne.Container
+	root *fyne.Container
+	body *fyne.Container
 
-	mu         sync.Mutex
-	currentKey string
+	mu          sync.Mutex
+	currentKey  string
 	currentPath string
-	duration   float64
-	loadingCtx context.CancelFunc
+	duration    float64
+	loadingCtx  context.CancelFunc
 
 	pl       player.Player
 	tickStop chan struct{}
@@ -65,7 +61,7 @@ func newPlayerDock(window fyne.Window, tp *transcribe.Panel) *playerDock {
 func (d *playerDock) build() {
 	d.wave = waveform.New()
 	d.wave.OnSeek = d.onSeek
-	d.wave.OnRegionChanged = func(s, e float64) { /* live-update labels only */ }
+	d.wave.OnRegionChanged = func(s, e float64) {}
 
 	d.playBtn = newPointerButtonWithIcon("", theme.MediaPlayIcon(), nil)
 	d.playBtn.Importance = widget.LowImportance
@@ -114,10 +110,8 @@ func (d *playerDock) build() {
 	d.root.Hide()
 }
 
-// Container returns the dock root for layout mounting.
 func (d *playerDock) Container() fyne.CanvasObject { return d.root }
 
-// Load opens a file in the dock and starts loading peaks. Auto-plays from start.
 func (d *playerDock) Load(key, path, displayName string, autoplay bool) {
 	d.mu.Lock()
 	if d.loadingCtx != nil {

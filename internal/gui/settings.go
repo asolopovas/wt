@@ -43,11 +43,11 @@ type settingsPanel struct {
 	modelMirrors    []*pointerSelect
 	langMirrors     []*limitSelect
 	speakersMirrors []*pointerSelect
-	noDiarizeBtn   *pointerButton
-	noDiarizeState bool
-	debugBtn       *pointerButton
-	debugState     bool
-	saveBtn        *pointerButton
+	noDiarizeBtn    *pointerButton
+	noDiarizeState  bool
+	debugBtn        *pointerButton
+	debugState      bool
+	saveBtn         *pointerButton
 
 	models       *modelsSection
 	settingsGrid fyne.CanvasObject
