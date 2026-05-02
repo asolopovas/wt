@@ -148,7 +148,7 @@ func TestCacheStore_ReplacesPendingForSamePath(t *testing.T) {
 	if err := os.WriteFile(srcPath, []byte("x"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := StorePending(srcPath); err != nil {
+	if _, err := StorePending(srcPath); err != nil {
 		t.Fatalf("pending: %v", err)
 	}
 	entries, _ := loadManifest()
@@ -194,10 +194,14 @@ func TestCacheGC_RemovesExpired(t *testing.T) {
 
 func TestCacheEntriesByRecent_DedupesPrefersReal(t *testing.T) {
 	redirectAppDir(t)
+	src := filepath.Join(t.TempDir(), "x.m4a")
+	if err := os.WriteFile(src, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	now := time.Now()
 	entries := []Entry{
-		{Key: "p", SourcePath: "/x", CreatedAt: now.Add(-time.Hour), Pending: true},
-		{Key: "r", SourcePath: "/x", CreatedAt: now.Add(-2 * time.Hour)},
+		{Key: "p", SourcePath: src, CreatedAt: now.Add(-time.Hour), Pending: true},
+		{Key: "r", SourcePath: src, CreatedAt: now.Add(-2 * time.Hour)},
 	}
 	if err := saveManifest(entries); err != nil {
 		t.Fatal(err)
@@ -208,6 +212,31 @@ func TestCacheEntriesByRecent_DedupesPrefersReal(t *testing.T) {
 	}
 	if got[0].Pending {
 		t.Error("real entry should win over pending")
+	}
+}
+
+func TestCacheEntriesByRecent_PrunesMissingSources(t *testing.T) {
+	redirectAppDir(t)
+	dir := t.TempDir()
+	alive := filepath.Join(dir, "alive.m4a")
+	dead := filepath.Join(dir, "dead.m4a")
+	if err := os.WriteFile(alive, []byte("a"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now()
+	entries := []Entry{
+		{Key: "a", SourcePath: alive, CreatedAt: now},
+		{Key: "d", SourcePath: dead, CreatedAt: now.Add(-time.Hour)},
+	}
+	if err := saveManifest(entries); err != nil {
+		t.Fatal(err)
+	}
+	got := EntriesByRecent()
+	if len(got) != 1 {
+		t.Fatalf("len=%d want 1 (dead source pruned)", len(got))
+	}
+	if got[0].SourcePath != alive {
+		t.Errorf("unexpected survivor: %s", got[0].SourcePath)
 	}
 }
 

@@ -34,6 +34,10 @@ func defaultModel() string {
 	return "turbo"
 }
 
+func MediaDir() string {
+	return filepath.Join(CacheDir(), "imports")
+}
+
 func defaultThreads() int {
 	return runtime.NumCPU()
 }

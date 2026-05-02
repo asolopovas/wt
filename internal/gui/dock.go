@@ -13,8 +13,6 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/dialog"
-	"fyne.io/fyne/v2/storage"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
@@ -23,6 +21,7 @@ import (
 	"github.com/asolopovas/wt/internal/gui/transcribe"
 	"github.com/asolopovas/wt/internal/gui/waveform"
 	"github.com/asolopovas/wt/internal/transcriber"
+	"github.com/asolopovas/wt/internal/transcriber/cache"
 )
 
 type playerDock struct {
@@ -35,7 +34,6 @@ type playerDock struct {
 	playBtn  *pointerButton
 	stopBtn  *pointerButton
 	saveBtn  *pointerButton
-	rerunBtn *pointerButton
 	closeBtn *pointerButton
 	titleLbl *canvas.Text
 
@@ -75,10 +73,6 @@ func (d *playerDock) build() {
 	d.saveBtn.Importance = widget.LowImportance
 	d.saveBtn.OnTapped = d.onSaveTrim
 
-	d.rerunBtn = newPointerButtonWithIcon("", theme.MediaReplayIcon(), nil)
-	d.rerunBtn.Importance = widget.LowImportance
-	d.rerunBtn.OnTapped = d.onTranscribeTrim
-
 	d.closeBtn = newPointerButtonWithIcon("", theme.CancelIcon(), nil)
 	d.closeBtn.Importance = widget.LowImportance
 	d.closeBtn.OnTapped = d.Close
@@ -88,13 +82,14 @@ func (d *playerDock) build() {
 	d.titleLbl.TextStyle = fyne.TextStyle{Bold: true}
 
 	wrap := func(b fyne.CanvasObject) fyne.CanvasObject {
-		return container.NewGridWrap(fyne.NewSize(32, 32), b)
+		return container.NewGridWrap(fyne.NewSize(48, 48), b)
 	}
-	transport := container.NewHBox(
+	transportRow := container.NewHBox(
 		wrap(d.playBtn), wrap(d.stopBtn),
 		newSectionDivider(),
-		wrap(d.saveBtn), wrap(d.rerunBtn),
+		wrap(d.saveBtn),
 	)
+	transport := container.NewBorder(nil, nil, nil, transportRow)
 
 	header := container.NewBorder(nil, nil, d.titleLbl, wrap(d.closeBtn))
 
@@ -324,70 +319,14 @@ func (d *playerDock) onSaveTrim() {
 	}
 	ext := filepath.Ext(path)
 	base := strings.TrimSuffix(filepath.Base(path), ext)
-	suggested := fmt.Sprintf("%s_trim_%s-%s%s", base, secTag(startSec), secTag(endSec), ext)
-	d.saveTrimAs(path, startSec, endSec, suggested)
-}
+	name := fmt.Sprintf("%s_trim_%s_%s%s", base, secTag(startSec), secTag(endSec), ext)
 
-func (d *playerDock) saveTrimAs(srcPath string, startSec, endSec float64, suggestedName string) {
-	save := dialog.NewFileSave(func(uc fyne.URIWriteCloser, err error) {
-		if err != nil || uc == nil {
-			return
-		}
-		out := uc.URI().Path()
-		_ = uc.Close()
-		if err := os.Remove(out); err != nil && !os.IsNotExist(err) {
-			showError(d.window, err)
-			return
-		}
-		bin := transcriber.FindFFmpeg()
-		if bin == "" {
-			showError(d.window, fmt.Errorf("ffmpeg not found"))
-			return
-		}
-		cmd := exec.Command(bin,
-			"-hide_banner", "-loglevel", "error", "-y", "-nostdin",
-			"-ss", fmt.Sprintf("%.3f", startSec),
-			"-to", fmt.Sprintf("%.3f", endSec),
-			"-i", srcPath,
-			out,
-		)
-		shared.HideWindow(cmd)
-		if err := cmd.Run(); err != nil {
-			showError(d.window, fmt.Errorf("ffmpeg trim: %w", err))
-			_ = os.Remove(out)
-			return
-		}
-		showNotice(d.window, notifySuccess, "Saved trim", filepath.Base(out))
-	}, d.window)
-	save.SetFileName(suggestedName)
-	if dir, err := storage.ListerForURI(storage.NewFileURI(filepath.Dir(srcPath))); err == nil {
-		save.SetLocation(dir)
-	}
-	save.Show()
-}
-
-func (d *playerDock) onTranscribeTrim() {
-	d.mu.Lock()
-	path := d.currentPath
-	dur := d.duration
-	d.mu.Unlock()
-	if path == "" || dur <= 0 {
-		return
-	}
-	rs, re := d.wave.Region()
-	startSec := rs * dur
-	endSec := re * dur
-	if endSec <= startSec {
-		return
-	}
-	ext := filepath.Ext(path)
-	base := strings.TrimSuffix(filepath.Base(path), ext)
-	tmpDir := filepath.Join(shared.CacheDir(), "trims")
-	if err := os.MkdirAll(tmpDir, 0o755); err != nil {
+	importsDir := shared.MediaDir()
+	if err := os.MkdirAll(importsDir, 0o755); err != nil {
 		showError(d.window, err)
 		return
 	}
-	out := filepath.Join(tmpDir, fmt.Sprintf("%s_trim_%s-%s%s", base, secTag(startSec), secTag(endSec), ext))
+	out := filepath.Join(importsDir, name)
 
 	bin := transcriber.FindFFmpeg()
 	if bin == "" {
@@ -407,10 +346,17 @@ func (d *playerDock) onTranscribeTrim() {
 		_ = os.Remove(out)
 		return
 	}
-	d.transcribe.StartTranscription([]string{out})
+	key, err := cache.StorePending(out)
+	if err != nil {
+		showError(d.window, fmt.Errorf("register trim: %w", err))
+		return
+	}
+	if d.transcribe != nil && d.transcribe.History != nil {
+		d.transcribe.History.Refresh()
+	}
+	d.Load(key, out, name, false)
 }
 
 func secTag(s float64) string {
-	ms := int(s * 1000)
-	return fmt.Sprintf("%d", ms)
+	return fmt.Sprintf("%d", int(s+0.5))
 }

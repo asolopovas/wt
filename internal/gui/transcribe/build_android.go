@@ -83,7 +83,7 @@ func copyURIToLocal(reader fyne.URIReadCloser) (string, error) {
 		name = filepath.Base(uri.String())
 	}
 
-	cacheDir := filepath.Join(shared.CacheDir(), "imports")
+	cacheDir := shared.MediaDir()
 	if err := os.MkdirAll(cacheDir, 0o755); err != nil {
 		return "", fmt.Errorf("creating import cache: %w", err)
 	}

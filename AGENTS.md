@@ -78,6 +78,19 @@ Never reintroduce `settingsField`/`sidebarHeader`/`sidebarDivider`/`borderedBtn`
 
 If a new package imports a desktop-only symbol from `internal/transcriber` (e.g. `FindFFmpeg`, behind `//go:build !android`), tag every file in the new package `//go:build !android` too — else `task vet-android` fails with `undefined: transcriber.<sym>`. Once an android-tagged implementation exists (see `ffmpeg_android.go`), drop the `!android` tag downstream.
 
+## Android storage layout
+
+Two separate dirs:
+
+- `shared.Dir()` / `shared.CacheDir()` / `shared.ModelsDir()` → app-private internal storage (`/data/data/com.asolopovas.wtranscribe/files/wt`). Holds config, models, transcripts, peaks, raw — anything Go needs to `os.ReadDir` reliably or wants hidden from the user.
+- `shared.MediaDir()` → user-visible audio working dir (`/storage/emulated/0/Documents/WTranscribe`, falls back to `CacheDir()/imports` if write probe fails). Holds imported sources and saved trims. Visible in any Android file manager.
+
+Gotchas writing to `/sdcard/Documents/<App>/`:
+- Without `MANAGE_EXTERNAL_STORAGE`, Go's direct `os.ReadDir` on a `/sdcard` path **does not see files added by other processes** (even when the file's UID matches the app) — FUSE/scoped-storage filters readdir() to MediaStore-indexed entries owned by *this* process. Files the app itself writes via Go ARE visible to subsequent ReadDir. So MediaDir is suitable for a save/scan loop where the app is the sole writer.
+- inotify (fsnotify) on `/sdcard` FUSE mounts is unreliable — events for external deletes often don't fire. Pair fsnotify with a 5 s `history.Refresh` poll; reconciliation via per-entry `os.Stat` (which **does** work for external deletes — only readdir() is filtered) drops gone files from Recent.
+- `appDir()` is called frequently (every `CacheDir()`/`ModelsDir()` lookup). Don't put a write+remove probe inline — wrap in `sync.Once`. The MediaDir probe runs every call, so keep it cheap or memoize.
+- When seeding a `Pending` cache entry from a folder scan (`reconcileImports`), filter by audio extension whitelist. The MediaDir is shared with whatever else lives in `Documents/WTranscribe` (config.yml, leftover dirs from previous layouts), and unfiltered `StorePending` happily registers `config.yml` as a recording.
+
 ## Android-bundled CLI binaries
 
 APK ships CLI binaries (sherpa-diar, llama-cli, ffmpeg) renamed `lib<name>.so` under `lib/arm64-v8a/`. Android only grants exec permission to files matching `lib*.so` inside `nativeLibraryDir` — bundling as `assets/<name>` or `bin/<name>` does not work. Locate at runtime by globbing `nativeLibraryDir`; the dir-discovery pattern (env vars → `/proc/self/maps` → `/data/app/.../lib/arm64` glob) is duplicated across `internal/llm/dirs_android.go`, `internal/diarizer/sherpa.go`, `internal/transcriber/ffmpeg_android.go`.
@@ -122,6 +135,8 @@ stdlib `testing` only. Names: `Test<Function>_<Scenario>`, table-driven preferre
 **Ask first:** anything mutating state outside the repo (installs, registry, version bumps).
 
 **Never:**
+- Use Fyne's `dialog.ShowInformation`/`ShowError`/`ShowConfirm` directly. They render a giant translucent watermark icon (`(i)`/`!`/`?`) behind the body. Use `decor.ShowDialog(DialogConfig{...})` for any modal — it's watermark-free and matches the GUI design system. The `decor/notify.go` `ShowNotice`/`ShowError`/`ShowConfirm` helpers route through `ShowDialog`; preserve that.
+- Add success/info-only notices for actions whose effect is already visible in the UI (file appears in Recent, status row updates, list refreshes). Prefer status-line text or `AppendLog` over a modal interruption.
 - Use Unix text tools (`awk`/`grep`/`sed`/`head`/`cut`) in `Taskfile.yml` shell blocks unless that task already exports `PATH=...msys64/mingw64/bin;...` (build/install do; release/bump don't). Prefer `powershell -NoProfile -Command "..."`. Use `-CaseSensitive` on `Select-String` so `VERSION:` doesn't collide with `version: '3'`. When capturing PS output via `$(powershell ...)`, emit with `[Console]::Write(...)` — default formatter appends `\r\n`, bash strips `\n` but keeps `\r`, and `git tag` rejects the `\r` suffix.
 - Commit, push, or launch the GUI unless explicitly instructed. If GUI launches: `taskkill /F /IM wt-gui.exe`.
 - Bump version unless user types "bump".

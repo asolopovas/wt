@@ -3,6 +3,9 @@
 package gui
 
 import (
+	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"fyne.io/fyne/v2"
@@ -10,6 +13,7 @@ import (
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/widget"
+	"github.com/fsnotify/fsnotify"
 
 	shared "github.com/asolopovas/wt/internal"
 	"github.com/asolopovas/wt/internal/appinfo"
@@ -53,6 +57,7 @@ func Run(version, buildDate string) error {
 			fyne.Do(history.Refresh)
 		}
 	}()
+	go watchImportsDir(history.Refresh)
 
 	deviceInfo := detectDevice()
 
@@ -88,6 +93,81 @@ func Run(version, buildDate string) error {
 	wireShareIntake(tp, tabs)
 	w.ShowAndRun()
 	return nil
+}
+
+var audioExts = map[string]bool{
+	".m4a": true, ".mp3": true, ".wav": true, ".flac": true,
+	".ogg": true, ".opus": true, ".aac": true, ".webm": true, ".mp4": true,
+}
+
+func reconcileImports(dir string) {
+	ents, err := os.ReadDir(dir)
+	if err != nil {
+		return
+	}
+	for _, ent := range ents {
+		if ent.IsDir() || strings.HasPrefix(ent.Name(), ".") {
+			continue
+		}
+		ext := strings.ToLower(filepath.Ext(ent.Name()))
+		if !audioExts[ext] {
+			continue
+		}
+		_, _ = cache.StorePending(filepath.Join(dir, ent.Name()))
+	}
+}
+
+func watchImportsDir(refresh func()) {
+	imports := shared.MediaDir()
+	if err := os.MkdirAll(imports, 0o755); err != nil {
+		return
+	}
+	reconcileImports(imports)
+	fyne.Do(refresh)
+	go func() {
+		t := time.NewTicker(5 * time.Second)
+		defer t.Stop()
+		for range t.C {
+			fyne.Do(refresh)
+		}
+	}()
+	w, err := fsnotify.NewWatcher()
+	if err != nil {
+		return
+	}
+	if err := w.Add(imports); err != nil {
+		_ = w.Close()
+		return
+	}
+	var pending bool
+	var timer *time.Timer
+	fire := func() {
+		pending = false
+		reconcileImports(imports)
+		fyne.Do(refresh)
+	}
+	for {
+		select {
+		case ev, ok := <-w.Events:
+			if !ok {
+				return
+			}
+			if ev.Op&(fsnotify.Create|fsnotify.Remove|fsnotify.Rename|fsnotify.Write) == 0 {
+				continue
+			}
+			if !pending {
+				pending = true
+				if timer != nil {
+					timer.Stop()
+				}
+				timer = time.AfterFunc(300*time.Millisecond, fire)
+			}
+		case _, ok := <-w.Errors:
+			if !ok {
+				return
+			}
+		}
+	}
 }
 
 func wireShareIntake(tp *transcribe.Panel, tabs *container.AppTabs) {

@@ -23,15 +23,9 @@ var (
 	newLimitSelect           = decor.NewLimitSelect
 )
 
-const (
-	notifyInfo    = decor.NotifyInfo
-	notifySuccess = decor.NotifySuccess
-)
-
 var monoBoldStyle = decor.MonoBoldStyle
 
 var (
-	showNotice  = decor.ShowNotice
 	showError   = decor.ShowError
 	showConfirm = decor.ShowConfirm
 )

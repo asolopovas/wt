@@ -19,6 +19,19 @@ func appDir() string {
 	return "/data/data/com.asolopovas.wtranscribe/files/wt"
 }
 
+func MediaDir() string {
+	public := "/storage/emulated/0/Documents/WTranscribe"
+	if err := os.MkdirAll(public, 0o755); err == nil {
+		probe := filepath.Join(public, ".wt-write-test")
+		if f, err := os.Create(probe); err == nil {
+			_ = f.Close()
+			_ = os.Remove(probe)
+			return public
+		}
+	}
+	return filepath.Join(CacheDir(), "imports")
+}
+
 func defaultModel() string {
 	return "tiny"
 }

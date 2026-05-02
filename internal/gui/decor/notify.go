@@ -1,13 +1,13 @@
 package decor
 
 import (
-	"errors"
 	"image/color"
 	"strings"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
-	"fyne.io/fyne/v2/dialog"
+	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/widget"
 )
 
 type NotifyLevel int
@@ -57,27 +57,58 @@ func ShowNotice(win fyne.Window, level NotifyLevel, title, msg string) {
 	if win == nil {
 		return
 	}
-	if level == NotifyError {
-		dialog.ShowError(errors.New(msg), win)
-		return
-	}
-	dialog.ShowInformation(title, msg, win)
+	lbl := widget.NewLabel(msg)
+	lbl.Wrapping = fyne.TextWrapWord
+	ShowDialog(DialogConfig{
+		Parent:      win,
+		Title:       title,
+		Body:        container.NewPadded(lbl),
+		WidthFrac:   0.85,
+		TopInset:    0,
+		BottomInset: 0,
+		Actions: []DialogAction{{
+			Label: "OK",
+			Kind:  KindPrimary,
+		}},
+	})
 }
 
 func ShowError(win fyne.Window, err error) {
 	if win == nil || err == nil {
 		return
 	}
-	dialog.ShowError(err, win)
+	lbl := widget.NewLabel(err.Error())
+	lbl.Wrapping = fyne.TextWrapWord
+	ShowDialog(DialogConfig{
+		Parent:    win,
+		Title:     "Error",
+		Body:      container.NewPadded(lbl),
+		WidthFrac: 0.85,
+		Actions: []DialogAction{{
+			Label: "OK",
+			Kind:  KindPrimary,
+		}},
+	})
 }
 
 func ShowConfirm(win fyne.Window, title, body string, onConfirm func()) {
 	if win == nil {
 		return
 	}
-	dialog.ShowConfirm(title, body, func(ok bool) {
-		if ok && onConfirm != nil {
-			onConfirm()
-		}
-	}, win)
+	lbl := widget.NewLabel(body)
+	lbl.Wrapping = fyne.TextWrapWord
+	ShowDialog(DialogConfig{
+		Parent:    win,
+		Title:     title,
+		Body:      container.NewPadded(lbl),
+		WidthFrac: 0.85,
+		Actions: []DialogAction{
+			{Label: "Cancel", Kind: KindSecondary},
+			{Label: "OK", Kind: KindPrimary, OnTap: func() {
+				if onConfirm != nil {
+					onConfirm()
+				}
+			}},
+		},
+	})
 }

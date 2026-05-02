@@ -203,7 +203,6 @@ func (p *settingsPanel) onClearCache() {
 		showError(p.window, fmt.Errorf("recreating cache dir: %w", err))
 		return
 	}
-	showNotice(p.window, notifyInfo, "Cache", "Audio cache cleared.")
 }
 
 func (p *settingsPanel) onClearTranscripts() {
@@ -217,7 +216,6 @@ func (p *settingsPanel) onClearTranscripts() {
 			if p.onCacheCleared != nil {
 				p.onCacheCleared()
 			}
-			showNotice(p.window, notifyInfo, "Transcripts", "Transcript cache cleared.")
 		})
 }
 
@@ -238,7 +236,6 @@ func (p *settingsPanel) onSave() {
 		showError(p.window, err)
 		return
 	}
-	showNotice(p.window, notifyInfo, "Settings", "Settings saved.")
 }
 
 func (p *settingsPanel) persist() {

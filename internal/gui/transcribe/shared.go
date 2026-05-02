@@ -144,7 +144,7 @@ func (p *Panel) AddLocalFile(path string) bool {
 		return false
 	}
 	p.files = append(p.files, path)
-	if err := cache.StorePending(path); err != nil {
+	if _, err := cache.StorePending(path); err != nil {
 		p.AppendLog("warn: could not record pending entry: " + err.Error())
 	}
 	if p.History != nil {

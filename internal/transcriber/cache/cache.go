@@ -327,10 +327,10 @@ func pendingCacheKey(absPath string) string {
 	return hex.EncodeToString(sum[:])[:32]
 }
 
-func StorePending(sourcePath string) error {
+func StorePending(sourcePath string) (string, error) {
 	abs, err := filepath.Abs(sourcePath)
 	if err != nil {
-		return err
+		return "", err
 	}
 	info, statErr := os.Stat(abs)
 	var size int64
@@ -344,7 +344,7 @@ func StorePending(sourcePath string) error {
 	entries, _ := loadManifest()
 	for _, e := range entries {
 		if e.Key == key {
-			return nil
+			return key, nil
 		}
 	}
 	entries = append(entries, Entry{
@@ -357,7 +357,10 @@ func StorePending(sourcePath string) error {
 		SizeBytes:  size,
 		Pending:    true,
 	})
-	return saveManifest(entries)
+	if err := saveManifest(entries); err != nil {
+		return "", err
+	}
+	return key, nil
 }
 
 func BackfillDurations() int {
@@ -479,6 +482,24 @@ func SaveSpeakerRenames(key string, m map[string]string) error {
 
 func EntriesByRecent() []Entry {
 	entries, _ := loadManifest()
+	kept := entries[:0]
+	dropped := false
+	for _, e := range entries {
+		if e.SourcePath != "" {
+			if _, err := os.Stat(e.SourcePath); err != nil && os.IsNotExist(err) {
+				if e.Key != "" {
+					_ = removeTranscriptForKey(e.Key)
+				}
+				dropped = true
+				continue
+			}
+		}
+		kept = append(kept, e)
+	}
+	if dropped {
+		_ = saveManifest(kept)
+	}
+	entries = kept
 	sort.Slice(entries, func(i, j int) bool {
 		return entries[i].CreatedAt.After(entries[j].CreatedAt)
 	})
@@ -505,4 +526,12 @@ func EntriesByRecent() []Entry {
 		deduped = append(deduped, e)
 	}
 	return deduped
+}
+
+func removeTranscriptForKey(key string) error {
+	path := TranscriptPathForKey(key)
+	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return nil
 }
