@@ -154,6 +154,67 @@ static void wt_open_battery_settings(uintptr_t envPtr, uintptr_t actPtr) {
 	wt_start_action_intent(env, act, "android.settings.SETTINGS");
 }
 
+static int wt_is_external_storage_manager(uintptr_t envPtr, uintptr_t actPtr) {
+	JNIEnv* env = (JNIEnv*)envPtr;
+	jobject act = (jobject)actPtr;
+	if (!env || !act) return 0;
+	jclass cEnv = (*env)->FindClass(env, "android/os/Environment");
+	if (!cEnv) { if ((*env)->ExceptionCheck(env)) (*env)->ExceptionClear(env); return 0; }
+	jmethodID mIs = (*env)->GetStaticMethodID(env, cEnv, "isExternalStorageManager", "()Z");
+	if (!mIs) { if ((*env)->ExceptionCheck(env)) (*env)->ExceptionClear(env); (*env)->DeleteLocalRef(env, cEnv); return 0; }
+	jboolean res = (*env)->CallStaticBooleanMethod(env, cEnv, mIs);
+	(*env)->DeleteLocalRef(env, cEnv);
+	if ((*env)->ExceptionCheck(env)) { (*env)->ExceptionClear(env); return 0; }
+	return res ? 1 : 0;
+}
+
+static void wt_open_all_files_access(uintptr_t envPtr, uintptr_t actPtr) {
+	JNIEnv* env = (JNIEnv*)envPtr;
+	jobject act = (jobject)actPtr;
+	if (!env || !act) return;
+
+	jclass cIntent = (*env)->FindClass(env, "android/content/Intent");
+	jmethodID mInit = (*env)->GetMethodID(env, cIntent, "<init>", "(Ljava/lang/String;)V");
+	jstring jAction = (*env)->NewStringUTF(env, "android.settings.MANAGE_APP_ALL_FILES_ACCESS_PERMISSION");
+	jobject intent = (*env)->NewObject(env, cIntent, mInit, jAction);
+	(*env)->DeleteLocalRef(env, jAction);
+
+	jclass cAct = (*env)->GetObjectClass(env, act);
+	jmethodID mGetPkg = (*env)->GetMethodID(env, cAct, "getPackageName", "()Ljava/lang/String;");
+	jstring jPkg = (jstring)(*env)->CallObjectMethod(env, act, mGetPkg);
+
+	jclass cUri = (*env)->FindClass(env, "android/net/Uri");
+	jmethodID mFromParts = (*env)->GetStaticMethodID(env, cUri, "fromParts",
+		"(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Landroid/net/Uri;");
+	jstring jScheme = (*env)->NewStringUTF(env, "package");
+	jobject uri = (*env)->CallStaticObjectMethod(env, cUri, mFromParts, jScheme, jPkg, NULL);
+	(*env)->DeleteLocalRef(env, jScheme);
+	(*env)->DeleteLocalRef(env, jPkg);
+	(*env)->DeleteLocalRef(env, cUri);
+
+	jmethodID mSetData = (*env)->GetMethodID(env, cIntent, "setData", "(Landroid/net/Uri;)Landroid/content/Intent;");
+	jobject _r = (*env)->CallObjectMethod(env, intent, mSetData, uri);
+	if (_r) (*env)->DeleteLocalRef(env, _r);
+	(*env)->DeleteLocalRef(env, uri);
+
+	jmethodID mAddFlags = (*env)->GetMethodID(env, cIntent, "addFlags", "(I)Landroid/content/Intent;");
+	jobject _r2 = (*env)->CallObjectMethod(env, intent, mAddFlags, (jint)0x10000000);
+	if (_r2) (*env)->DeleteLocalRef(env, _r2);
+
+	jmethodID mStart = (*env)->GetMethodID(env, cAct, "startActivity", "(Landroid/content/Intent;)V");
+	(*env)->CallVoidMethod(env, act, mStart, intent);
+	int failed = (*env)->ExceptionCheck(env);
+	if (failed) { (*env)->ExceptionClear(env); }
+
+	(*env)->DeleteLocalRef(env, cAct);
+	(*env)->DeleteLocalRef(env, intent);
+	(*env)->DeleteLocalRef(env, cIntent);
+
+	if (failed) {
+		wt_start_action_intent(env, act, "android.settings.MANAGE_ALL_FILES_ACCESS_PERMISSION");
+	}
+}
+
 static int wt_is_ignoring_battery(uintptr_t envPtr, uintptr_t actPtr) {
 	JNIEnv* env = (JNIEnv*)envPtr;
 	jobject act = (jobject)actPtr;
@@ -307,6 +368,33 @@ func OpenBatteryOptimizationSettings() {
 			return nil
 		}
 		C.wt_open_battery_settings(C.uintptr_t(ac.Env), C.uintptr_t(ac.Ctx))
+		return nil
+	})
+}
+
+func IsExternalStorageManager() bool {
+	if AndroidSDKInt() < 30 {
+		return true
+	}
+	out := false
+	_ = driver.RunNative(func(ctx any) error {
+		ac, ok := ctx.(*driver.AndroidContext)
+		if !ok || ac == nil || ac.Env == 0 || ac.Ctx == 0 {
+			return nil
+		}
+		out = C.wt_is_external_storage_manager(C.uintptr_t(ac.Env), C.uintptr_t(ac.Ctx)) == 1
+		return nil
+	})
+	return out
+}
+
+func OpenAllFilesAccessSettings() {
+	_ = driver.RunNative(func(ctx any) error {
+		ac, ok := ctx.(*driver.AndroidContext)
+		if !ok || ac == nil || ac.Env == 0 || ac.Ctx == 0 {
+			return nil
+		}
+		C.wt_open_all_files_access(C.uintptr_t(ac.Env), C.uintptr_t(ac.Ctx))
 		return nil
 	})
 }

@@ -74,6 +74,16 @@ func Run(version, buildDate string) error {
 			fyne.Do(func() { platsvc.RequestPermissions(p) })
 		}(missing)
 	}
+	if !platsvc.IsExternalStorageManager() {
+		go func() {
+			time.Sleep(1500 * time.Millisecond)
+			fyne.Do(func() {
+				decor.ShowConfirm(w, "All-Files Access",
+					"To detect audio files placed in Documents/WTranscribe by other apps (file manager, adb, etc.), grant 'All files access'. Open settings now?",
+					func() { platsvc.OpenAllFilesAccessSettings() })
+			})
+		}()
+	}
 
 	settingsTabItem := container.NewTabItem("SETTINGS", settingsTab)
 	tabs := container.NewAppTabs(
@@ -104,19 +114,40 @@ var audioExts = map[string]bool{
 }
 
 func reconcileImports(dir string) {
-	ents, err := os.ReadDir(dir)
-	if err != nil {
-		return
-	}
-	for _, ent := range ents {
-		if ent.IsDir() || strings.HasPrefix(ent.Name(), ".") {
-			continue
+	seen := map[string]struct{}{}
+	add := func(path string) {
+		if path == "" {
+			return
 		}
-		ext := strings.ToLower(filepath.Ext(ent.Name()))
+		abs, err := filepath.Abs(path)
+		if err != nil {
+			abs = path
+		}
+		if _, dup := seen[abs]; dup {
+			return
+		}
+		ext := strings.ToLower(filepath.Ext(abs))
 		if !audioExts[ext] {
-			continue
+			return
 		}
-		_, _ = cache.StorePending(filepath.Join(dir, ent.Name()))
+		if strings.HasPrefix(filepath.Base(abs), ".") {
+			return
+		}
+		seen[abs] = struct{}{}
+		_, _ = cache.StorePending(abs)
+	}
+
+	if ents, err := os.ReadDir(dir); err == nil {
+		for _, ent := range ents {
+			if ent.IsDir() {
+				continue
+			}
+			add(filepath.Join(dir, ent.Name()))
+		}
+	}
+
+	for _, p := range platsvc.QueryAudioFilesIn(dir) {
+		add(p)
 	}
 }
 
@@ -125,12 +156,15 @@ func watchImportsDir(refresh func()) {
 	if err := os.MkdirAll(imports, 0o755); err != nil {
 		return
 	}
+	platsvc.RescanMediaDir(imports)
 	reconcileImports(imports)
 	fyne.Do(refresh)
 	go func() {
 		t := time.NewTicker(5 * time.Second)
 		defer t.Stop()
 		for range t.C {
+			platsvc.RescanMediaDir(imports)
+			reconcileImports(imports)
 			fyne.Do(refresh)
 		}
 	}()
