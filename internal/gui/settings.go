@@ -67,10 +67,11 @@ func newSettingsPanel(cfg shared.Config, window fyne.Window) *settingsPanel {
 func (p *settingsPanel) build() {
 	persist := func(string) { p.persist() }
 
-	p.modelSelect = newPointerSelect(validModels, p.onModelChanged)
+	modelOpts := dropdownModels(p.cfg.Model)
+	p.modelSelect = newPointerSelect(modelOpts, p.onModelChanged)
 	p.modelSelect.Selected = p.cfg.Model
-	if !slices.Contains(validModels, p.modelSelect.Selected) {
-		p.modelSelect.Selected = validModels[0]
+	if !slices.Contains(modelOpts, p.modelSelect.Selected) {
+		p.modelSelect.Selected = modelOpts[0]
 	}
 	p.modelMirrors = append(p.modelMirrors, p.modelSelect)
 
@@ -145,6 +146,7 @@ func (p *settingsPanel) build() {
 	)
 
 	p.models = newModelsSection(p.window)
+	p.models.onChanged = p.refreshModelOptions
 	p.settingsGrid = settingsGrid
 
 	p.container = container.NewVBox(
@@ -336,10 +338,21 @@ func (p *settingsPanel) onSpeakersChanged(v string) {
 }
 
 func (p *settingsPanel) newModelSelectMirror() *pointerSelect {
-	s := newPointerSelect(validModels, p.onModelChanged)
+	s := newPointerSelect(dropdownModels(p.modelSelect.Selected), p.onModelChanged)
 	s.Selected = p.modelSelect.Selected
 	p.modelMirrors = append(p.modelMirrors, s)
 	return s
+}
+
+func (p *settingsPanel) refreshModelOptions() {
+	opts := dropdownModels(p.modelSelect.Selected)
+	for _, m := range p.modelMirrors {
+		m.Options = opts
+		if m.Selected == "" || !slices.Contains(opts, m.Selected) {
+			m.Selected = opts[0]
+		}
+		m.Refresh()
+	}
 }
 
 func (p *settingsPanel) newLangSelectMirror() *limitSelect {

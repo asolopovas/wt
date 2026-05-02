@@ -28,6 +28,19 @@ type modelsSection struct {
 	cancels       map[string]context.CancelFunc
 	progress      map[string]*widget.ProgressBar
 	dialogRefresh func()
+	onChanged     func()
+}
+
+func isCatalogEntryAllowed(e models.Entry) bool {
+	if e.Family != models.FamilyWhisper {
+		return true
+	}
+	for _, sz := range allowedModelSizes() {
+		if id, ok := whisperSizeToID[sz]; ok && id == e.ID {
+			return true
+		}
+	}
+	return e.ID == "whisper-vad-silero"
 }
 
 func newModelsSection(win fyne.Window) *modelsSection {
@@ -54,7 +67,39 @@ func newModelsSection(win fyne.Window) *modelsSection {
 	s.rows = container.New(&tightVBox{gap: 0})
 	s.container = container.NewVBox(head, vGap(spaceSM), s.rows)
 	s.refresh()
+	s.ensureDefaults()
 	return s
+}
+
+func (s *modelsSection) ensureDefaults() {
+	whisperID, hasWhisper := whisperSizeToID[defaultWhisperSize()]
+	var diarizer models.Entry
+	hasDiar := false
+	for _, e := range models.ByFamily(models.FamilyDiarizer) {
+		if e.DefaultActive {
+			diarizer = e
+			hasDiar = true
+			break
+		}
+	}
+	need := []models.Entry{}
+	if hasWhisper {
+		if e, ok := models.ByID(whisperID); ok && s.mgr.Status(whisperID) != models.StatusInstalled {
+			need = append(need, e)
+		}
+	}
+	if hasDiar && s.mgr.Status(diarizer.ID) != models.StatusInstalled {
+		need = append(need, diarizer)
+	}
+	if len(need) == 0 {
+		return
+	}
+	go func() {
+		for _, e := range need {
+			entry := e
+			fyne.Do(func() { s.startDownload(entry) })
+		}
+	}()
 }
 
 type iconTap struct {
@@ -158,6 +203,9 @@ func (s *modelsSection) refresh() {
 	s.container.Refresh()
 	if s.dialogRefresh != nil {
 		s.dialogRefresh()
+	}
+	if s.onChanged != nil {
+		s.onChanged()
 	}
 }
 
@@ -269,6 +317,9 @@ func (s *modelsSection) openDownloadDialog() {
 		for _, fam := range families {
 			var available []models.Entry
 			for _, e := range models.ByFamily(fam.f) {
+				if !isCatalogEntryAllowed(e) {
+					continue
+				}
 				if s.mgr.Status(e.ID) != models.StatusInstalled {
 					available = append(available, e)
 				}
