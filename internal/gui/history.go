@@ -117,9 +117,13 @@ func (h *historyPanel) buildRow(e cache.Entry) fyne.CanvasObject {
 			actions.Add(wrap(container.NewCenter(canvas.NewText("…", colMuted))))
 		}
 	} else {
-		playBtn := newPointerButtonWithIcon("", playIconResource, nil)
+		rowIcon := playIconResource
+		if h.dock != nil {
+			rowIcon = editAudioIcon
+		}
+		playBtn := newPointerButtonWithIcon("", rowIcon, nil)
 		playBtn.Importance = widget.LowImportance
-		if h.player.Playing(e.Key) {
+		if h.dock == nil && h.player.Playing(e.Key) {
 			playBtn.SetIcon(pauseIconResource)
 		}
 		playBtn.OnTapped = func() {

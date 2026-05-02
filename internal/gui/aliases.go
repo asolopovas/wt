@@ -40,6 +40,7 @@ var (
 	appIcon           = assets.AppIcon
 	playIconResource  = assets.PlayIcon
 	pauseIconResource = assets.PauseIcon
+	editAudioIcon     = assets.EditAudioIcon
 	downloadIcon      = assets.DownloadIcon
 )
 

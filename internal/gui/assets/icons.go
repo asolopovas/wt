@@ -38,6 +38,14 @@ var PauseIcon = &fyne.StaticResource{
 	StaticContent: pauseIconData,
 }
 
+//go:embed icon_edit_audio.svg
+var editAudioIconData []byte
+
+var EditAudioIcon = &fyne.StaticResource{
+	StaticName:    "icon_edit_audio.svg",
+	StaticContent: editAudioIconData,
+}
+
 //go:embed icon_cpu.svg
 var cpuIconData []byte
 
