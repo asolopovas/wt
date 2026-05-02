@@ -739,8 +739,9 @@ tasks:
           fi
           "$MSYS_BASH" -lc "
             set -ex
-            # sherpa's build-android script needs wget + unzip; install them if missing.
-            for tool in wget unzip; do
+            export PATH=/mingw64/bin:/usr/bin:\$PATH
+            # sherpa's build-android script needs wget, unzip, make, cmake.
+            for tool in wget unzip make cmake; do
               command -v \$tool >/dev/null 2>&1 || pacman -S --noconfirm --needed \$tool
             done
             export ANDROID_NDK='{{.NDK_ROOT}}'
@@ -752,8 +753,13 @@ tasks:
             export SHERPA_ONNX_ENABLE_C_API=OFF
             export SHERPA_ONNX_ENABLE_SPEAKER_DIARIZATION=ON
             export SHERPA_ONNX_ANDROID_PLATFORM=android-28
-            export PATH=/mingw64/bin:/usr/bin:\$PATH
+            # Force Unix Makefiles — default may be Ninja or VS generator,
+            # which would leave 'make -j4' (called by the script) with no Makefile.
+            export CMAKE_GENERATOR='Unix Makefiles'
             cd '{{.SHERPA_ROOT}}'
+            # Wipe stale cmake cache from prior failed runs (otherwise cmake
+            # skips regeneration and 'make' finds no Makefile).
+            rm -rf build-android-arm64-v8a-static
             bash build-android-arm64-v8a.sh
           "
           mkdir -p "{{.ROOT_DIR | toSlash}}/dist/sherpa"
