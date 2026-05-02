@@ -7,6 +7,7 @@ vars:
   WHISPER_ROOT: '{{.ROOT_DIR | toSlash}}/third_party/whisper.cpp'
   WHISPER_BUILD: '{{.WHISPER_ROOT}}/build'
   LLAMA_ROOT: '{{.ROOT_DIR | toSlash}}/third_party/llama.cpp'
+  SHERPA_ROOT: '{{.ROOT_DIR | toSlash}}/third_party/sherpa-onnx'
 
   IS_LINUX:
     sh: |
@@ -687,7 +688,7 @@ tasks:
     vars:
       ANDROID_BUILD: '{{.LLAMA_ROOT}}/build-android-arm64'
     status:
-      - test -f "{{.ANDROID_BUILD}}/bin/llama-cli"
+      - test -f "{{.ROOT_DIR | toSlash}}/dist/llama/llama-cli-android-arm64"
     cmds:
       - cmd: git clone --depth 1 https://github.com/ggml-org/llama.cpp.git {{.LLAMA_ROOT}}
         if: '[ ! -d "{{.LLAMA_ROOT}}" ]'
@@ -714,9 +715,42 @@ tasks:
           mkdir -p dist/llama
           cp "{{.ANDROID_BUILD}}/bin/llama-cli" dist/llama/llama-cli-android-arm64
 
+  android-sherpa-bin:
+    internal: true
+    vars:
+      ANDROID_BUILD: '{{.SHERPA_ROOT}}/build-android-arm64'
+    status:
+      - test -f "{{.ROOT_DIR | toSlash}}/dist/sherpa/sherpa-diar-android"
+    cmds:
+      - cmd: git clone --depth 1 https://github.com/k2-fsa/sherpa-onnx.git {{.SHERPA_ROOT}}
+        if: '[ ! -d "{{.SHERPA_ROOT}}" ]'
+      - cmd: |
+          set -e
+          export PATH="/c/msys64/mingw64/bin:$PATH"
+          cmake -B "{{.ANDROID_BUILD}}" -S "{{.SHERPA_ROOT}}" \
+            -DCMAKE_MAKE_PROGRAM="C:/msys64/mingw64/bin/mingw32-make.exe" \
+            -DCMAKE_TOOLCHAIN_FILE="{{.NDK_ROOT}}/build/cmake/android.toolchain.cmake" \
+            -DANDROID_ABI=arm64-v8a \
+            -DANDROID_PLATFORM=android-28 \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_SHARED_LIBS=OFF \
+            -DSHERPA_ONNX_ENABLE_PYTHON=OFF \
+            -DSHERPA_ONNX_ENABLE_TESTS=OFF \
+            -DSHERPA_ONNX_ENABLE_CHECK=OFF \
+            -DSHERPA_ONNX_ENABLE_PORTAUDIO=OFF \
+            -DSHERPA_ONNX_ENABLE_JNI=OFF \
+            -DSHERPA_ONNX_ENABLE_C_API=OFF \
+            -DSHERPA_ONNX_ENABLE_WEBSOCKET=OFF \
+            -DSHERPA_ONNX_ENABLE_GPU=OFF \
+            -DSHERPA_ONNX_ENABLE_BINARY=ON \
+            -G "MinGW Makefiles"
+          cmake --build "{{.ANDROID_BUILD}}" --config Release --target sherpa-onnx-offline-speaker-diarization -j${NUMBER_OF_PROCESSORS:-$(nproc)}
+          mkdir -p dist/sherpa
+          cp "{{.ANDROID_BUILD}}/bin/sherpa-onnx-offline-speaker-diarization" dist/sherpa/sherpa-diar-android
+
   android-apk:
     internal: true
-    deps: [android-whisper-lib, ffmpeg-android]
+    deps: [android-whisper-lib, ffmpeg-android, android-llama-cli, android-sherpa-bin]
     cmds:
       - python scripts/android-manifest.py "{{.VERSION}}" "{{.APP_NAME}}"
       - defer: rm -f cmd/wt-gui/AndroidManifest.xml
@@ -772,15 +806,11 @@ tasks:
       - cmd: |
           set -e
           apk="cmd/wt-gui/{{.APP_NAME}}.apk"
-          sherpa_bin="dist/sherpa/sherpa-diar-android"
-          if [ ! -f "$sherpa_bin" ]; then
-            echo "WARNING: $sherpa_bin missing — APK will lack on-device diarization (transcripts collapse to 1 speaker)" >&2
-          fi
           mkdir -p dist
           APK="$apk" \
           LIBCXX="{{.ANDROID_SYSROOT}}/usr/lib/aarch64-linux-android/libc++_shared.so" \
           LIBOMP="{{.NDK_TOOLCHAIN}}/lib/clang/18/lib/linux/aarch64/libomp.so" \
-          SHERPA_BIN="$sherpa_bin" \
+          SHERPA_BIN="dist/sherpa/sherpa-diar-android" \
           SHERPA_SEG="dist/sherpa/models/sherpa-onnx-pyannote-segmentation-3-0/model.onnx" \
           SHERPA_EMB="dist/sherpa/models/titanet_large.onnx" \
           LLAMA_BIN="dist/llama/llama-cli-android-arm64" \
