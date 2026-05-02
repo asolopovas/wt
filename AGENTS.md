@@ -110,6 +110,8 @@ Module: `github.com/asolopovas/wt` (Go 1.26). Key deps: `fyne.io/fyne/v2`, `pter
 `//go:build android` / `//go:build !android` pairs:
 `config_*`, `app_*`, `transcribe_*`, `audio_*`. Windows uses `_windows.go` / `_other.go` (with `//go:build !windows`).
 
+If a new package imports a desktop-only symbol from `internal/transcriber` (e.g. `FindFFmpeg`, defined behind `//go:build !android`), tag every file in the new package `//go:build !android` too, otherwise `task vet-android` fails with `undefined: transcriber.<sym>`. The `internal/gui/waveform` package is the canonical example. Don't silence this by stubbing on the android side of transcriber unless the symbol genuinely has an android implementation.
+
 ## Testing
 
 stdlib `testing` only. Names: `Test<Function>_<Scenario>`, prefer table-driven.
