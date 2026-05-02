@@ -92,6 +92,7 @@ When invoking msys2 bash from a Taskfile shell block, use Windows-style paths (`
 - Re-run `scripts/diar_sweep.py` (winning params already chosen — see Diarization).
 - Add skip-on-missing-model tests.
 - Write Go comments other than directives (`//go:build`, `//go:embed`, `//go:generate`, `//export`, `//line`, `// +build`, `// Code generated ... DO NOT EDIT.`, cgo preamble).
+- Add em dashes (`—`) to git commit messages (title or body). Plain hyphens (`-`) are fine; rephrase or use spaces if a long dash feels needed.
 
 ## Layout
 
