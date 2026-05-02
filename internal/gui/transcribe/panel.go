@@ -129,9 +129,9 @@ func (p *Panel) startSmoothUpdates() {
 	stop := make(chan struct{})
 	p.smoothStop = stop
 	go func() {
-		ticker := time.NewTicker(100 * time.Millisecond)
+		ticker := time.NewTicker(250 * time.Millisecond)
 		defer ticker.Stop()
-		var current float64
+		var current, lastApplied float64
 		var lastStatus string
 		for {
 			select {
@@ -159,9 +159,16 @@ func (p *Panel) startSmoothUpdates() {
 					lastStatus = nextStatus
 					statusChanged = true
 				}
+				progressChanged := math.Abs(current-lastApplied) > 0.0005
+				if !progressChanged && !statusChanged {
+					continue
+				}
+				lastApplied = current
 				cur := current
 				fyne.Do(func() {
-					p.Progress.SetValue(cur)
+					if progressChanged {
+						p.Progress.SetValue(cur)
+					}
 					if statusChanged {
 						p.StatusText.Text = nextStatus
 						p.StatusText.Refresh()

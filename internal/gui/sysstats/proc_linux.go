@@ -53,13 +53,12 @@ func ProcessCPU() int {
 		return -1
 	}
 	dCPU := float64(total-prev) / clockTicksPerSec()
-	pct := int(dCPU / dWall * 100)
+	pct := int(dCPU / dWall / float64(runtime.NumCPU()) * 100)
 	if pct < 0 {
 		pct = 0
 	}
-	cap := runtime.NumCPU() * 100
-	if pct > cap {
-		pct = cap
+	if pct > 100 {
+		pct = 100
 	}
 	return pct
 }

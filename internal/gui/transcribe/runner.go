@@ -343,7 +343,7 @@ func (p *Panel) transcribeFile(model whisper.Model, path, modelSize, deviceLabel
 		done := tickDone
 		go func() {
 			defer close(done)
-			t := time.NewTicker(200 * time.Millisecond)
+			t := time.NewTicker(500 * time.Millisecond)
 			defer t.Stop()
 			render := func() {
 				rawDisp, etaSec := smoother.Snapshot()
