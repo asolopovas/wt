@@ -752,7 +752,11 @@ tasks:
             export SHERPA_ONNX_ENABLE_TTS=OFF
             export SHERPA_ONNX_ENABLE_C_API=OFF
             export SHERPA_ONNX_ENABLE_SPEAKER_DIARIZATION=ON
-            export SHERPA_ONNX_ANDROID_PLATFORM=android-28
+            # Use API 21 (sherpa upstream default). API >= 27 unconditionally pulls
+            # NNAPI headers into session.cc, but the static onnxruntime prebuilts
+            # ship without nnapi_provider_factory.h. We don't need NNAPI for
+            # diarization — CPU EP is fine. Binary stays forward-compatible.
+            export SHERPA_ONNX_ANDROID_PLATFORM=android-21
             # Force Unix Makefiles — default may be Ninja or VS generator,
             # which would leave 'make -j4' (called by the script) with no Makefile.
             export CMAKE_GENERATOR='Unix Makefiles'
