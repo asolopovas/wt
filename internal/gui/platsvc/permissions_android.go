@@ -154,6 +154,44 @@ static void wt_open_battery_settings(uintptr_t envPtr, uintptr_t actPtr) {
 	wt_start_action_intent(env, act, "android.settings.SETTINGS");
 }
 
+static void wt_set_thread_priority(uintptr_t envPtr, int tid, int prio) {
+	JNIEnv* env = (JNIEnv*)envPtr;
+	if (!env) return;
+	jclass cProc = (*env)->FindClass(env, "android/os/Process");
+	if (!cProc) { if ((*env)->ExceptionCheck(env)) (*env)->ExceptionClear(env); return; }
+	jmethodID mSet = (*env)->GetStaticMethodID(env, cProc, "setThreadPriority", "(II)V");
+	if (!mSet) { if ((*env)->ExceptionCheck(env)) (*env)->ExceptionClear(env); (*env)->DeleteLocalRef(env, cProc); return; }
+	(*env)->CallStaticVoidMethod(env, cProc, mSet, (jint)tid, (jint)prio);
+	if ((*env)->ExceptionCheck(env)) (*env)->ExceptionClear(env);
+	(*env)->DeleteLocalRef(env, cProc);
+}
+
+static int wt_is_screen_on(uintptr_t envPtr, uintptr_t actPtr) {
+	JNIEnv* env = (JNIEnv*)envPtr;
+	jobject act = (jobject)actPtr;
+	if (!env || !act) return 1;
+
+	jclass cAct = (*env)->GetObjectClass(env, act);
+	jmethodID mGetSvc = (*env)->GetMethodID(env, cAct, "getSystemService", "(Ljava/lang/String;)Ljava/lang/Object;");
+	jstring jSvc = (*env)->NewStringUTF(env, "power");
+	jobject pm = (*env)->CallObjectMethod(env, act, mGetSvc, jSvc);
+	(*env)->DeleteLocalRef(env, jSvc);
+	(*env)->DeleteLocalRef(env, cAct);
+	if (!pm) { if ((*env)->ExceptionCheck(env)) (*env)->ExceptionClear(env); return 1; }
+
+	jclass cPM = (*env)->GetObjectClass(env, pm);
+	jmethodID mIs = (*env)->GetMethodID(env, cPM, "isInteractive", "()Z");
+	int res = 1;
+	if (mIs) {
+		jboolean b = (*env)->CallBooleanMethod(env, pm, mIs);
+		res = b ? 1 : 0;
+	} else if ((*env)->ExceptionCheck(env)) (*env)->ExceptionClear(env);
+	(*env)->DeleteLocalRef(env, cPM);
+	(*env)->DeleteLocalRef(env, pm);
+	if ((*env)->ExceptionCheck(env)) { (*env)->ExceptionClear(env); }
+	return res;
+}
+
 static int wt_is_external_storage_manager(uintptr_t envPtr, uintptr_t actPtr) {
 	JNIEnv* env = (JNIEnv*)envPtr;
 	jobject act = (jobject)actPtr;
@@ -368,6 +406,32 @@ func OpenBatteryOptimizationSettings() {
 			return nil
 		}
 		C.wt_open_battery_settings(C.uintptr_t(ac.Env), C.uintptr_t(ac.Ctx))
+		return nil
+	})
+}
+
+func IsScreenInteractive() bool {
+	out := true
+	_ = driver.RunNative(func(ctx any) error {
+		ac, ok := ctx.(*driver.AndroidContext)
+		if !ok || ac == nil || ac.Env == 0 || ac.Ctx == 0 {
+			return nil
+		}
+		out = C.wt_is_screen_on(C.uintptr_t(ac.Env), C.uintptr_t(ac.Ctx)) == 1
+		return nil
+	})
+	return out
+}
+
+const ThreadPriorityBackground = 10
+
+func SetThreadPriorityViaProcess(tid int) {
+	_ = driver.RunNative(func(ctx any) error {
+		ac, ok := ctx.(*driver.AndroidContext)
+		if !ok || ac == nil || ac.Env == 0 {
+			return nil
+		}
+		C.wt_set_thread_priority(C.uintptr_t(ac.Env), C.int(tid), C.int(ThreadPriorityBackground))
 		return nil
 	})
 }

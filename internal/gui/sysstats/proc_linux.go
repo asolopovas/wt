@@ -19,7 +19,7 @@ var (
 func clockTicksPerSec() float64 { return 100.0 }
 
 func ProcessCPU() int {
-	data, err := os.ReadFile("/proc/self/stat")
+	data, err := os.ReadFile("/proc/" + strconv.Itoa(os.Getpid()) + "/stat")
 	if err != nil {
 		return -1
 	}
@@ -53,18 +53,19 @@ func ProcessCPU() int {
 		return -1
 	}
 	dCPU := float64(total-prev) / clockTicksPerSec()
-	pct := int(dCPU / dWall / float64(runtime.NumCPU()) * 100)
+	pct := int(dCPU / dWall * 100)
 	if pct < 0 {
 		pct = 0
 	}
-	if pct > 100 {
-		pct = 100
+	cap := runtime.NumCPU() * 100
+	if pct > cap {
+		pct = cap
 	}
 	return pct
 }
 
 func ProcessRSSMB() int {
-	data, err := os.ReadFile("/proc/self/status")
+	data, err := os.ReadFile("/proc/" + strconv.Itoa(os.Getpid()) + "/status")
 	if err != nil {
 		return -1
 	}

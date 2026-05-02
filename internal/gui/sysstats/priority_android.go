@@ -10,17 +10,17 @@ import (
 )
 
 const (
-	prioProcess     = 0
-	bgNice          = 10
-	bgCpusetTasks   = "/dev/cpuset/background/tasks"
-	sysBgCpusetTask = "/dev/cpuset/system-background/tasks"
+	prioProcess = 0
+	bgNice      = 5
 )
 
+func demoteThreadToBackground(tid int) {
+	_ = syscall.Setpriority(prioProcess, tid, bgNice)
+}
+
 type ThreadPriority struct {
-	tid       int
-	prevNice  int
-	hadCpuset bool
-	prevSet   string
+	tid      int
+	prevNice int
 }
 
 func SetCurrentThreadBackground() (ThreadPriority, bool) {
@@ -33,17 +33,7 @@ func SetCurrentThreadBackground() (ThreadPriority, bool) {
 		return ThreadPriority{}, false
 	}
 	tp := ThreadPriority{tid: tid, prevNice: prev}
-	if data, rerr := os.ReadFile("/proc/self/task/" + strconv.Itoa(tid) + "/cpuset"); rerr == nil {
-		tp.prevSet = string(data)
-		tp.hadCpuset = true
-	}
-	if f, ferr := os.OpenFile(bgCpusetTasks, os.O_WRONLY, 0); ferr == nil {
-		_, _ = f.WriteString(strconv.Itoa(tid))
-		_ = f.Close()
-	} else if f, ferr := os.OpenFile(sysBgCpusetTask, os.O_WRONLY, 0); ferr == nil {
-		_, _ = f.WriteString(strconv.Itoa(tid))
-		_ = f.Close()
-	}
+	demoteThreadToBackground(tid)
 	return tp, true
 }
 
@@ -92,7 +82,7 @@ func PinNewThreadsBackground(stop <-chan struct{}, baselineSelf int) {
 				if _, old := baseline[tid]; old {
 					continue
 				}
-				_ = syscall.Setpriority(prioProcess, tid, bgNice)
+				demoteThreadToBackground(tid)
 			}
 		}
 	}
