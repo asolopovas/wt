@@ -117,6 +117,8 @@ stdlib `testing` only. Names: `Test<Function>_<Scenario>`, table-driven preferre
 
 **Always:** when relocating a package and its dependencies form a cycle with the new parent, break the cycle via a package-level injection variable set from the parent's `init()` (e.g. `cache.ProbeDurationMsFn = transcriber.ProbeDurationMs` in `internal/transcriber/cache_probe.go`). Don't move helper functions speculatively to dodge the cycle — break the specific edge that closes it.
 
+**Always:** before committing any change that adds or modifies `.go` files, run `task clean-comments` (after confirming `git status` is clean per the existing dirty-tree rule). The existing "Never write Go comments" rule is easy to miss when focused on logic; the task is the enforcement mechanism.
+
 **Ask first:** anything mutating state outside the repo (installs, registry, version bumps).
 
 **Never:**
