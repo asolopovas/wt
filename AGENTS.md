@@ -67,6 +67,13 @@ Autoconf-style projects (FFmpeg) cross-compiled to android-arm64 require **msys2
 
 When invoking msys2 bash from a Taskfile shell block, use Windows-style paths (`C:/msys64/usr/bin/bash.exe`) not msys-style (`/c/msys64/...`) — Task's mvdan/sh path resolution doesn't translate the latter and `[ -x ]` will report the binary missing.
 
+## Android Fyne / FFmpeg gotchas
+
+- **`-f s16le` (raw PCM output) requires `--enable-muxer=pcm_s16le`** in FFmpeg configure flags, not `--enable-muxer=s16le`. The CLI/runtime name is `s16le` but the configure-time component name is `pcm_s16le` (`CONFIG_PCM_S16LE_MUXER`). Same applies to `pcm_s16be` / `pcm_s24le` / `pcm_f32le`. Symptom of a missing muxer: ffmpeg subprocess exits 234 (= -EINVAL truncated to uint8) with `Requested output format 's16le' is not known`.
+- **Fyne's `container.Border` doesn't reflow when a hidden bottom child becomes visible.** Neither `child.Refresh()` nor `window.Content().Refresh()` is enough. The robust fix is to call `window.SetContent(...)` again with a freshly-built Border. Wire an `onVisibilityChange` callback on the showing/hiding widget so the host can rebuild — see `internal/gui/dock.go` + `app{,_android}.go`.
+- **Touchscreen taps on a widget that implements both `Tappable` and `Draggable` often dispatch as `Dragged(0,0)` → `DragEnd` instead of `Tapped`.** If you need tap-to-X behavior on a draggable widget, also handle it in `DragEnd` when total drag distance is zero. Desktop builds usually fire `Tapped` correctly; Android does not.
+- **A subprocess `Player.Stop()` should not synchronously fire its `onStop` callback** when the caller plans to immediately `StartRange` again (the seek-restart pattern). Both desktop (`stopping` flag) and android (suppress callback in explicit Stop) skip it in `Stop()` and rely on the watcher goroutine to fire `onStop` on natural end. Otherwise a seek hides the playhead and flips the play icon mid-flight.
+
 ## Boundaries
 
 **Always:**
