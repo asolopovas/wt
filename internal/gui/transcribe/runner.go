@@ -457,7 +457,15 @@ func (p *Panel) transcribeFile(model whisper.Model, path, modelSize, deviceLabel
 	runtime.LockOSThread()
 	saved, reserved := sysstats.ReserveTopCores(2)
 	prio, lowered := sysstats.SetCurrentThreadBackground()
+	pinStop := make(chan struct{})
+	pinDone := make(chan struct{})
+	go func() {
+		defer close(pinDone)
+		sysstats.PinNewThreadsBackground(pinStop, syscallGettid())
+	}()
 	res, runErr := job.Run(jobCtx, spec)
+	close(pinStop)
+	<-pinDone
 	if lowered {
 		sysstats.RestoreThreadPriority(prio)
 	}
