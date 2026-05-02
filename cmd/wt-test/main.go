@@ -25,6 +25,7 @@ func main() {
 	threads := flag.Int("t", max(runtime.NumCPU()-2, 1), "threads")
 	diarizeOnly := flag.Bool("diarize-only", false, "run only the diarizer and exit")
 	speakers := flag.Int("speakers", 0, "force number of speakers (0=auto)")
+	engine := flag.String("engine", "whisper", "ASR engine: whisper | parakeet | sensevoice | moonshine | zipformer")
 	flag.Parse()
 
 	if flag.NArg() < 1 {
@@ -47,6 +48,12 @@ func main() {
 
 	if *diarizeOnly {
 		runDiarizeOnly(audioPath, *speakers)
+		return
+	}
+
+	switch *engine {
+	case shared.EngineParakeet, shared.EngineSenseVoice, shared.EngineMoonshine, shared.EngineZipformer:
+		runSherpaEngine(*engine, audioPath, *lang, *threads)
 		return
 	}
 
@@ -135,6 +142,81 @@ func main() {
 	}
 
 	fmt.Printf("\nSegments: %d\n", segCount)
+	memReport("final")
+	fmt.Printf("=== DONE ===\n")
+}
+
+func runSherpaEngine(engine, audioPath, lang string, threads int) {
+	fmt.Printf("Audio:    %s\n", audioPath)
+	fmt.Printf("Engine:   %s (sherpa-onnx)\n", engine)
+	fmt.Printf("Lang:     %s\n", lang)
+	fmt.Printf("Threads:  %d\n", threads)
+	if p := os.Getenv("WT_ZIPFORMER_PROVIDER"); p != "" {
+		fmt.Printf("Provider: %s (from WT_ZIPFORMER_PROVIDER)\n", p)
+	} else {
+		fmt.Printf("Provider: cpu (default)\n")
+	}
+	for _, ev := range []string{"WT_PARAKEET_DIR", "WT_SENSEVOICE_DIR", "WT_ZIPFORMER_DIR", "WT_MOONSHINE_DIR"} {
+		if d := os.Getenv(ev); d != "" {
+			fmt.Printf("ModelDir: %s (from %s)\n", d, ev)
+		}
+	}
+
+	fmt.Printf("\n--- Loading audio ---\n")
+	t0 := time.Now()
+	samples, err := transcriber.LoadAudioSamples(audioPath)
+	if err != nil {
+		fatal("loading audio: %v", err)
+	}
+	audioDur := float64(len(samples)) / float64(transcriber.WhisperSampleRate)
+	fmt.Printf("OK: %d samples (%.1fs audio) in %.1fs\n", len(samples), audioDur, since(t0))
+	memReport("after audio")
+
+	fmt.Printf("\n--- Running %s ---\n", engine)
+	hooks := transcriber.Hooks{
+		OnPhase:    func(p transcriber.Phase) { fmt.Printf("phase: %s\n", p) },
+		OnProgress: func(p transcriber.Progress) { fmt.Printf("  %.0f%% (%s)\n", p.Pct, p.Phase) },
+		OnLog:      func(level, msg string) { fmt.Printf("[%s] %s\n", level, msg) },
+	}
+	spec := transcriber.JobSpec{
+		SourcePath: audioPath,
+		Engine:     engine,
+		Language:   lang,
+		Threads:    threads,
+	}
+	t0 = time.Now()
+	var (
+		segs         []diarizer.TranscriptSegment
+		detectedLang string
+		rtf          float64
+	)
+	switch engine {
+	case shared.EngineParakeet:
+		segs, detectedLang, rtf, err = transcriber.RunParakeet(
+			context.Background(), spec, samples, audioDur, "", hooks)
+	case shared.EngineSenseVoice:
+		segs, detectedLang, rtf, err = transcriber.RunSenseVoice(
+			context.Background(), spec, samples, audioDur, "", hooks)
+	case shared.EngineZipformer:
+		segs, detectedLang, rtf, err = transcriber.RunZipformer(
+			context.Background(), spec, samples, audioDur, "", hooks)
+	case shared.EngineMoonshine:
+		segs, detectedLang, rtf, err = transcriber.RunMoonshine(
+			context.Background(), spec, samples, audioDur, "", hooks)
+	default:
+		fatal("unknown sherpa sub-engine %q", engine)
+	}
+	if err != nil {
+		fatal("%s: %v", engine, err)
+	}
+	elapsed := since(t0)
+	fmt.Printf("\nDone in %.1fs (RTF=%.2f, lang=%s)\n", elapsed, rtf, detectedLang)
+
+	fmt.Printf("\n--- Results ---\n")
+	for i, s := range segs {
+		fmt.Printf("[%d] %s -> %s: %s\n", i, s.Start, s.End, s.Text)
+	}
+	fmt.Printf("\nSegments: %d\n", len(segs))
 	memReport("final")
 	fmt.Printf("=== DONE ===\n")
 }

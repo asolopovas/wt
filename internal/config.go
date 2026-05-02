@@ -20,12 +20,22 @@ type Config struct {
 	Model           string `yaml:"model"`
 	Language        string `yaml:"language"`
 	Device          string `yaml:"device"`
+	Engine          string `yaml:"engine,omitempty"` // "whisper" (default) or "zipformer"
 	Threads         int    `yaml:"threads"`
 	Speakers        int    `yaml:"speakers,omitempty"`
 	NoDiarize       bool   `yaml:"no_diarize,omitempty"`
 	TDRZ            bool   `yaml:"tdrz,omitempty"`
 	CacheExpiryDays int    `yaml:"cache_expiry_days,omitempty"`
 }
+
+// Engine identifiers.
+const (
+	EngineWhisper    = "whisper"
+	EngineZipformer  = "zipformer"
+	EngineMoonshine  = "moonshine"
+	EngineParakeet   = "parakeet"
+	EngineSenseVoice = "sensevoice"
+)
 
 func PythonDir() string {
 	return filepath.Join(Dir(), "python")
@@ -59,6 +69,7 @@ func Defaults() Config {
 		Version:         CurrentConfigVersion,
 		Model:           defaultModel(),
 		Device:          "auto",
+		Engine:          EngineWhisper,
 		Threads:         defaultThreads(),
 		CacheExpiryDays: 30,
 	}
@@ -107,6 +118,9 @@ func Load() (Config, error) {
 	if cfg.Device == "" {
 		cfg.Device = "auto"
 	}
+	if cfg.Engine == "" {
+		cfg.Engine = EngineWhisper
+	}
 
 	if upgradeConfig(&cfg) {
 		_ = Save(cfg)
@@ -124,6 +138,9 @@ func applyEnvOverrides(cfg *Config) {
 	}
 	if v := os.Getenv("WT_DEVICE"); v != "" {
 		cfg.Device = v
+	}
+	if v := os.Getenv("WT_ENGINE"); v != "" {
+		cfg.Engine = v
 	}
 	if v := os.Getenv("WT_THREADS"); v != "" {
 		if n, err := strconv.Atoi(v); err == nil && n > 0 {

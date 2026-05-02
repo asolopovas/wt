@@ -72,6 +72,32 @@ No raw pixel literals, hex colors, or `widget.NewButton` + manual styling.
 stdlib `testing` only. Names: `Test<Function>_<Scenario>`, table-driven preferred. Config tests: `t.TempDir()` + `t.Setenv("HOME", ...)`. CI runs `go vet`, `golangci-lint`, full `go test` on Linux. Diarization integration tests: `//go:build integration` (`task test-integration`); `getSherpaSample` lazy-downloads to `samples/diarization/sherpa/` (gitignored). Use `-short` to skip the download. Don't add skip-on-missing-model tests.
 
 
+## ASR engine selection
+
+Transcription engine is pluggable via `shared.Config.Engine` / `WT_ENGINE` / `JobSpec.Engine`. Values: `whisper` (default), `zipformer` (sherpa transducer, uppercase output), `moonshine` (sherpa, cased+punctuated, ~10× RTF on Exynos 2400 CPU). Dispatch lives in `internal/transcriber/engine.go`'s `Job.runASR`. When adding a new sherpa-backed engine, reuse the helpers in `engine_zipformer.go` (`findSherpaASRBinary`, `writeTempWAV`, `invokeSherpaCLI`, `finalizeSherpaRun`, `coalesceTokens`) and add a case to `runASR` — do **not** branch inside `runWhisper`.
+
+Moonshine has a minimum effective input length somewhere around 12–15 s; shorter inputs may produce empty `text`. Vanilla Zipformer transducer accepts arbitrarily short inputs. If supporting <15 s clips with Moonshine, pad-and-trim or fall back to Zipformer.
+
+Keep the model catalog in `internal/models/catalog.go` curated, not exhaustive. Each entry must be best-in-class for its niche or be removed. Current top-tier picks: **Parakeet TDT 0.6B v2 int8** (English-only, ~9× RTF, native cased+punct), **SenseVoice int8** (multilingual zh/en/ja/ko/yue, ~16× RTF, native cased+punct, word timestamps), **Whisper-turbo** (99-lang fallback), **Qwen3 0.6B Q4_K_M** (auto-rename namer default; 1.7B kept as quality option). Do not add Moonshine/Zipformer/Paraformer/CT-Transformer to the catalog — the engines remain available via env-var bundles for benchmarking but are dominated by the curated picks for end users. Use `csukuangfj/*` HF mirrors for individual ONNX files instead of `sherpa-onnx/releases/*.tar.bz2` archives so the existing FileSpec downloader works without adding tar/bz2 extraction logic.
+
+Parakeet TDT models require `--model-type=nemo_transducer` (NOT `transducer`). The plain transducer code path looks for `vocab_size` metadata at a location TDT models don't populate, failing at decoder init with `'vocab_size' does not exist in the metadata`. SenseVoice uses `--sense-voice-model=` (single-file model), NOT the encoder/decoder/joiner triplet.
+
+When adding an ASR-family catalog entry, set `Family: FamilyASR` and `Engine: shared.EngineX`. Job.Run dispatches on `JobSpec.Engine` only; the GUI must set `spec.Engine = models.EngineForActiveASR(mgr.Active(models.FamilyASR))` (or fall back to whisper).
+
+Never pure-`go test ./internal/transcriber/...` from the shell — whisper.cpp cgo bindings need the prebuilt lib. Use `task test SHORT=1` (skips cgo for unrelated packages, still builds transcriber via the task's prep step).
+
+For on-device prototyping use `task android-test -- <wt-test-args>` (cross-builds wt-test, pushes binary + libc++/libomp to `/data/local/tmp/`, runs via `adb shell`). Always prefix with `MSYS_NO_PATHCONV=1` when forwarding `/data/local/tmp/...` paths through `--` on Windows/msys, otherwise paths get mangled to `C:/Program Files/Git/data/local/tmp/...`. Env vars don't propagate through the task's hardcoded `adb shell` command — invoke `adb shell 'cd /data/local/tmp && FOO=bar ./wt-test ...'` directly when you need env overrides.
+
+On Android, sherpa-onnx CLIs are bundled as `lib*.so` (e.g. `libsherpa-diar.so`, `libsherpa-asr.so`) so the Android packager installs them under `/data/app/<pkg>/lib/arm64/`. Binary discovery must check that path *before* `exec.LookPath` — see `findSherpaBinary` / `findZipformerBinary`.
+
+The existing `android-sherpa-bin` task already produces `sherpa-onnx-offline` (not just the diarization CLI) under `third_party/sherpa-onnx/build-android-arm64-v8a-static/install/bin/` because `SHERPA_ONNX_ENABLE_BINARY=ON` builds all CLIs. Reuse it for ASR engines — no separate build flow needed unless you want NNAPI (see next).
+
+The static onnxruntime prebuilt sherpa-onnx ships only supports `cpu`, `cuda`, `coreml` providers. To get NNAPI/NPU acceleration on Android (Exynos 2400 NPU, Hexagon, etc.) you must rebuild sherpa-onnx with `BUILD_SHARED_LIBS=ON` so it pulls the AAR-style onnxruntime which includes `nnapi_provider_factory.h`. Verify provider list with `<bin> --help | grep provider` before assuming NNAPI works — the flag accepts `nnapi` syntactically but the ORT runtime will reject it at session-create.
+
+`sherpa-onnx-offline` emits one JSON line per input WAV with `{"text": ..., "tokens": [...], "timestamps": [...]}`. Tokens are BPE sub-word pieces; word boundaries are tokens whose first char is a space. Coalesce by gluing non-space-leading tokens onto the previous one before emitting word-level segments.
+
+Exynos 2400 (s5e9945, S24/S24+ EU) exposes its NPU via NNAPI HALs 1.0–1.3 + Samsung ENN driver (`libenn_*`, `libnpu_compiler.so`). onnxruntime / sherpa-onnx accept `--provider=nnapi` and will route int8 ops to the NPU automatically. Xclipse 940 Vulkan path in whisper.cpp is a dead end — it hard-checks for desktop-AMD `VK_AMD_shader_core_properties` which Samsung's driver doesn't expose. Don't waste cycles on Xclipse-direct GPU acceleration.
+
 ## Scratch artifacts
 
 Never write screenshots, logs, or other ad-hoc binary debug files (`*.png`, `*.jpg`, capture dumps, etc.) into the repo root or any tracked directory. Use the system tempdir (`/tmp/...` on msys, `$TMPDIR`) or a `_tmp/` subdir at the repo root (gitignored) when a tool can't read outside the project. Read tool can't access `C:\tmp` directly — copy/move into `_tmp/` then read. Clean up afterwards.

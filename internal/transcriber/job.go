@@ -20,6 +20,7 @@ type JobSpec struct {
 	SourcePath  string
 	ModelSize   string
 	Language    string
+	Engine      string // "" or "whisper" => whisper.cpp; "zipformer" => sherpa-onnx zipformer
 	Threads     int
 	Speakers    int
 	NoDiarize   bool
@@ -107,8 +108,11 @@ func (h Hooks) resume(p ResumePrompt) ResumeChoice {
 var ErrAborted = errors.New("transcription aborted")
 
 func (j *Job) Run(ctx context.Context, spec JobSpec) (Result, error) {
-	if j.Model == nil {
-		return Result{}, fmt.Errorf("job: Model is required")
+	// Whisper engine needs a loaded whisper.Model. Sherpa-backed engines
+	// (parakeet/sensevoice/moonshine/zipformer) shell out to a subprocess
+	// and don't touch j.Model.
+	if resolveEngine(spec.Engine) == shared.EngineWhisper && j.Model == nil {
+		return Result{}, fmt.Errorf("job: Model is required for whisper engine")
 	}
 	if spec.SourcePath == "" {
 		return Result{}, fmt.Errorf("job: SourcePath is required")
@@ -175,11 +179,11 @@ func (j *Job) Run(ctx context.Context, spec JobSpec) (Result, error) {
 	}
 
 	if !rawHit {
-		whisperSegs, dl, observedRTF, err := j.runWhisper(ctx, spec, samples, audioDurSec, rawKey)
+		asrSegs, dl, observedRTF, err := j.runASR(ctx, spec, samples, audioDurSec, rawKey)
 		if err != nil {
 			return Result{}, err
 		}
-		segs = whisperSegs
+		segs = asrSegs
 		detectedLang = dl
 		rtf = observedRTF
 	}

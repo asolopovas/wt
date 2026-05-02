@@ -17,8 +17,10 @@ import (
 	"github.com/asolopovas/wt/internal/diarizer"
 	"github.com/asolopovas/wt/internal/gui/platsvc"
 	"github.com/asolopovas/wt/internal/gui/sysstats"
+	"github.com/asolopovas/wt/internal/models"
 	"github.com/asolopovas/wt/internal/progress"
 	"github.com/asolopovas/wt/internal/transcriber"
+	shared "github.com/asolopovas/wt/internal"
 	whisper "github.com/ggerganov/whisper.cpp/bindings/go/pkg/whisper"
 )
 
@@ -443,11 +445,22 @@ func (p *Panel) transcribeFile(model whisper.Model, path, modelSize, deviceLabel
 		},
 	}
 
+	// Engine selection: if the user picked a Settings→Models entry from
+	// FamilyASR (Parakeet/SenseVoice/etc.), route to that engine via
+	// JobSpec.Engine. Whisper is the default when no ASR pick is active.
+	engine := shared.EngineWhisper
+	if mgr := models.NewManager(); mgr != nil {
+		if eng, _ := models.EngineForActiveASR(mgr.Active(models.FamilyASR)); eng != "" {
+			engine = eng
+		}
+	}
+
 	job := &transcriber.Job{Model: model, Diarizer: dia, Hooks: hooks}
 	spec := transcriber.JobSpec{
 		SourcePath:  absPath,
 		ModelSize:   modelSize,
 		Language:    language,
+		Engine:      engine,
 		Threads:     threads,
 		Speakers:    speakers,
 		NoDiarize:   noDiarize,

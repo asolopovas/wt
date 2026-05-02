@@ -13,6 +13,7 @@ import (
 	"github.com/urfave/cli/v3"
 
 	shared "github.com/asolopovas/wt/internal"
+	"github.com/asolopovas/wt/internal/models"
 	"github.com/asolopovas/wt/internal/transcriber"
 	"github.com/asolopovas/wt/internal/transcriber/cache"
 	"github.com/asolopovas/wt/internal/ui"
@@ -278,11 +279,19 @@ func runJob(model whisper.Model, path, modelSize, lang string, threads, speakers
 		},
 	}
 
+	engine := shared.EngineWhisper
+	if mgr := models.NewManager(); mgr != nil {
+		if eng, _ := models.EngineForActiveASR(mgr.Active(models.FamilyASR)); eng != "" {
+			engine = eng
+		}
+	}
+
 	job := &transcriber.Job{Model: model, Hooks: hooks}
 	spec := transcriber.JobSpec{
 		SourcePath: absPath,
 		ModelSize:  modelSize,
 		Language:   lang,
+		Engine:     engine,
 		Threads:    threads,
 		Speakers:   speakers,
 		NoDiarize:  noDiarize,

@@ -901,7 +901,7 @@ tasks:
           rm -f "$apk" "${apk}.idsig"
 
   android-test:
-    internal: true
+    desc: 'Build wt-test CLI for Android arm64, push to /data/local/tmp, run via adb (forward CLI_ARGS).'
     deps: [android-whisper-lib]
     vars:
       NDK_CC: '{{.NDK_TOOLCHAIN}}/bin/aarch64-linux-android35-clang'
