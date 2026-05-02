@@ -1,7 +1,12 @@
 #!/usr/bin/env python3
 """Patch the Fyne-built APK with native libs, sherpa models, llama-cli, and the foreground-service dex.
 
-Args (env-style): APK, LIBCXX, LIBOMP, SHERPA_BIN, SHERPA_SEG, SHERPA_EMB, LLAMA_BIN, SVC_DEX, OUT
+Args (env-style): APK, LIBCXX, LIBOMP, SHERPA_BIN, SHERPA_ASR_BIN, SHERPA_SEG, SHERPA_EMB, LLAMA_BIN, SVC_DEX, OUT
+
+SHERPA_BIN     -> packaged as lib/arm64-v8a/libsherpa-diar.so (diarization CLI)
+SHERPA_ASR_BIN -> packaged as lib/arm64-v8a/libsherpa-asr.so  (offline ASR CLI; same
+                  binary as diar in static builds, just renamed for engine_zipformer.go's
+                  findSherpaASRBinary discovery)
 """
 import os
 import sys
@@ -17,6 +22,7 @@ apk = os.environ['APK']
 libcxx = os.environ['LIBCXX'].replace('\\', '/')
 libomp = os.environ['LIBOMP'].replace('\\', '/')
 sherpa_bin = os.environ.get('SHERPA_BIN', '')
+sherpa_asr_bin = os.environ.get('SHERPA_ASR_BIN', '')
 sherpa_seg = os.environ.get('SHERPA_SEG', '')
 sherpa_emb = os.environ.get('SHERPA_EMB', '')
 llama_bin = os.environ.get('LLAMA_BIN', '')
@@ -33,6 +39,8 @@ with zipfile.ZipFile(apk, 'r') as zin, zipfile.ZipFile(out, 'w', zipfile.ZIP_DEF
     zout.write(libomp, 'lib/arm64-v8a/libomp.so', compress_type=zipfile.ZIP_STORED)
     if sherpa_bin and os.path.exists(sherpa_bin):
         zout.write(sherpa_bin, 'lib/arm64-v8a/libsherpa-diar.so', compress_type=zipfile.ZIP_STORED)
+    if sherpa_asr_bin and os.path.exists(sherpa_asr_bin):
+        zout.write(sherpa_asr_bin, 'lib/arm64-v8a/libsherpa-asr.so', compress_type=zipfile.ZIP_STORED)
     if sherpa_seg and os.path.exists(sherpa_seg):
         zout.write(sherpa_seg, 'assets/sherpa-models/seg.onnx', compress_type=zipfile.ZIP_STORED)
     if sherpa_emb and os.path.exists(sherpa_emb):

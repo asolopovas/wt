@@ -766,6 +766,7 @@ tasks:
       BUILD_OUT: '{{.SHERPA_ROOT}}/build-android-arm64-v8a-static'
     status:
       - test -f "{{.ROOT_DIR | toSlash}}/dist/sherpa/sherpa-diar-android"
+      - test -f "{{.ROOT_DIR | toSlash}}/dist/sherpa/sherpa-asr-android"
     cmds:
       - cmd: git clone --depth 1 https://github.com/k2-fsa/sherpa-onnx.git {{.SHERPA_ROOT}}
         if: '[ ! -d "{{.SHERPA_ROOT}}" ]'
@@ -809,6 +810,11 @@ tasks:
           mkdir -p "{{.ROOT_DIR | toSlash}}/dist/sherpa"
           cp "{{.BUILD_OUT}}/install/bin/sherpa-onnx-offline-speaker-diarization" \
              "{{.ROOT_DIR | toSlash}}/dist/sherpa/sherpa-diar-android"
+          # sherpa-onnx-offline is the generic ASR CLI used by
+          # parakeet/sensevoice/moonshine/zipformer engines. Same build,
+          # different binary; gets packaged as libsherpa-asr.so in the APK.
+          cp "{{.BUILD_OUT}}/install/bin/sherpa-onnx-offline" \
+             "{{.ROOT_DIR | toSlash}}/dist/sherpa/sherpa-asr-android"
 
   android-apk:
     internal: true
@@ -878,6 +884,7 @@ tasks:
           LIBCXX="{{.ANDROID_SYSROOT}}/usr/lib/aarch64-linux-android/libc++_shared.so" \
           LIBOMP="{{.NDK_TOOLCHAIN}}/lib/clang/18/lib/linux/aarch64/libomp.so" \
           SHERPA_BIN="dist/sherpa/sherpa-diar-android" \
+          SHERPA_ASR_BIN="dist/sherpa/sherpa-asr-android" \
           SHERPA_SEG="dist/sherpa/models/sherpa-onnx-pyannote-segmentation-3-0/model.onnx" \
           SHERPA_EMB="dist/sherpa/models/titanet_large.onnx" \
           LLAMA_BIN="dist/llama/llama-cli-android-arm64" \
