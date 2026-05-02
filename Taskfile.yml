@@ -739,6 +739,10 @@ tasks:
           fi
           "$MSYS_BASH" -lc "
             set -ex
+            # sherpa's build-android script needs wget + unzip; install them if missing.
+            for tool in wget unzip; do
+              command -v \$tool >/dev/null 2>&1 || pacman -S --noconfirm --needed \$tool
+            done
             export ANDROID_NDK='{{.NDK_ROOT}}'
             export ANDROID_NDK_HOME='{{.NDK_ROOT}}'
             export BUILD_SHARED_LIBS=OFF
