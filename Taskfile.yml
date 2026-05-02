@@ -394,6 +394,12 @@ tasks:
       # already-parsed (stale) {{.VERSION}} from before the bump, producing
       # artifacts with the previous version baked into ldflags + installer name.
       - cmd: 'task build'
+      # Force installer build: `task install` (called by bump) passes ONLY=both,
+      # which short-circuits the gated installer-exe step inside build. Without
+      # this explicit call, dist/wt-setup-<ver>.exe is never produced and the
+      # upload step below fails with "no artifacts found".
+      - cmd: 'task installer-exe'
+        if: '[ -z "{{.IS_LINUX}}" ]'
       - cmd: 'task android-apk'
         if: '[ -z "{{.IS_LINUX}}" ]'
       - |
