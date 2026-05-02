@@ -402,51 +402,12 @@ tasks:
         if: '[ -z "{{.IS_LINUX}}" ]'
       - cmd: 'task android-apk'
         if: '[ -z "{{.IS_LINUX}}" ]'
+      # Delegate publish flow to msys64 bash. Task's embedded mvdan/sh
+      # silently aborts after `git push origin <tag>` on Windows, never
+      # reaching the gh-release commands.
       - |
-        set -e
         ver=$(powershell -NoProfile -Command "[Console]::Write((Select-String -Path Taskfile.yml -Pattern \"VERSION: '([^']+)'\" -CaseSensitive | Select-Object -First 1).Matches[0].Groups[1].Value)")
-        tag="v$ver"
-        echo "=== Releasing $tag ==="
-
-        echo "--- git push HEAD ---"
-        git push origin HEAD
-
-        if git rev-parse "$tag" >/dev/null 2>&1; then
-          echo "--- tag $tag already exists locally ---"
-        else
-          echo "--- creating tag $tag ---"
-          git tag -a "$tag" -m "Release $tag"
-        fi
-        echo "--- git push tag ---"
-        git push origin "$tag"
-
-        artifacts=""
-        for f in \
-          "dist/wt-setup-$ver.exe" \
-          "dist/wt-$ver.apk" \
-          "dist/wt_${ver}_amd64.deb"; do
-          [ -f "$f" ] && artifacts="$artifacts $f"
-        done
-        echo "--- artifacts:$artifacts ---"
-        if [ -z "$artifacts" ]; then
-          echo "ERROR: no artifacts found to upload"; exit 1
-        fi
-
-        # Create the release first (without assets) so a slow/failing upload
-        # can't leave us with a tag pushed but no release. mvdan/sh under Task
-        # appears to silently abort the script when `gh release view` exits
-        # non-zero inside `if ! ...` on Windows; capture rc explicitly instead.
-        echo "--- gh release view $tag ---"
-        view_rc=0
-        gh release view "$tag" >/dev/null 2>&1 || view_rc=$?
-        echo "--- view rc=$view_rc ---"
-        if [ "$view_rc" -ne 0 ]; then
-          echo "--- gh release create $tag ---"
-          gh release create "$tag" --title "$tag" --generate-notes
-        fi
-        echo "--- gh release upload $tag ---"
-        bash scripts/gh-release-upload.sh "$tag" $artifacts
-        echo "=== Released $tag: https://github.com/asolopovas/wt/releases/tag/$tag ==="
+        C:/msys64/usr/bin/bash.exe scripts/release-publish.sh "$ver"
 
   release-latest:
     desc: 'Rolling release: build current main and update the "rolling" tag + GitHub prerelease (no version bump)'
