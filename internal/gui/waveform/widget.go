@@ -150,7 +150,8 @@ type waveformRenderer struct {
 	spinner  *widget.Activity
 	objects  []fyne.CanvasObject
 
-	lastSize fyne.Size
+	lastSize  fyne.Size
+	lastPeaks *Peaks
 }
 
 func (w *Widget) CreateRenderer() fyne.WidgetRenderer {
@@ -198,15 +199,19 @@ func (r *waveformRenderer) Layout(sz fyne.Size) {
 	peaks := w.peaks
 	w.mu.Unlock()
 
-	// rasterize wave if peaks present and size changed
-	if peaks != nil && (sz != r.lastSize) {
+	// Rasterize when either the peaks slice changed (new track loaded) or the
+	// size changed (window resize). Pointer compare on Peaks is intentional:
+	// SetPeaks always passes a fresh struct from waveform.Extract.
+	if peaks != nil && (sz != r.lastSize || peaks != r.lastPeaks) {
 		r.wave.Image = renderPeaks(peaks, int(sz.Width), int(sz.Height))
 		r.wave.Refresh()
 		r.lastSize = sz
+		r.lastPeaks = peaks
 	}
 	if peaks == nil {
 		r.wave.Image = blankImage(int(sz.Width), int(sz.Height))
 		r.wave.Refresh()
+		r.lastPeaks = nil
 	}
 
 	xS := float32(rs) * sz.Width
