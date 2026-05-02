@@ -33,8 +33,7 @@ func Run(version, buildDate string) error {
 	settings := newSettingsPanel(cfg, w)
 	tp := transcribe.New(w, settings)
 	dock := newPlayerDock(w, tp)
-	history := newHistoryPanel(w, tp)
-	history.dock = dock
+	history := newHistoryPanel(w, tp, dock)
 	tp.History = history
 	attachLibrary(tp, history)
 	if history.headerRight != nil {
@@ -81,7 +80,11 @@ func Run(version, buildDate string) error {
 		}
 	}
 
-	w.SetContent(container.NewBorder(nil, dock.Container(), nil, nil, tabs))
+	rebuildContent := func() {
+		w.SetContent(container.NewBorder(nil, dock.Container(), nil, nil, tabs))
+	}
+	dock.onVisibilityChange = rebuildContent
+	rebuildContent()
 	wireShareIntake(tp, tabs)
 	w.ShowAndRun()
 	return nil

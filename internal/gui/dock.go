@@ -29,6 +29,12 @@ type playerDock struct {
 	window     fyne.Window
 	transcribe *transcribe.Panel
 
+	// onVisibilityChange is invoked from the UI thread whenever the dock
+	// transitions between hidden and shown. The mounting code wires this to
+	// a SetContent rebuild because Fyne's Border layout doesn't reflow when a
+	// pre-hidden child becomes visible later — a child Refresh isn't enough.
+	onVisibilityChange func()
+
 	wave       *waveform.Widget
 	playBtn    *pointerButton
 	stopBtn    *pointerButton
@@ -132,8 +138,12 @@ func (d *playerDock) Load(key, path, displayName string, autoplay bool) {
 	d.wave.SetPlayhead(-1)
 	d.wave.SetLoading(true)
 	d.setPlayIcon(false)
+	wasHidden := !d.root.Visible()
 	d.root.Show()
 	d.root.Refresh()
+	if wasHidden && d.onVisibilityChange != nil {
+		d.onVisibilityChange()
+	}
 
 	go func() {
 		p, err := waveform.Extract(path)
@@ -171,8 +181,12 @@ func (d *playerDock) Close() {
 	d.currentPath = ""
 	d.duration = 0
 	d.mu.Unlock()
+	wasVisible := d.root.Visible()
 	d.root.Hide()
 	d.root.Refresh()
+	if wasVisible && d.onVisibilityChange != nil {
+		d.onVisibilityChange()
+	}
 }
 
 func (d *playerDock) onPlayPause() {

@@ -24,8 +24,9 @@ var (
 	colWaveformBG = color.NRGBA{R: 22, G: 26, B: 32, A: 255}
 	colHandle     = color.NRGBA{R: 235, G: 145, B: 60, A: 230}
 	colRegion     = color.NRGBA{R: 235, G: 145, B: 60, A: 32}
-	colPlayhead   = color.NRGBA{R: 255, G: 255, B: 255, A: 220}
-	colTimeLabel = color.NRGBA{R: 235, G: 235, B: 235, A: 255}
+	colPlayed     = color.NRGBA{R: 143, G: 205, B: 255, A: 90}
+	colPlayhead   = color.NRGBA{R: 255, G: 255, B: 255, A: 230}
+	colTimeLabel  = color.NRGBA{R: 235, G: 235, B: 235, A: 255}
 )
 
 // Widget is a horizontal waveform strip with two draggable region handles
@@ -56,7 +57,7 @@ const (
 	dragNone dragKind = iota
 	dragStartHandle
 	dragEndHandle
-	dragRegion
+	dragSeek // scrubbing inside the body
 )
 
 func New() *Widget {
@@ -140,6 +141,7 @@ type waveformRenderer struct {
 	bg       *canvas.Rectangle
 	wave     *canvas.Image
 	region   *canvas.Rectangle
+	played   *canvas.Rectangle
 	startH   *canvas.Rectangle
 	endH     *canvas.Rectangle
 	playhead *canvas.Line
@@ -157,6 +159,8 @@ func (w *Widget) CreateRenderer() fyne.WidgetRenderer {
 	wave.FillMode = canvas.ImageFillStretch
 	wave.ScaleMode = canvas.ImageScalePixels
 	region := canvas.NewRectangle(colRegion)
+	played := canvas.NewRectangle(colPlayed)
+	played.Hide()
 	startH := canvas.NewRectangle(colHandle)
 	endH := canvas.NewRectangle(colHandle)
 	playhead := canvas.NewLine(colPlayhead)
@@ -171,11 +175,12 @@ func (w *Widget) CreateRenderer() fyne.WidgetRenderer {
 	spinner.Hide()
 
 	r := &waveformRenderer{
-		w: w, bg: bg, wave: wave, region: region,
+		w: w, bg: bg, wave: wave, region: region, played: played,
 		startH: startH, endH: endH, playhead: playhead,
 		leftLbl: leftLbl, rightLbl: rightLbl, spinner: spinner,
 	}
-	r.objects = []fyne.CanvasObject{bg, wave, region, startH, endH, playhead, leftLbl, rightLbl, spinner}
+	// Z-order: bg, wave, region tint, played overlay, handles, playhead, labels, spinner.
+	r.objects = []fyne.CanvasObject{bg, wave, region, played, startH, endH, playhead, leftLbl, rightLbl, spinner}
 	return r
 }
 
@@ -215,12 +220,20 @@ func (r *waveformRenderer) Layout(sz fyne.Size) {
 	r.endH.Resize(fyne.NewSize(handleWidth, sz.Height))
 
 	if ph >= 0 && ph <= 1 {
-		x := float32(ph) * sz.Width
-		r.playhead.Position1 = fyne.NewPos(x, 0)
-		r.playhead.Position2 = fyne.NewPos(x, sz.Height)
+		xP := float32(ph) * sz.Width
+		r.playhead.Position1 = fyne.NewPos(xP, 0)
+		r.playhead.Position2 = fyne.NewPos(xP, sz.Height)
 		r.playhead.Show()
+		if xP > xS {
+			r.played.Move(fyne.NewPos(xS, 0))
+			r.played.Resize(fyne.NewSize(xP-xS, sz.Height))
+			r.played.Show()
+		} else {
+			r.played.Hide()
+		}
 	} else {
 		r.playhead.Hide()
+		r.played.Hide()
 	}
 
 	dur := 0.0
@@ -263,13 +276,22 @@ var _ desktop.Cursorable = (*Widget)(nil)
 func (w *Widget) Cursor() desktop.Cursor { return desktop.PointerCursor }
 
 func (w *Widget) Tapped(e *fyne.PointEvent) {
-	frac := w.posFrac(e.Position.X)
+	w.seekFromPointer(e.Position.X)
+}
+
+func (w *Widget) seekFromPointer(x float32) {
+	frac := w.posFrac(x)
 	w.mu.Lock()
 	rs, re := w.regionStart, w.regionEnd
 	cb := w.OnSeek
 	w.mu.Unlock()
-	// If the tap is inside the region body, seek; outside, ignore (drag handles instead).
-	if frac >= rs && frac <= re && cb != nil {
+	if frac < rs {
+		frac = rs
+	}
+	if frac > re {
+		frac = re
+	}
+	if cb != nil {
 		cb(frac)
 	}
 }
@@ -278,44 +300,25 @@ func (w *Widget) Dragged(e *fyne.DragEvent) {
 	frac := w.posFrac(e.Position.X)
 	w.mu.Lock()
 	if w.dragKind == dragNone {
-		// classify based on starting position
 		w.dragStart = frac
 		switch {
 		case nearFrac(frac, w.regionStart, w.handleFrac()):
 			w.dragKind = dragStartHandle
 		case nearFrac(frac, w.regionEnd, w.handleFrac()):
 			w.dragKind = dragEndHandle
-		case frac > w.regionStart && frac < w.regionEnd:
-			w.dragKind = dragRegion
 		default:
-			// clicking outside region: move nearest handle to here
-			if frac < w.regionStart {
-				w.dragKind = dragStartHandle
-			} else {
-				w.dragKind = dragEndHandle
-			}
+			w.dragKind = dragSeek
 		}
 	}
 	rs, re := w.regionStart, w.regionEnd
+	regionChanged := false
 	switch w.dragKind {
 	case dragStartHandle:
 		rs = frac
+		regionChanged = true
 	case dragEndHandle:
 		re = frac
-	case dragRegion:
-		// move both by delta from previous frame
-		dx := frac - w.dragStart
-		w.dragStart = frac
-		rs += dx
-		re += dx
-		if rs < 0 {
-			re -= rs
-			rs = 0
-		}
-		if re > 1 {
-			rs -= re - 1
-			re = 1
-		}
+		regionChanged = true
 	}
 	if rs < 0 {
 		rs = 0
@@ -331,18 +334,38 @@ func (w *Widget) Dragged(e *fyne.DragEvent) {
 		}
 	}
 	w.regionStart, w.regionEnd = rs, re
-	cb := w.OnRegionChanged
+	regionCb := w.OnRegionChanged
+	seekCb := w.OnSeek
+	dragKind := w.dragKind
 	w.mu.Unlock()
-	if cb != nil {
-		cb(rs, re)
+	if regionChanged && regionCb != nil {
+		regionCb(rs, re)
+	}
+	if dragKind == dragSeek && seekCb != nil {
+		clamped := frac
+		if clamped < rs {
+			clamped = rs
+		}
+		if clamped > re {
+			clamped = re
+		}
+		seekCb(clamped)
 	}
 	w.Refresh()
 }
 
 func (w *Widget) DragEnd() {
 	w.mu.Lock()
+	kind := w.dragKind
+	start := w.dragStart
 	w.dragKind = dragNone
 	w.mu.Unlock()
+	// A platform tap can register as a single Dragged event of zero distance
+	// followed by DragEnd, never firing Tapped. Treat that as a seek so
+	// touchscreens can click-to-position the playhead.
+	if kind == dragSeek {
+		w.seekFromPointer(float32(start) * w.Size().Width)
+	}
 }
 
 func (w *Widget) handleFrac() float64 {

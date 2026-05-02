@@ -174,7 +174,8 @@ type Player struct {
 	onStop   func(key string)
 	stopCh   chan struct{}
 	running  bool
-	endMs    int // 0 = play to natural end
+	stopping bool // set by Stop() so onStop suppresses during seek-restart
+	endMs    int  // 0 = play to natural end
 }
 
 func (p *Player) Playing(key string) bool {
@@ -219,6 +220,9 @@ func (p *Player) Start(key, path string, onStop func(key string)) error {
 // watcher; when the position crosses endSec we stop and fire onStop.
 func (p *Player) StartRange(key, path string, startSec, endSec float64, onStop func(key string)) error {
 	p.Stop()
+	p.mu.Lock()
+	p.stopping = false
+	p.mu.Unlock()
 
 	cPath := C.CString(path)
 	defer C.free(unsafe.Pointer(cPath))
@@ -325,6 +329,7 @@ func (p *Player) Stop() {
 	key := p.key
 	wasRunning := p.running
 	p.running = false
+	p.stopping = true
 	p.key = ""
 	p.onStop = nil
 	p.stopCh = nil
@@ -342,8 +347,10 @@ func (p *Player) Stop() {
 			C.wt_play_stop(C.uintptr_t(ac.Env))
 			return nil
 		})
-		if cb != nil {
-			cb(key)
-		}
+		// Don't fire onStop from explicit Stop; the dock relies on this
+		// during seek-restart to keep the playhead visible. The callback
+		// still fires from the watcher when playback ends naturally.
+		_ = cb
+		_ = key
 	}
 }

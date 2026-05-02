@@ -35,8 +35,8 @@ func (h *historyPanel) Container() fyne.CanvasObject {
 	return h.container
 }
 
-func newHistoryPanel(window fyne.Window, tp *transcribe.Panel) *historyPanel {
-	hp := &historyPanel{window: window, transcribe: tp}
+func newHistoryPanel(window fyne.Window, tp *transcribe.Panel, dock *playerDock) *historyPanel {
+	hp := &historyPanel{window: window, transcribe: tp, dock: dock}
 	hp.build()
 	hp.rebuild()
 	return hp
@@ -132,7 +132,8 @@ func (h *historyPanel) buildRow(e cache.Entry) fyne.CanvasObject {
 				return
 			}
 			if h.dock != nil {
-				h.dock.Load(e.Key, e.SourcePath, e.SourceName, true)
+				// Open the editor without autoplay; user explicitly presses ▶ in the dock.
+				h.dock.Load(e.Key, e.SourcePath, e.SourceName, false)
 				return
 			}
 			if h.player.Playing(e.Key) {
