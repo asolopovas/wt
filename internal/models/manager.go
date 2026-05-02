@@ -78,11 +78,44 @@ func (m *Manager) Status(id string) Status {
 
 func (m *Manager) Active(f Family) string {
 	m.mu.Lock()
-	defer m.mu.Unlock()
 	if id, ok := m.active[f]; ok {
+		m.mu.Unlock()
 		return id
 	}
-	for _, e := range ByFamily(f) {
+	m.mu.Unlock()
+
+	entries := ByFamily(f)
+	// Prefer the catalog default if it is actually installed.
+	for _, e := range entries {
+		if !e.DefaultActive {
+			continue
+		}
+		installed := true
+		for _, p := range PathsFor(e) {
+			if !fileExists(p) {
+				installed = false
+				break
+			}
+		}
+		if installed {
+			return e.ID
+		}
+	}
+	// Otherwise auto-pick the first installed entry in the family.
+	for _, e := range entries {
+		installed := true
+		for _, p := range PathsFor(e) {
+			if !fileExists(p) {
+				installed = false
+				break
+			}
+		}
+		if installed {
+			return e.ID
+		}
+	}
+	// Fall back to the catalog default ID (may not be installed).
+	for _, e := range entries {
 		if e.DefaultActive {
 			return e.ID
 		}

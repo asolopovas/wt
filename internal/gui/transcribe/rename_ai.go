@@ -2,12 +2,14 @@ package transcribe
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/asolopovas/wt/internal/llm"
 	"github.com/asolopovas/wt/internal/namer"
 	"github.com/asolopovas/wt/internal/transcriber"
 	"github.com/asolopovas/wt/internal/transcriber/cache"
@@ -40,6 +42,10 @@ func (p *Panel) autoRenameAfterTranscribe(cacheKey, jsonPath, sourcePath, source
 
 	s, err := namer.Suggest(ctx, text, fallback)
 	if err != nil {
+		if errors.Is(err, llm.ErrNoLLMInstalled) {
+			p.AppendLog("  Auto-name skipped: no LLM installed (download one in Settings → Models)")
+			return sourcePath, sourceName
+		}
 		p.AppendLog(fmt.Sprintf("  Auto-name failed: %v", err))
 		return sourcePath, sourceName
 	}

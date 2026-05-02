@@ -23,6 +23,25 @@ type Runner struct {
 	Threads    int
 }
 
+// ErrNoLLMInstalled signals that auto-rename should be skipped silently:
+// no LLM model files are present on disk yet (fresh install).
+var ErrNoLLMInstalled = errors.New("no LLM installed (download one in Settings → Models)")
+
+func fileExists(p string) bool {
+	st, err := os.Stat(p)
+	return err == nil && !st.IsDir()
+}
+
+func firstInstalledLLM() (models.Entry, string, bool) {
+	for _, e := range models.ByFamily(models.FamilyLLM) {
+		p := models.PathFor(e)
+		if fileExists(p) {
+			return e, p, true
+		}
+	}
+	return models.Entry{}, "", false
+}
+
 func NewRunner() (*Runner, error) {
 	bin, err := findBinary()
 	if err != nil {
@@ -31,17 +50,22 @@ func NewRunner() (*Runner, error) {
 
 	mgr := models.NewManager()
 	id := mgr.Active(models.FamilyLLM)
-	if id == "" {
-		return nil, fmt.Errorf("no active LLM selected (download one in Settings → Models or run: wt models get qwen3-1.7b-q4km && wt models set-active qwen3-1.7b-q4km)")
-	}
 	entry, ok := models.ByID(id)
-	if !ok {
-		return nil, fmt.Errorf("active LLM %q not in catalog", id)
+	mp := ""
+	if ok {
+		mp = models.PathFor(entry)
 	}
-	mp := models.PathFor(entry)
-	if _, err := os.Stat(mp); err != nil {
-		return nil, fmt.Errorf("active LLM %q not installed at %s", id, mp)
+	if id == "" || !ok || !fileExists(mp) {
+		// Fallback: pick any installed LLM from the catalog so a fresh
+		// install with the default LLM not yet downloaded still auto-names
+		// when *some* LLM is present.
+		entry, mp, ok = firstInstalledLLM()
+		if !ok {
+			return nil, ErrNoLLMInstalled
+		}
+		id = entry.ID
 	}
+	_ = id
 
 	threads := runtime.NumCPU()
 	if threads > 6 {

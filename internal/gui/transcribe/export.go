@@ -34,10 +34,9 @@ type exportFormat struct {
 }
 
 var exportFormats = []exportFormat{
-	{"JSON", "json"},
+	{"Text", "txt"},
 	{"CSV", "csv"},
 	{"XLSX", "xlsx"},
-	{"Text", "txt"},
 	{"ZIP (audio + transcript)", "zip"},
 }
 
@@ -421,7 +420,7 @@ func writeBundleZip(w io.Writer, tr *transcriber.Transcript, item ExportItem, st
 	defer func() { _ = zw.Close() }()
 
 	base := exportBaseName(item.SourceName, tr.Model)
-	for _, f := range []exportFormat{{"JSON", "json"}, {"CSV", "csv"}, {"Text", "txt"}} {
+	for _, f := range []exportFormat{{"Text", "txt"}, {"CSV", "csv"}, {"XLSX", "xlsx"}} {
 		entry, err := zw.Create(base + "." + f.ext)
 		if err != nil {
 			return err
