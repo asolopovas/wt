@@ -49,6 +49,7 @@ type Panel struct {
 	Progress     *thinProgress
 	StatusText   *canvas.Text
 	TimerText    *canvas.Text
+	TimerSep     fyne.CanvasObject
 	StatsLine    *fyne.Container
 	StatsFooter  *fyne.Container
 	lastStatsKey string

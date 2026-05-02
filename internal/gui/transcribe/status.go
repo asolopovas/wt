@@ -25,6 +25,9 @@ func (p *Panel) startRunTimer() {
 	fyne.Do(func() {
 		p.TimerText.Text = "0:00"
 		p.TimerText.Refresh()
+		if p.TimerSep != nil {
+			p.TimerSep.Show()
+		}
 	})
 	go func() {
 		ticker := time.NewTicker(time.Second)

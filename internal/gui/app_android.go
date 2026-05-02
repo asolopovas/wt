@@ -44,7 +44,10 @@ func Run(version, buildDate string) error {
 		sep := canvas.NewText(" | ", colMuted)
 		sep.TextSize = textBody
 		sep.TextStyle = fyne.TextStyle{Monospace: true}
-		history.headerRight.Objects = []fyne.CanvasObject{tp.StatsLine, container.NewCenter(sep), tp.TimerText}
+		sepWrap := container.NewCenter(sep)
+		sepWrap.Hide()
+		tp.TimerSep = sepWrap
+		history.headerRight.Objects = []fyne.CanvasObject{tp.StatsLine, sepWrap, tp.TimerText}
 		history.headerRight.Refresh()
 	}
 	settings.onCacheCleared = history.Refresh
