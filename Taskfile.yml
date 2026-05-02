@@ -147,10 +147,9 @@ tasks:
         if: '[ -z "{{.ROLLING}}" ]'
 
   clean:
-    desc: 'Remove dist/ and samples/*.json. DEEP=1 also clears whisper.cpp build.'
+    desc: 'Remove dist/. DEEP=1 also clears whisper.cpp build.'
     cmds:
-      - rm -rf build dist
-      - rm -f samples/*.json
+      - rm -rf dist
       - cmd: rm -rf {{.WHISPER_BUILD}}
         if: '[ -n "{{.DEEP}}" ]'
 
@@ -386,8 +385,6 @@ tasks:
     cmds:
       - task: bump
       - cmd: 'task build'
-      - cmd: 'task installer-exe'
-        if: '[ -z "{{.IS_LINUX}}" ]'
       - cmd: 'task android-apk'
         if: '[ -z "{{.IS_LINUX}}" ]'
       - |
