@@ -95,13 +95,52 @@ func (p *Panel) shareSingleAs(f exportFormat, item ExportItem, start time.Time) 
 	}
 
 	// All other formats: stage a real file in cache and hand a content:// URI to
-	// the share sheet. zip bundles audio + transcripts.
+	// the share sheet. zip bundles audio + transcript; bundle shares both as
+	// separate attachments via ACTION_SEND_MULTIPLE.
 	base := exportBaseName(item.SourceName, tr.Model)
 	tmpDir, err := os.MkdirTemp("", "wt-share-*")
 	if err != nil {
 		showError(p.window, err)
 		return
 	}
+
+	if f.ext == "bundle" {
+		txtPath := filepath.Join(tmpDir, base+".txt")
+		out, err := os.Create(txtPath)
+		if err != nil {
+			_ = os.RemoveAll(tmpDir)
+			showError(p.window, err)
+			return
+		}
+		werr := writeText(out, tr, start)
+		if cerr := out.Close(); werr == nil {
+			werr = cerr
+		}
+		if werr != nil {
+			_ = os.RemoveAll(tmpDir)
+			showError(p.window, werr)
+			return
+		}
+		paths := []string{txtPath}
+		if item.SourcePath != "" {
+			if _, statErr := os.Stat(item.SourcePath); statErr == nil {
+				paths = append(paths, item.SourcePath)
+			}
+		}
+		subject := base
+		go func() {
+			defer func() { _ = os.RemoveAll(tmpDir) }()
+			if !platsvc.ShareSupported() {
+				return
+			}
+			if err := platsvc.ShareFiles(paths, "*/*", subject); err != nil {
+				p.AppendLog(fmt.Sprintf("Share failed: %v", err))
+				showError(p.window, err)
+			}
+		}()
+		return
+	}
+
 	stagedPath := filepath.Join(tmpDir, base+"."+f.ext)
 	out, err := os.Create(stagedPath)
 	if err != nil {

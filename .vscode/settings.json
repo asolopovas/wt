@@ -1,0 +1,24 @@
+{
+  "go.toolsEnvVars": {
+    "GOOS": "windows",
+    "GOARCH": "amd64",
+    "CGO_ENABLED": "1",
+    "CGO_CFLAGS": "-IC:/Users/asolo/src/wt/third_party/whisper.cpp/include -IC:/Users/asolo/src/wt/third_party/whisper.cpp/ggml/include",
+    "CGO_LDFLAGS": "-LC:/Users/asolo/src/wt/third_party/whisper.cpp/build/src -LC:/Users/asolo/src/wt/third_party/whisper.cpp/build/ggml/src -lwhisper -lggml -lggml-base -lggml-cpu -lm -lstdc++"
+  },
+  "gopls": {
+    "build.env": {
+      "GOOS": "windows",
+      "GOARCH": "amd64",
+      "CGO_ENABLED": "1",
+      "CGO_CFLAGS": "-IC:/Users/asolo/src/wt/third_party/whisper.cpp/include -IC:/Users/asolo/src/wt/third_party/whisper.cpp/ggml/include",
+      "CGO_LDFLAGS": "-LC:/Users/asolo/src/wt/third_party/whisper.cpp/build/src -LC:/Users/asolo/src/wt/third_party/whisper.cpp/build/ggml/src -lwhisper -lggml -lggml-base -lggml-cpu -lm -lstdc++",
+      "PATH": "C:/msys64/mingw64/bin;C:/Users/asolo/src/wt/third_party/whisper.cpp/build/bin;${env:PATH}"
+    },
+    "build.directoryFilters": [
+      "-third_party",
+      "-dist",
+      "-bindings"
+    ]
+  }
+}

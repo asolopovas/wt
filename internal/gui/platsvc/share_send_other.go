@@ -16,5 +16,9 @@ func ShareText(_, _ string) error { return ErrShareUnsupported }
 // platforms this is a no-op and returns ErrShareUnsupported.
 func ShareFile(_, _, _ string) error { return ErrShareUnsupported }
 
+// ShareFiles opens the OS share sheet with multiple file attachments. On
+// non-Android platforms this is a no-op and returns ErrShareUnsupported.
+func ShareFiles(_ []string, _, _ string) error { return ErrShareUnsupported }
+
 // ShareSupported reports whether ShareText/ShareFile are functional.
 func ShareSupported() bool { return false }

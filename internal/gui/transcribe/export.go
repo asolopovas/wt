@@ -37,7 +37,8 @@ var exportFormats = []exportFormat{
 	{"Text", "txt"},
 	{"CSV", "csv"},
 	{"XLSX", "xlsx"},
-	{"ZIP (audio + transcript)", "zip"},
+	{"Text + Audio (folder)", "bundle"},
+	{"Text + Audio (zip)", "zip"},
 }
 
 type ExportItem struct {
@@ -384,6 +385,11 @@ func (p *Panel) exportSingleAs(f exportFormat, item ExportItem, start time.Time)
 	}
 	tr = p.renamedTranscript(tr)
 
+	if f.ext == "bundle" {
+		p.exportBundleFolder(tr, item, start)
+		return
+	}
+
 	saveDialog := dialog.NewFileSave(func(w fyne.URIWriteCloser, err error) {
 		if err != nil || w == nil {
 			return
@@ -415,19 +421,24 @@ func (p *Panel) exportSingleAs(f exportFormat, item ExportItem, start time.Time)
 	saveDialog.Show()
 }
 
+// exportBundleFolder writes the transcript (.txt) and audio side-by-side —
+// the unzipped equivalent of the ZIP bundle. Implementation differs per
+// platform: desktop prompts for a folder via SAF; Android writes directly to
+// the public Documents/WTranscribe directory because Fyne's storage layer
+// can't synthesize child URIs of an SAF tree URI ("operation not supported
+// for this URI").
+
 func writeBundleZip(w io.Writer, tr *transcriber.Transcript, item ExportItem, start time.Time) error {
 	zw := zip.NewWriter(w)
 	defer func() { _ = zw.Close() }()
 
 	base := exportBaseName(item.SourceName, tr.Model)
-	for _, f := range []exportFormat{{"Text", "txt"}, {"CSV", "csv"}, {"XLSX", "xlsx"}} {
-		entry, err := zw.Create(base + "." + f.ext)
-		if err != nil {
-			return err
-		}
-		if err := writeExport(entry, tr, f, start); err != nil {
-			return err
-		}
+	txtEntry, err := zw.Create(base + ".txt")
+	if err != nil {
+		return err
+	}
+	if err := writeText(txtEntry, tr, start); err != nil {
+		return err
 	}
 
 	if item.SourcePath == "" {
@@ -501,7 +512,11 @@ func (p *Panel) exportBatchAs(f exportFormat, items []ExportItem) {
 			}
 			model := tr.Model
 			tr = p.renamedTranscript(tr)
-			name := exportBaseName(item.SourceName, model) + "." + f.ext
+			nameExt := f.ext
+			if nameExt == "bundle" {
+				nameExt = "txt"
+			}
+			name := exportBaseName(item.SourceName, model) + "." + nameExt
 			childURI, err := storage.Child(u, name)
 			if err != nil {
 				p.AppendLog(fmt.Sprintf("Export failed for %s: %v", item.SourceName, err))
@@ -515,9 +530,12 @@ func (p *Panel) exportBatchAs(f exportFormat, items []ExportItem) {
 				continue
 			}
 			var werr error
-			if f.ext == "zip" {
+			switch f.ext {
+			case "zip":
 				werr = writeBundleZip(out, tr, item, itemStartTime(item))
-			} else {
+			case "bundle":
+				werr = writeText(out, tr, itemStartTime(item))
+			default:
 				werr = writeExport(out, tr, f, itemStartTime(item))
 			}
 			_ = out.Close()
@@ -527,6 +545,13 @@ func (p *Panel) exportBatchAs(f exportFormat, items []ExportItem) {
 				continue
 			}
 			p.AppendLog("Exported: " + childURI.Path())
+			if f.ext == "bundle" && item.SourcePath != "" {
+				if audioOut, copyErr := copyAudioBeside(item.SourcePath, childURI.Path()); copyErr != nil {
+					p.AppendLog(fmt.Sprintf("  audio copy skipped: %v", copyErr))
+				} else if audioOut != "" {
+					p.AppendLog("Exported: " + audioOut)
+				}
+			}
 			done++
 		}
 		if failed > 0 {

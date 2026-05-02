@@ -218,6 +218,73 @@ static int wts_share_file_uri(uintptr_t envPtr, uintptr_t ctxPtr,
 	return rc;
 }
 
+// wts_share_files_uris stages N filenames (already copied into the share dir)
+// and dispatches ACTION_SEND_MULTIPLE with a Parcelable ArrayList<Uri>.
+static int wts_share_files_uris(uintptr_t envPtr, uintptr_t ctxPtr,
+                                const char** providerNames, int count,
+                                const char* mime, const char* subject) {
+	JNIEnv* env = (JNIEnv*)envPtr;
+	jobject ctx = (jobject)ctxPtr;
+	if (!env || !ctx || !providerNames || count <= 0 || !mime) return -1;
+
+	// Build java.util.ArrayList<Uri>
+	jclass cArrayList = (*env)->FindClass(env, "java/util/ArrayList");
+	jmethodID mInitAL = (*env)->GetMethodID(env, cArrayList, "<init>", "(I)V");
+	jmethodID mAdd = (*env)->GetMethodID(env, cArrayList, "add", "(Ljava/lang/Object;)Z");
+	jobject list = (*env)->NewObject(env, cArrayList, mInitAL, (jint)count);
+	if ((*env)->ExceptionCheck(env) || !list) {
+		(*env)->ExceptionClear(env);
+		(*env)->DeleteLocalRef(env, cArrayList);
+		return -1;
+	}
+	for (int i = 0; i < count; i++) {
+		jobject uri = wts_provider_uri_for_name(env, ctx, providerNames[i]);
+		if (!uri) {
+			(*env)->DeleteLocalRef(env, list);
+			(*env)->DeleteLocalRef(env, cArrayList);
+			return -1;
+		}
+		(*env)->CallBooleanMethod(env, list, mAdd, uri);
+		(*env)->DeleteLocalRef(env, uri);
+		if ((*env)->ExceptionCheck(env)) {
+			(*env)->ExceptionClear(env);
+			(*env)->DeleteLocalRef(env, list);
+			(*env)->DeleteLocalRef(env, cArrayList);
+			return -1;
+		}
+	}
+	(*env)->DeleteLocalRef(env, cArrayList);
+
+	jobject intent = wts_new_intent(env, "android.intent.action.SEND_MULTIPLE");
+	if (!intent) { (*env)->DeleteLocalRef(env, list); return -1; }
+	wts_intent_set_type(env, intent, mime);
+
+	// putParcelableArrayListExtra(String, ArrayList)
+	jclass cIntent = (*env)->GetObjectClass(env, intent);
+	jmethodID mPutList = (*env)->GetMethodID(env, cIntent, "putParcelableArrayListExtra",
+		"(Ljava/lang/String;Ljava/util/ArrayList;)Landroid/content/Intent;");
+	jstring jKey = (*env)->NewStringUTF(env, "android.intent.extra.STREAM");
+	jobject r = (*env)->CallObjectMethod(env, intent, mPutList, jKey, list);
+	if (r) (*env)->DeleteLocalRef(env, r);
+	(*env)->DeleteLocalRef(env, jKey);
+	(*env)->DeleteLocalRef(env, cIntent);
+	(*env)->DeleteLocalRef(env, list);
+	if ((*env)->ExceptionCheck(env)) { (*env)->ExceptionClear(env); (*env)->DeleteLocalRef(env, intent); return -1; }
+
+	if (subject && subject[0]) {
+		wts_intent_put_string_extra(env, intent, "android.intent.extra.SUBJECT", subject);
+	}
+	wts_intent_add_flags(env, intent, 0x00000001); // FLAG_GRANT_READ_URI_PERMISSION
+
+	jobject chooser = wts_make_chooser(env, intent, "Share transcript");
+	(*env)->DeleteLocalRef(env, intent);
+	if (!chooser) return -1;
+
+	int rc = wts_start_activity(env, ctx, chooser);
+	(*env)->DeleteLocalRef(env, chooser);
+	return rc;
+}
+
 static char* wts_get_share_dir(uintptr_t envPtr, uintptr_t ctxPtr) {
 	JNIEnv* env = (JNIEnv*)envPtr;
 	jobject ctx = (jobject)ctxPtr;
@@ -264,6 +331,102 @@ func ShareText(text, subject string) error {
 			return errors.New("share: no Android context")
 		}
 		rc = C.wts_share_text(C.uintptr_t(ac.Env), C.uintptr_t(ac.Ctx), cText, cSubj)
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	if rc != 0 {
+		return errors.New("share: startActivity failed")
+	}
+	return nil
+}
+
+// ShareFiles opens the system share sheet with multiple file attachments. Each
+// file is copied into the FileProvider's share directory and exposed via a
+// content:// URI. Uses ACTION_SEND_MULTIPLE with a single MIME type (use
+// "*/*" when files are heterogeneous).
+func ShareFiles(srcPaths []string, mime, subject string) error {
+	if len(srcPaths) == 0 {
+		return errors.New("share: no files")
+	}
+	if len(srcPaths) == 1 {
+		return ShareFile(srcPaths[0], mime, subject)
+	}
+	if mime == "" {
+		mime = "*/*"
+	}
+
+	var shareDir string
+	err := driver.RunNative(func(ctx any) error {
+		ac, ok := ctx.(*driver.AndroidContext)
+		if !ok || ac == nil || ac.Env == 0 || ac.Ctx == 0 {
+			return errors.New("share: no Android context")
+		}
+		c := C.wts_get_share_dir(C.uintptr_t(ac.Env), C.uintptr_t(ac.Ctx))
+		if c == nil {
+			return errors.New("share: cannot resolve provider dir")
+		}
+		shareDir = C.GoString(c)
+		C.free(unsafe.Pointer(c))
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(shareDir, 0o755); err != nil {
+		return fmt.Errorf("share: mkdir: %w", err)
+	}
+
+	names := make([]string, 0, len(srcPaths))
+	for _, p := range srcPaths {
+		src, err := os.Open(p)
+		if err != nil {
+			return fmt.Errorf("share: open %s: %w", p, err)
+		}
+		name := sanitizeShareName(filepath.Base(p))
+		dst := filepath.Join(shareDir, name)
+		out, err := os.Create(dst)
+		if err != nil {
+			_ = src.Close()
+			return fmt.Errorf("share: stage: %w", err)
+		}
+		if _, err := io.Copy(out, src); err != nil {
+			_ = out.Close()
+			_ = src.Close()
+			_ = os.Remove(dst)
+			return fmt.Errorf("share: copy: %w", err)
+		}
+		_ = src.Close()
+		if err := out.Close(); err != nil {
+			return fmt.Errorf("share: close: %w", err)
+		}
+		names = append(names, name)
+	}
+
+	// Marshal []string to **C.char
+	cNames := make([]*C.char, len(names))
+	for i, n := range names {
+		cNames[i] = C.CString(n)
+	}
+	defer func() {
+		for _, p := range cNames {
+			C.free(unsafe.Pointer(p))
+		}
+	}()
+	cMime := C.CString(mime)
+	defer C.free(unsafe.Pointer(cMime))
+	cSubj := C.CString(subject)
+	defer C.free(unsafe.Pointer(cSubj))
+
+	var rc C.int = -1
+	err = driver.RunNative(func(ctx any) error {
+		ac, ok := ctx.(*driver.AndroidContext)
+		if !ok || ac == nil || ac.Env == 0 || ac.Ctx == 0 {
+			return errors.New("share: no Android context")
+		}
+		rc = C.wts_share_files_uris(C.uintptr_t(ac.Env), C.uintptr_t(ac.Ctx),
+			(**C.char)(unsafe.Pointer(&cNames[0])), C.int(len(cNames)), cMime, cSubj)
 		return nil
 	})
 	if err != nil {
