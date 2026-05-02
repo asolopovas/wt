@@ -88,17 +88,19 @@ tasks:
   build:
     desc: 'Build binaries + installer. ONLY=cli|gui|android to limit (cli/gui skip installer; android builds APK).'
     cmds:
-      - cmd: 'task android-apk'
+      - task: android-apk
         if: '[ "{{.ONLY}}" = "android" ]'
-      - cmd: 'task _build-host ONLY={{.ONLY}}'
+      - task: _build-host
+        vars:
+          ONLY: '{{.ONLY}}'
         if: '[ "{{.ONLY}}" != "android" ]'
 
   install:
     desc: 'Build + replace local install. TARGET=android pushes APK to device and launches.'
     cmds:
-      - cmd: 'task _install-android'
+      - task: _install-android
         if: '[ "{{.TARGET}}" = "android" ]'
-      - cmd: 'task _install-host'
+      - task: _install-host
         if: '[ "{{.TARGET}}" != "android" ]'
 
   test:
@@ -106,15 +108,17 @@ tasks:
     cmds:
       - cmd: 'export PATH="{{.EXTRA_PATH}};$PATH" && go test -v -short ./...'
         if: '[ -n "{{.SHORT}}" ]'
-      - cmd: 'task whisper-lib && {{.GO_ENV}} && go test -v -tags=integration ./internal/diarizer/...'
+      - task: whisper-lib
+        if: '[ -z "{{.SHORT}}" ]'
+      - cmd: '{{.GO_ENV}} && go test -v -tags=integration ./internal/diarizer/...'
         if: '[ -n "{{.INTEGRATION}}" ]'
-      - cmd: 'task whisper-lib && {{.GO_ENV}} && go test -v ./...'
+      - cmd: '{{.GO_ENV}} && go test -v ./...'
         if: '[ -z "{{.SHORT}}" ] && [ -z "{{.INTEGRATION}}" ]'
 
   lint:
     desc: 'Run golangci-lint (falls back to go vet). FIX=1 also runs gofumpt. ANDROID=1 uses NDK toolchain.'
     cmds:
-      - cmd: 'task _lint-android'
+      - task: _lint-android
         if: '[ -n "{{.ANDROID}}" ]'
       - cmd: |
           export PATH="{{.EXTRA_PATH}};$PATH"
@@ -141,9 +145,9 @@ tasks:
       - sh: '[ -z "$(git status --porcelain)" ]'
         msg: 'Working tree has uncommitted changes; commit or stash first.'
     cmds:
-      - cmd: 'task _release-rolling'
+      - task: _release-rolling
         if: '[ -n "{{.ROLLING}}" ]'
-      - cmd: 'task _release-stable'
+      - task: _release-stable
         if: '[ -z "{{.ROLLING}}" ]'
 
   clean:
@@ -156,9 +160,9 @@ tasks:
   models:
     desc: 'Model utilities. FETCH=samples downloads diarization test samples. FETCH=import copies models from Windows mounts (Linux/WSL).'
     cmds:
-      - cmd: 'task _fetch-samples'
+      - task: _fetch-samples
         if: '[ "{{.FETCH}}" = "samples" ]'
-      - cmd: 'task _models-import'
+      - task: _models-import
         if: '[ "{{.FETCH}}" = "import" ]'
       - cmd: |
           echo "Usage: task models FETCH=samples | FETCH=import"
@@ -235,17 +239,21 @@ tasks:
           true
         if: '[ -n "{{.IS_LINUX}}" ]'
       - cp scripts/diarize.py "{{.ROOT_DIR | toSlash}}/dist/bin/diarize.py"
-      - cmd: 'task installer-exe'
+      - task: installer-exe
         if: '[ -z "{{.IS_LINUX}}" ] && [ -z "{{.ONLY}}" ]'
-      - cmd: 'task linux-deb'
+      - task: linux-deb
         if: '[ -n "{{.IS_LINUX}}" ] && [ -z "{{.ONLY}}" ]'
 
   _install-host:
     internal: true
     cmds:
-      - cmd: 'task build ONLY=both'
+      # Windows: build cli+gui only (skip installer-exe — install copies binaries directly).
+      - task: _build-host
+        vars:
+          ONLY: host
         if: '[ -z "{{.IS_LINUX}}" ]'
-      - cmd: 'task build'
+      # Linux: full build incl. .deb (used by dpkg -i below).
+      - task: build
         if: '[ -n "{{.IS_LINUX}}" ]'
       - cmd: |
           dest="$LOCALAPPDATA/{{.BINARY}}"
@@ -384,8 +392,8 @@ tasks:
     internal: true
     cmds:
       - task: bump
-      - cmd: 'task build'
-      - cmd: 'task android-apk'
+      - task: build
+      - task: android-apk
         if: '[ -z "{{.IS_LINUX}}" ]'
       - |
         ver=$(powershell -NoProfile -Command "[Console]::Write((Select-String -Path Taskfile.yml -Pattern \"VERSION: '([^']+)'\" -CaseSensitive | Select-Object -First 1).Matches[0].Groups[1].Value)")
@@ -395,7 +403,7 @@ tasks:
     internal: true
     cmds:
       - task: build
-      - cmd: 'task android-apk'
+      - task: android-apk
         if: '[ -z "{{.IS_LINUX}}" ]'
       - |
         set -e
@@ -462,12 +470,13 @@ tasks:
         new="{{.NEW_VERSION}}"
         echo "Bumping version: $cur -> $new"
         powershell -NoProfile -Command "(Get-Content Taskfile.yml -Raw) -replace \"VERSION: '$cur'\",\"VERSION: '$new'\" | Set-Content Taskfile.yml -NoNewline"
-      - cmd: task install
+      - task: install
       - |
         cur="{{.VERSION}}"
         new="{{.NEW_VERSION}}"
         git add Taskfile.yml
         git commit -m "Bump version $cur -> $new"
+
 
   clean-comments:
     internal: true
