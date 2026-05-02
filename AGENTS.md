@@ -35,7 +35,9 @@ Android Java sources live in `scripts/android-service/com/asolopovas/wtranscribe
 
 Never call `FindClass` for app classes from a JNI thread — the boot ClassLoader can't see them. Use the `loadClass` pattern from `wt_fp_load_app_class` / `wts_load_app_class` (load via `activity.getClassLoader()`).
 
-LLM auto-rename uses `llama-cli` as a subprocess; mobile CPUs are slow. Per-invocation timeout is `llmTimeout()` in `internal/llm/runner.go` (5 min Android, 2 min desktop, override `WT_LLM_TIMEOUT` seconds). Always update the live status (`p.setStatus`) and foreground notification (`platsvc.UpdateProgress`) for any post-transcription phase that can run >1 s, otherwise the UI looks frozen on the previous phase’s message.
+LLM auto-rename uses `llama-cli` as a subprocess; mobile CPUs are slow. Per-invocation timeout is `llmTimeout()` in `internal/llm/runner.go` (10 min Android, 2 min desktop, override `WT_LLM_TIMEOUT` seconds). Always update the live status (`p.setStatus`) and foreground notification (`platsvc.UpdateProgress`) for any post-transcription phase that can run >1 s, otherwise the UI looks frozen on the previous phase’s message.
+
+GBNF grammars: never write `(rule)? (rule)? …` chains — each `?` doubles the state space and llama.cpp's sampler degrades to effectively single-threaded grammar evaluation. A 55-`?` chain made auto-rename hang for 4+ minutes on a phone (single 100% CPU thread despite `-t 6`). Use the `{n,m}` repetition operator (e.g. `slugChar{5,60}`); same expressiveness, ~100× faster. Verify with `time llama-cli ... --grammar-file g.gbnf` before merging grammar changes.
 
 ## Layout
 
