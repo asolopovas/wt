@@ -36,6 +36,9 @@ vars:
 
   CUDA_ARCH: '61;75;80;86;89'
 
+  GIT_DATE:
+    sh: 'if git describe --tags --exact-match HEAD >/dev/null 2>&1; then echo ""; else git log -1 --format=%cd --date=format:%y%m%d%H%M%S 2>/dev/null || echo ""; fi'
+
   GCC_PATH:
     sh: |
       if command -v gcc >/dev/null 2>&1; then echo "gcc"; exit 0; fi
@@ -100,9 +103,8 @@ tasks:
         if: '[ ! -d "{{.WHISPER_ROOT}}" ]'
       - bash scripts/build-whisper.sh "{{.WHISPER_ROOT}}" "{{.WHISPER_BUILD}}" "{{.CUDA_DIR}}" "{{.CUDA_ARCH}}" "{{.ROOT_DIR | toSlash}}" "{{.LINUX_CUDA}}" "{{.IS_LINUX}}"
 
-  build:
-    desc: 'Build binaries, copy runtime DLLs, and produce dist/wt-setup.exe. Use ONLY=cli or ONLY=gui to limit (skips installer).'
-    deps: [whisper-lib, fetch-deps]
+  installer-exe:
+    desc: 'Compile dist/wt-setup-{{.VERSION}}.exe via Inno Setup. Skipped when dist/bin and installer.iss are unchanged.'
     vars:
       ISCC_PATH:
         sh: |
@@ -113,8 +115,44 @@ tasks:
             if [ -f "$d/ISCC.exe" ]; then echo "$d/ISCC.exe"; exit 0; fi
           done
           echo ""
-      GIT_DATE:
-        sh: 'if git describe --tags --exact-match HEAD >/dev/null 2>&1; then echo ""; else git log -1 --format=%cd --date=format:%y%m%d%H%M%S 2>/dev/null || echo ""; fi'
+    sources:
+      - dist/bin/**/*
+      - scripts/installer.iss
+    generates:
+      - dist/wt-setup-{{.VERSION}}.exe
+    cmds:
+      - cmd: |
+          if [ -z "{{.ISCC_PATH}}" ]; then
+            echo "ERROR: Inno Setup not found. Install via: winget install JRSoftware.InnoSetup"
+            exit 1
+          fi
+      - '"{{.ISCC_PATH}}" /DMyAppVersion={{.VERSION}} scripts/installer.iss'
+      - 'ls -l dist/wt-setup-{{.VERSION}}.exe'
+
+  build:
+    desc: 'Build binaries, copy runtime DLLs, and produce dist/wt-setup.exe. Use ONLY=cli or ONLY=gui to limit (skips installer).'
+    deps: [whisper-lib, fetch-deps]
+    # Top-level source-tracking: when no Go file, Taskfile.yml, or whisper
+    # header has changed, skip the entire task (which transitively skips the
+    # inner go-build invocations + the installer-exe call). On a real change
+    # the whole task runs, including ISCC — same as before.
+    # NOTE: Includes ONLY in sources via Taskfile.yml is irrelevant; ONLY is an
+    # env-var passed by the caller, not a file. Top-level cache cannot
+    # distinguish ONLY values, so `task build ONLY=cli` after a no-op `task build`
+    # also short-circuits. That is fine: the prior full build already produced
+    # both binaries.
+    sources:
+      - cmd/**/*.go
+      - internal/**/*.go
+      - bindings/**/*.go
+      - scripts/diarize.py
+      - Taskfile.yml
+      - third_party/whisper.cpp/include/whisper.h
+      - third_party/whisper.cpp/ggml/include/ggml.h
+    generates:
+      - dist/bin/{{.BINARY}}{{if .IS_LINUX}}{{else}}.exe{{end}}
+      - dist/bin/{{.BINARY}}-gui{{if .IS_LINUX}}{{else}}.exe{{end}}
+      - dist/bin/diarize.py
     cmds:
       - mkdir -p dist/bin
       # ---- Windows builds ----
@@ -170,16 +208,8 @@ tasks:
         if: '[ -n "{{.IS_LINUX}}" ]'
       # ---- Shared assets ----
       - cp scripts/diarize.py "{{.ROOT_DIR | toSlash}}/dist/bin/diarize.py"
-      # ---- Windows installer ----
-      - cmd: |
-          if [ -z "{{.ISCC_PATH}}" ]; then
-            echo "ERROR: Inno Setup not found. Install via: winget install JRSoftware.InnoSetup"
-            exit 1
-          fi
-        if: '[ -z "{{.IS_LINUX}}" ] && [ -z "{{.ONLY}}" ]'
-      - cmd: '"{{.ISCC_PATH}}" /DMyAppVersion={{.VERSION}} scripts/installer.iss'
-        if: '[ -z "{{.IS_LINUX}}" ] && [ -z "{{.ONLY}}" ]'
-      - cmd: 'ls -l dist/wt-setup-{{.VERSION}}.exe'
+      # ---- Windows installer (gated: skips when dist/bin + installer.iss unchanged) ----
+      - cmd: 'task installer-exe'
         if: '[ -z "{{.IS_LINUX}}" ] && [ -z "{{.ONLY}}" ]'
       # ---- Linux .deb ----
       - cmd: 'task linux-deb'
@@ -314,7 +344,7 @@ tasks:
       - |
         cd dist
         rm -f wt-dist.zip
-        powershell -NoProfile -Command "Compress-Archive -Path 'wt-setup.exe' -DestinationPath 'wt-dist.zip'"
+        powershell -NoProfile -Command "Compress-Archive -Path 'wt-setup-{{.VERSION}}.exe' -DestinationPath 'wt-dist.zip'"
         ls -l wt-dist.zip
 
   linux-deb:

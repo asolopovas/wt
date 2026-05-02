@@ -10,7 +10,6 @@ var (
 	newSecondaryButton = decor.NewSecondaryButton
 	wrapAction         = decor.WrapAction
 	wrapGhost          = decor.WrapGhost
-	newSectionHeader   = decor.NewSectionHeader
 	newSectionDivider  = decor.NewSectionDivider
 	newFormField       = decor.NewFormField
 	newCaptionText     = decor.NewCaptionText

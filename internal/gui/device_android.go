@@ -69,7 +69,7 @@ func readCPUInfoField(field string) string {
 	if err != nil {
 		return ""
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	sc := bufio.NewScanner(f)
 	prefix := field + "\t"
 	prefix2 := field + " "
@@ -100,7 +100,7 @@ func readMemTotal() string {
 	if err != nil {
 		return "—"
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	sc := bufio.NewScanner(f)
 	for sc.Scan() {
 		line := sc.Text()

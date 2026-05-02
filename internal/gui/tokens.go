@@ -19,12 +19,6 @@ const (
 	textHeading = decor.TextHeading
 )
 
-const (
-	sidebarMaxWidth   = 300
-	sidebarMinWidth   = 260
-	sidebarStackBelow = 820
-)
-
 var (
 	borderSubtle  = decor.BorderSubtle
 	surfaceRaised = decor.SurfaceRaised

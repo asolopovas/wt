@@ -93,6 +93,9 @@ When invoking msys2 bash from a Taskfile shell block, use Windows-style paths (`
 - Add skip-on-missing-model tests.
 - Write Go comments other than directives (`//go:build`, `//go:embed`, `//go:generate`, `//export`, `//line`, `// +build`, `// Code generated ... DO NOT EDIT.`, cgo preamble).
 - Add em dashes (`—`) to git commit messages (title or body). Plain hyphens (`-`) are fine; rephrase or use spaces if a long dash feels needed.
+- Mark a Taskfile task `internal: true` if it needs to be invocable from a shell `cmd:` block (e.g. `cmd: 'task installer-exe'`). `internal: true` blocks CLI invocation including subprocess `task <name>` calls, failing with `task: Task "<name>" is internal` (exit 202). Use `- task: <name>` references inside `cmds:` for internal tasks; reserve shell-`task` invocation for non-internal ones (needed when you want a conditional `if:` shell guard around the call).
+- Run `task clean-comments` over a dirty working tree without first checking `git status`. It unconditionally rewrites every `.go` file and `gofumpt`s afterward, which silently strips in-flight comments from your uncommitted edits. Only run on a clean tree, or stash first.
+- Combine Taskfile `status:` and `sources:`/`generates:` on the same task expecting them to compose. In Task v3, `status:` returning **1 forces the task to always run**, fully bypassing source-checksum caching. Pick one mechanism per task: use `status:` alone for boolean gating (platform check, file-exists check) or use `sources:`/`generates:` alone for content-change detection. To gate a source-tracked task by platform/ONLY, do it at the caller level via shell `cmd: 'task X'` + `if:` (note: each shell-task call costs ~300 ms in this Taskfile because the parent re-evaluates every `vars: sh:` callout on spawn — prefer top-level source-tracking on `build` itself over many small per-binary sub-tasks).
 
 ## Layout
 

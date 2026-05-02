@@ -17,7 +17,6 @@ var (
 	colOnPrimary    = color.NRGBA{R: 0, G: 52, B: 79, A: 255}
 	colForeground   = color.NRGBA{R: 222, G: 227, B: 235, A: 255}
 	colMuted        = color.NRGBA{R: 191, G: 199, B: 208, A: 255}
-	colSecondary    = color.NRGBA{R: 255, G: 208, B: 135, A: 255}
 	colDialogBorder = color.NRGBA{R: 168, G: 178, B: 188, A: 200}
 	colHover        = color.NRGBA{R: 143, G: 205, B: 255, A: 20}
 	colSuccess      = color.NRGBA{R: 187, G: 250, B: 195, A: 255}
