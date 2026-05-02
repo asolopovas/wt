@@ -816,6 +816,58 @@ tasks:
           cp "{{.BUILD_OUT}}/install/bin/sherpa-onnx-offline" \
              "{{.ROOT_DIR | toSlash}}/dist/sherpa/sherpa-asr-android"
 
+  android-sherpa-bin-nnapi:
+    desc: 'Build sherpa-onnx-offline ASR with NNAPI provider (Exynos NPU / Hexagon NPU acceleration). Requires shared onnxruntime.'
+    # Differs from android-sherpa-bin in two ways:
+    #   1. BUILD_SHARED_LIBS=ON — pulls onnxruntime AAR (which ships
+    #      nnapi_provider_factory.h, missing from the static archive)
+    #   2. ANDROID_PLATFORM=android-27 — minimum API for NNAPI
+    # Output ELF dynamically links libonnxruntime.so at runtime, so the
+    # APK packager must ship that alongside libsherpa-asr.so.
+    vars:
+      # NOTE: shared build's CMake hardcodes the dir as build-android-arm64-v8a
+      # (no -shared suffix); the -static suffix only kicks in for the static
+      # path. We honor that.
+      BUILD_OUT: '{{.SHERPA_ROOT}}/build-android-arm64-v8a'
+    status:
+      - test -f "{{.ROOT_DIR | toSlash}}/dist/sherpa/sherpa-asr-android-nnapi"
+      - test -f "{{.ROOT_DIR | toSlash}}/dist/sherpa/libonnxruntime.so"
+    cmds:
+      - cmd: git clone --depth 1 https://github.com/k2-fsa/sherpa-onnx.git {{.SHERPA_ROOT}}
+        if: '[ ! -d "{{.SHERPA_ROOT}}" ]'
+      - cmd: |
+          set -e
+          MSYS_BASH="C:/msys64/usr/bin/bash.exe"
+          if [ ! -f "$MSYS_BASH" ]; then
+            echo "ERROR: msys2 bash not found at $MSYS_BASH" >&2
+            exit 1
+          fi
+          "$MSYS_BASH" -lc "
+            set -ex
+            export PATH=/mingw64/bin:/usr/bin:\$PATH
+            for tool in wget unzip make cmake; do
+              command -v \$tool >/dev/null 2>&1 || pacman -S --noconfirm --needed \$tool
+            done
+            export ANDROID_NDK='{{.NDK_ROOT}}'
+            export ANDROID_NDK_HOME='{{.NDK_ROOT}}'
+            export BUILD_SHARED_LIBS=ON
+            export SHERPA_ONNX_ENABLE_BINARY=ON
+            export SHERPA_ONNX_ENABLE_JNI=OFF
+            export SHERPA_ONNX_ENABLE_TTS=OFF
+            export SHERPA_ONNX_ENABLE_C_API=OFF
+            export SHERPA_ONNX_ENABLE_SPEAKER_DIARIZATION=OFF
+            export SHERPA_ONNX_ANDROID_PLATFORM=android-27
+            export CMAKE_GENERATOR='Unix Makefiles'
+            cd '{{.SHERPA_ROOT}}'
+            rm -rf build-android-arm64-v8a
+            bash build-android-arm64-v8a.sh
+          "
+          mkdir -p "{{.ROOT_DIR | toSlash}}/dist/sherpa"
+          cp "{{.BUILD_OUT}}/install/bin/sherpa-onnx-offline" \
+             "{{.ROOT_DIR | toSlash}}/dist/sherpa/sherpa-asr-android-nnapi"
+          cp "{{.BUILD_OUT}}/install/lib/libonnxruntime.so" \
+             "{{.ROOT_DIR | toSlash}}/dist/sherpa/libonnxruntime.so"
+
   android-apk:
     internal: true
     deps: [android-whisper-lib, ffmpeg-android, android-llama-cli, android-sherpa-bin]

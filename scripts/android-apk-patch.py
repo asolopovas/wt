@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 """Patch the Fyne-built APK with native libs, sherpa models, llama-cli, and the foreground-service dex.
 
-Args (env-style): APK, LIBCXX, LIBOMP, SHERPA_BIN, SHERPA_ASR_BIN, SHERPA_SEG, SHERPA_EMB, LLAMA_BIN, SVC_DEX, OUT
+Args (env-style): APK, LIBCXX, LIBOMP, SHERPA_BIN, SHERPA_ASR_BIN, SHERPA_ONNXRUNTIME, SHERPA_SEG, SHERPA_EMB, LLAMA_BIN, SVC_DEX, OUT
 
-SHERPA_BIN     -> packaged as lib/arm64-v8a/libsherpa-diar.so (diarization CLI)
-SHERPA_ASR_BIN -> packaged as lib/arm64-v8a/libsherpa-asr.so  (offline ASR CLI; same
-                  binary as diar in static builds, just renamed for engine_zipformer.go's
-                  findSherpaASRBinary discovery)
+SHERPA_BIN          -> lib/arm64-v8a/libsherpa-diar.so   (diarization CLI, static build)
+SHERPA_ASR_BIN      -> lib/arm64-v8a/libsherpa-asr.so    (ASR CLI, shared build for 2x CPU speedup
+                       + optional NNAPI provider via WT_ZIPFORMER_PROVIDER=nnapi)
+SHERPA_ONNXRUNTIME  -> lib/arm64-v8a/libonnxruntime.so   (required at runtime by the shared
+                       libsherpa-asr.so; ~26 MB)
 """
 import os
 import sys
@@ -41,6 +42,9 @@ with zipfile.ZipFile(apk, 'r') as zin, zipfile.ZipFile(out, 'w', zipfile.ZIP_DEF
         zout.write(sherpa_bin, 'lib/arm64-v8a/libsherpa-diar.so', compress_type=zipfile.ZIP_STORED)
     if sherpa_asr_bin and os.path.exists(sherpa_asr_bin):
         zout.write(sherpa_asr_bin, 'lib/arm64-v8a/libsherpa-asr.so', compress_type=zipfile.ZIP_STORED)
+    sherpa_ort = os.environ.get('SHERPA_ONNXRUNTIME', '')
+    if sherpa_ort and os.path.exists(sherpa_ort):
+        zout.write(sherpa_ort, 'lib/arm64-v8a/libonnxruntime.so', compress_type=zipfile.ZIP_STORED)
     if sherpa_seg and os.path.exists(sherpa_seg):
         zout.write(sherpa_seg, 'assets/sherpa-models/seg.onnx', compress_type=zipfile.ZIP_STORED)
     if sherpa_emb and os.path.exists(sherpa_emb):

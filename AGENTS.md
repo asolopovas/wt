@@ -82,6 +82,10 @@ Keep the model catalog in `internal/models/catalog.go` curated, not exhaustive. 
 
 Parakeet TDT models require `--model-type=nemo_transducer` (NOT `transducer`). The plain transducer code path looks for `vocab_size` metadata at a location TDT models don't populate, failing at decoder init with `'vocab_size' does not exist in the metadata`. SenseVoice uses `--sense-voice-model=` (single-file model), NOT the encoder/decoder/joiner triplet.
 
+NNAPI investigation (2026-05): the `android-sherpa-bin-nnapi` task builds sherpa-onnx with `BUILD_SHARED_LIBS=ON` + `ANDROID_PLATFORM=android-27` to enable the NNAPI provider. Verified runtime acceptance on Exynos 2400 (`Use nnapi` log line). Net result: **NNAPI is slower than CPU** for SenseVoice (1.21s vs 0.80s on a 32s clip + 6.8s one-time graph compile), because many int8 ops fall back to CPU and round-trip overhead exceeds NPU benefit. The shared ORT itself is ~2× faster than static when called directly, but slower when wrapped in `wt-test` due to dynamic linker overhead per subprocess. Production APK ships the **static** build (smaller, fewer files). Keep the `-nnapi` task for users who want to experiment with multi-file batches where the NPU warmup cost amortizes. Don't ship `libonnxruntime.so` in the APK by default.
+
+The sherpa-onnx upstream `build-android-arm64-v8a.sh` always emits to `build-android-arm64-v8a/` for shared builds and `build-android-arm64-v8a-static/` for static. The `BUILD_OUT` Taskfile var must match — don't try to override the suffix.
+
 When adding an ASR-family catalog entry, set `Family: FamilyASR` and `Engine: shared.EngineX`. Job.Run dispatches on `JobSpec.Engine` only; the GUI must set `spec.Engine = models.EngineForActiveASR(mgr.Active(models.FamilyASR))` (or fall back to whisper).
 
 Never pure-`go test ./internal/transcriber/...` from the shell — whisper.cpp cgo bindings need the prebuilt lib. Use `task test SHORT=1` (skips cgo for unrelated packages, still builds transcriber via the task's prep step).

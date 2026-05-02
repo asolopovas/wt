@@ -147,12 +147,32 @@ func invokeSherpaCLI(ctx context.Context, bin string, args []string, hooks Hooks
 }
 
 // sherpaResult mirrors the JSON sherpa-onnx-offline emits per input file.
-// Only the fields we consume are listed; sherpa adds more (lang, emotion,
-// event, words, ...) that vary by model family.
+// Only the fields we consume are listed; sherpa adds more (words, ...)
+// that vary by model family.
 type sherpaResult struct {
 	Text       string    `json:"text"`
 	Tokens     []string  `json:"tokens"`
 	Timestamps []float64 `json:"timestamps"`
+	// Lang/Emotion/Event are populated by SenseVoice (and similar
+	// multi-task models). Format is a tag like "<|en|>", "<|HAPPY|>",
+	// "<|Speech|>". Empty string for vanilla ASR models.
+	Lang    string `json:"lang,omitempty"`
+	Emotion string `json:"emotion,omitempty"`
+	Event   string `json:"event,omitempty"`
+}
+
+// stripSherpaTag unwraps a "<|TAG|>" SenseVoice tag string into its inner
+// value (lowercased). Returns empty string for empty/unknown/missing tags.
+func stripSherpaTag(tag string) string {
+	tag = strings.TrimSpace(tag)
+	tag = strings.TrimPrefix(tag, "<|")
+	tag = strings.TrimSuffix(tag, "|>")
+	tag = strings.ToLower(tag)
+	switch tag {
+	case "", "emo_unknown", "unknown", "event_unknown":
+		return ""
+	}
+	return tag
 }
 
 // parseSherpaJSON scans stdout for the first JSON object line containing a
@@ -528,6 +548,17 @@ func RunSenseVoice(ctx context.Context, spec JobSpec, samples []float32, audioDu
 	detected := lang
 	if detected == "auto" {
 		detected = ""
+	}
+	// Surface SenseVoice's detected language tag if we asked for auto and
+	// the model returned one. Emotion/event tags are parsed but currently
+	// not surfaced in the segment metadata — future enhancement (e.g.
+	// per-utterance emotion overlay in the GUI).
+	if detected == "" {
+		if r, _ := parseSherpaJSON(stdout); r.Lang != "" {
+			if tag := stripSherpaTag(r.Lang); tag != "" {
+				detected = tag
+			}
+		}
 	}
 	return segs, detected, rtf, nil
 }
