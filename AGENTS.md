@@ -25,6 +25,8 @@ GUI compile-checks **only** through `task build ONLY=gui` — `CGO_LDFLAGS` diff
 
 Never dispatch to an `internal: true` task via `cmd: 'task X'` — that spawns a new task process which sees the internal flag and exits 202. Always use `task: X` cmd entries (supports `vars:` and `if:` in Task v3.30+). Same applies to compound shell calls like `task whisper-lib && go test ...` — split into a `task:` step plus a `cmd:` step.
 
+Never cross-compile sherpa-onnx for Android via direct cmake — their `cmake/onnxruntime.cmake` only handles Linux/macOS/Windows hosts and aborts with `Only support Linux, macOS, and Windows at present`. Always invoke their upstream `build-android-<abi>.sh` via msys2 bash; it pre-fetches onnxruntime android libs from `csukuangfj/onnxruntime-libs` and sets `SHERPA_ONNXRUNTIME_{LIB,INCLUDE}_DIR` correctly. Same pattern as `ffmpeg-android`.
+
 Release tasks create the GH release empty first, then upload artifacts in a 3-attempt retry loop (large APK/EXE uploads occasionally fail mid-stream). `task release` re-reads `VERSION` from `Taskfile.yml` post-bump because `{{.VERSION}}` captures at parse time.
 
 ## Layout
