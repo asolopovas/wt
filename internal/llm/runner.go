@@ -156,8 +156,23 @@ func (r *Runner) Generate(ctx context.Context, opts Options) (string, error) {
 		waitErr, stderrTail(stderrStr, 6), stdoutTail(out, 400))
 }
 
+// llmTimeout returns the per-invocation timeout for llama-cli. Mobile CPUs
+// are slower, so the default is generous; can be overridden via WT_LLM_TIMEOUT
+// (seconds, e.g. "600").
+func llmTimeout() time.Duration {
+	if s := os.Getenv("WT_LLM_TIMEOUT"); s != "" {
+		if n, err := time.ParseDuration(s + "s"); err == nil && n > 0 {
+			return n
+		}
+	}
+	if runtime.GOOS == "android" {
+		return 5 * time.Minute
+	}
+	return 2 * time.Minute
+}
+
 func (r *Runner) runOnce(ctx context.Context, args []string, hideCUDA bool) (string, error, string, error) {
-	rctx, cancel := context.WithTimeout(ctx, 120*time.Second)
+	rctx, cancel := context.WithTimeout(ctx, llmTimeout())
 	defer cancel()
 
 	cmd := exec.CommandContext(rctx, r.BinaryPath, args...)

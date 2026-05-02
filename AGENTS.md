@@ -31,6 +31,12 @@ When building sherpa-onnx for Android with the **static** onnxruntime archive (`
 
 Release tasks create the GH release empty first, then upload artifacts in a 3-attempt retry loop (large APK/EXE uploads occasionally fail mid-stream). `task release` re-reads `VERSION` from `Taskfile.yml` post-bump because `{{.VERSION}}` captures at parse time.
 
+Android Java sources live in `scripts/android-service/com/asolopovas/wtranscribe/`. Adding a class requires three coordinated edits: (1) drop the `.java` next to existing ones, (2) extend the `javac` argument list **and** the `d8` argument list in `Taskfile.yml` `android-apk` (d8 takes `.class` files — never `.java`), (3) declare any `<service>` / `<provider>` / `<receiver>` in `cmd/wt-gui/AndroidManifest.xml.in`. ContentProviders sharing files to other apps need `android:grantUriPermissions="true"` on the `<provider>` and `FLAG_GRANT_READ_URI_PERMISSION` on the `Intent`. Verify registration after install with `adb shell dumpsys package <id> | grep -A1 -i provider`.
+
+Never call `FindClass` for app classes from a JNI thread — the boot ClassLoader can't see them. Use the `loadClass` pattern from `wt_fp_load_app_class` / `wts_load_app_class` (load via `activity.getClassLoader()`).
+
+LLM auto-rename uses `llama-cli` as a subprocess; mobile CPUs are slow. Per-invocation timeout is `llmTimeout()` in `internal/llm/runner.go` (5 min Android, 2 min desktop, override `WT_LLM_TIMEOUT` seconds). Always update the live status (`p.setStatus`) and foreground notification (`platsvc.UpdateProgress`) for any post-transcription phase that can run >1 s, otherwise the UI looks frozen on the previous phase’s message.
+
 ## Layout
 
 ```
@@ -59,6 +65,10 @@ No raw pixel literals, hex colors, or `widget.NewButton` + manual styling.
 
 stdlib `testing` only. Names: `Test<Function>_<Scenario>`, table-driven preferred. Config tests: `t.TempDir()` + `t.Setenv("HOME", ...)`. CI runs `go vet`, `golangci-lint`, full `go test` on Linux. Diarization integration tests: `//go:build integration` (`task test-integration`); `getSherpaSample` lazy-downloads to `samples/diarization/sherpa/` (gitignored). Use `-short` to skip the download. Don't add skip-on-missing-model tests.
 
+
+## Scratch artifacts
+
+Never write screenshots, logs, or other ad-hoc binary debug files (`*.png`, `*.jpg`, capture dumps, etc.) into the repo root or any tracked directory. Use the system tempdir (`/tmp/...` on msys, `$TMPDIR`) or a `_tmp/` subdir at the repo root (gitignored) when a tool can't read outside the project. Read tool can't access `C:\tmp` directly — copy/move into `_tmp/` then read. Clean up afterwards.
 
 ## Self-improvement
 

@@ -200,7 +200,7 @@ func (h *historyPanel) showRowMenu(e cache.Entry, recorded time.Time, anchor fyn
 				}})
 			}),
 			fyne.NewMenuItem("Share", func() {
-				h.transcribe.ExportTranscript([]transcribe.ExportItem{{
+				h.transcribe.ShareTranscript([]transcribe.ExportItem{{
 					CachePath:  cache.TranscriptPathForKey(e.Key),
 					SourceName: e.SourceName,
 					SourcePath: e.SourcePath,

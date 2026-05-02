@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/asolopovas/wt/internal/gui/platsvc"
 	"github.com/asolopovas/wt/internal/llm"
 	"github.com/asolopovas/wt/internal/namer"
 	"github.com/asolopovas/wt/internal/transcriber"
@@ -37,7 +38,10 @@ func (p *Panel) autoRenameAfterTranscribe(cacheKey, jsonPath, sourcePath, source
 	}
 
 	p.AppendLog("  Auto-naming...")
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	p.setStatus("Auto-naming...")
+	platsvc.UpdateProgress(-1, "Auto-naming…")
+	renameStart := time.Now()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
 
 	s, err := namer.Suggest(ctx, text, fallback)
@@ -46,9 +50,10 @@ func (p *Panel) autoRenameAfterTranscribe(cacheKey, jsonPath, sourcePath, source
 			p.AppendLog("  Auto-name skipped: no LLM installed (download one in Settings → Models)")
 			return sourcePath, sourceName
 		}
-		p.AppendLog(fmt.Sprintf("  Auto-name failed: %v", err))
+		p.AppendLog(fmt.Sprintf("  Auto-name failed after %.0fs: %v", time.Since(renameStart).Seconds(), err))
 		return sourcePath, sourceName
 	}
+	p.AppendLog(fmt.Sprintf("  Auto-name suggested in %.0fs", time.Since(renameStart).Seconds()))
 
 	ext := filepath.Ext(sourcePath)
 	suggested := s.Filename(ext)

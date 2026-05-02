@@ -71,3 +71,5 @@ fyne_metadata_init.go
 screen.png
 screens-debug/
 .scratch_*
+_tmp/
+_tmp-*

@@ -56,5 +56,10 @@
 		</activity>
 		<service android:name="com.asolopovas.wtranscribe.WtForegroundService"
 			android:exported="false" />
+		<provider
+			android:name="com.asolopovas.wtranscribe.WtFileProvider"
+			android:authorities="com.asolopovas.wtranscribe.fileprovider"
+			android:exported="false"
+			android:grantUriPermissions="true" />
 	</application>
 </manifest>

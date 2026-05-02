@@ -820,10 +820,12 @@ tasks:
           javac -source 1.8 -target 1.8 -Xlint:-options \
             -bootclasspath "$android_jar" -classpath "$android_jar" \
             -d dist/svc-build/classes \
-            scripts/android-service/com/asolopovas/wtranscribe/WtForegroundService.java
+            scripts/android-service/com/asolopovas/wtranscribe/WtForegroundService.java \
+            scripts/android-service/com/asolopovas/wtranscribe/WtFileProvider.java
           "{{.BUILD_TOOLS}}/d8.bat" --min-api 24 \
             --output dist/svc-build \
-            dist/svc-build/classes/com/asolopovas/wtranscribe/WtForegroundService.class
+            dist/svc-build/classes/com/asolopovas/wtranscribe/WtForegroundService.class \
+            dist/svc-build/classes/com/asolopovas/wtranscribe/WtFileProvider.class
           test -f dist/svc-build/classes.dex
       - cmd: |
           set -e
