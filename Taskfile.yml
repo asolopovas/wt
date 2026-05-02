@@ -177,6 +177,13 @@ tasks:
   _build-host:
     internal: true
     deps: [whisper-lib, fetch-deps]
+    # Re-read VERSION from Taskfile.yml at task-execution time. Task captures the
+    # global {{.VERSION}} at parse time, so when `task release` runs bump (which
+    # rewrites Taskfile.yml) before reaching here, downstream tasks would still
+    # see the OLD value. The local sh: var resolves at task-start, post-bump.
+    vars:
+      VERSION:
+        sh: awk -F"\x27" '/^  VERSION:/{print $2; exit}' Taskfile.yml
     sources:
       - cmd/**/*.go
       - internal/**/*.go
@@ -247,6 +254,9 @@ tasks:
 
   _install-host:
     internal: true
+    vars:
+      VERSION:
+        sh: awk -F"\x27" '/^  VERSION:/{print $2; exit}' Taskfile.yml
     cmds:
       # Windows: build cli+gui only (skip installer-exe — install copies binaries directly).
       - task: _build-host
@@ -306,6 +316,9 @@ tasks:
   _install-android:
     internal: true
     deps: [android-apk]
+    vars:
+      VERSION:
+        sh: awk -F"\x27" '/^  VERSION:/{print $2; exit}' Taskfile.yml
     cmds:
       - cmd: |
           export MSYS_NO_PATHCONV=1
@@ -409,10 +422,17 @@ tasks:
     cmds:
       - task: bump
       - task: build
+      # bump's `task: install` ran _build-host with ONLY=host (skips installer-exe).
+      # `task: build` above then sees _build-host as up-to-date and never reaches
+      # installer-exe, so we invoke it explicitly here.
+      - task: installer-exe
+        if: '[ -z "{{.IS_LINUX}}" ]'
+      - task: linux-deb
+        if: '[ -n "{{.IS_LINUX}}" ]'
       - task: android-apk
         if: '[ -z "{{.IS_LINUX}}" ]'
       - |
-        ver=$(powershell -NoProfile -Command "[Console]::Write((Select-String -Path Taskfile.yml -Pattern \"VERSION: '([^']+)'\" -CaseSensitive | Select-Object -First 1).Matches[0].Groups[1].Value)")
+        ver=$(awk -F"\x27" '/^  VERSION:/{print $2; exit}' Taskfile.yml)
         C:/msys64/usr/bin/bash.exe scripts/release-publish.sh "$ver"
 
   _release-rolling:
@@ -563,6 +583,8 @@ tasks:
             if [ -f "$d/ISCC.exe" ]; then echo "$d/ISCC.exe"; exit 0; fi
           done
           echo ""
+      VERSION:
+        sh: awk -F"\x27" '/^  VERSION:/{print $2; exit}' Taskfile.yml
     sources:
       - dist/bin/**/*
       - scripts/installer.iss
@@ -580,6 +602,9 @@ tasks:
   linux-deb:
     internal: true
     deps: [fetch-deps]
+    vars:
+      VERSION:
+        sh: awk -F"\x27" '/^  VERSION:/{print $2; exit}' Taskfile.yml
     cmds:
       - cmd: bash scripts/build-deb.sh "{{.VERSION}}" "{{.BINARY}}" "{{.ROOT_DIR | toSlash}}"
         if: '[ -n "{{.IS_LINUX}}" ]'
@@ -788,6 +813,9 @@ tasks:
   android-apk:
     internal: true
     deps: [android-whisper-lib, ffmpeg-android, android-llama-cli, android-sherpa-bin]
+    vars:
+      VERSION:
+        sh: awk -F"\x27" '/^  VERSION:/{print $2; exit}' Taskfile.yml
     cmds:
       - python scripts/android-manifest.py "{{.VERSION}}" "{{.APP_NAME}}"
       - defer: rm -f cmd/wt-gui/AndroidManifest.xml
