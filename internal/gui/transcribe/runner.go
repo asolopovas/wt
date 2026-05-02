@@ -124,6 +124,9 @@ func (p *Panel) runTranscription(files []string) {
 
 	notify(appinfo.Name,fmt.Sprintf("Transcribing %d file(s)…", len(files)))
 
+	runStart := time.Now()
+	p.debugLog(fmt.Sprintf("run start: files=%d", len(files)))
+
 	modelSize := p.Settings.ModelSize()
 	device := p.Settings.Device()
 	threads := p.Settings.Threads()
@@ -138,6 +141,7 @@ func (p *Panel) runTranscription(files []string) {
 	if err != nil {
 		p.AppendLog(fmt.Sprintf("Error: %v", err))
 		p.setStatus("Model loading failed")
+		p.debugLog(fmt.Sprintf("run done: outcome=failed phase=load-model elapsed=%.1fs reason=%v", time.Since(runStart).Seconds(), err))
 		return
 	}
 	defer func() {
@@ -189,6 +193,7 @@ func (p *Panel) runTranscription(files []string) {
 			p.AppendLog("Cancelled by user.")
 			p.setStatus("Cancelled.")
 			notify(appinfo.Name,"Cancelled.")
+			p.debugLog(fmt.Sprintf("run done: outcome=cancelled phase=between-files done=%d/%d failed=%d elapsed=%.1fs", i, total, errCount, time.Since(runStart).Seconds()))
 			return
 		}
 
@@ -202,6 +207,7 @@ func (p *Panel) runTranscription(files []string) {
 		p.setChipProcessing(filename, true)
 		p.setActivePath(path)
 
+		fileStart := time.Now()
 		err := p.transcribeFile(model, path, modelSize, deviceLabel, language, threads, speakers, noDiarize)
 		p.setChipProcessing(filename, false)
 		p.setActivePath("")
@@ -210,16 +216,21 @@ func (p *Panel) runTranscription(files []string) {
 				p.AppendLog("Cancelled by user.")
 				p.setStatus("Cancelled.")
 				notify(appinfo.Name,"Cancelled.")
+				p.debugLog(fmt.Sprintf("file done: file=%q outcome=cancelled reason=%v elapsed=%.1fs", filename, err, time.Since(fileStart).Seconds()))
+				p.debugLog(fmt.Sprintf("run done: outcome=cancelled phase=in-file done=%d/%d failed=%d elapsed=%.1fs", i, total, errCount, time.Since(runStart).Seconds()))
 				return
 			}
 			p.AppendLog(fmt.Sprintf("  Error: %v", err))
+			p.debugLog(fmt.Sprintf("file done: file=%q outcome=failed reason=%v elapsed=%.1fs", filename, err, time.Since(fileStart).Seconds()))
 			errCount++
 			continue
 		}
+		p.debugLog(fmt.Sprintf("file done: file=%q outcome=ok elapsed=%.1fs", filename, time.Since(fileStart).Seconds()))
 	}
 
 	p.setProgress(1.0)
 
+	elapsed := time.Since(runStart).Seconds()
 	var summary string
 	if errCount > 0 {
 		summary = fmt.Sprintf("Done: %d/%d transcribed, %d failed.", total-errCount, total, errCount)
@@ -231,6 +242,11 @@ func (p *Panel) runTranscription(files []string) {
 	p.AppendLog(summary)
 	p.setStatus(summary)
 	notify(appinfo.Name,summary)
+	outcome := "ok"
+	if errCount > 0 {
+		outcome = "partial"
+	}
+	p.debugLog(fmt.Sprintf("run done: outcome=%s done=%d/%d failed=%d elapsed=%.1fs", outcome, total-errCount, total, errCount, elapsed))
 }
 
 func (p *Panel) loadModel(modelSize string) (whisper.Model, error) {
@@ -300,7 +316,7 @@ func (p *Panel) transcribeFile(model whisper.Model, path, modelSize, deviceLabel
 	p.debugLog(fmt.Sprintf("audio loaded (%s, %.1fs) samples=%d rate=%d", durStr, time.Since(loadStart).Seconds(), len(samples), transcriber.WhisperSampleRate))
 
 	if p.cancelled.Load() {
-		return fmt.Errorf("cancelled")
+		return fmt.Errorf("cancelled at phase=after-audio-load")
 	}
 
 	var (
@@ -353,7 +369,7 @@ func (p *Panel) transcribeFile(model whisper.Model, path, modelSize, deviceLabel
 					p.AppendLog("  Discarded partial transcript; starting from beginning.")
 				case resumeAbort:
 					p.cancelled.Store(true)
-					return fmt.Errorf("cancelled")
+					return fmt.Errorf("cancelled at phase=resume-prompt")
 				}
 			}
 		}
@@ -434,7 +450,7 @@ func (p *Panel) transcribeFile(model whisper.Model, path, modelSize, deviceLabel
 				if rawKey != "" {
 					p.savePartialIfUseful(rawKey, merged, audioDurSec)
 				}
-				return fmt.Errorf("cancelled")
+				return fmt.Errorf("cancelled at phase=transcribe")
 			}
 			return fmt.Errorf("processing audio: %w", err)
 		}
@@ -471,11 +487,17 @@ func (p *Panel) transcribeFile(model whisper.Model, path, modelSize, deviceLabel
 	}
 
 	if p.cancelled.Load() {
-		return fmt.Errorf("cancelled")
+		return fmt.Errorf("cancelled at phase=before-diarize")
 	}
 
 	var diarSegs []diarizer.Segment
 	diarOK := false
+	switch {
+	case noDiarize:
+		p.debugLog("diarization skipped: noDiarize=true")
+	case !diarizer.SupportsExternalBackend():
+		p.debugLog("diarization skipped: backend unsupported on this build")
+	}
 	if !noDiarize && diarizer.SupportsExternalBackend() {
 		wavPath := transcriber.ResolveWAVPath(absPath)
 		if !strings.HasSuffix(strings.ToLower(wavPath), ".wav") || wavPath == absPath {
