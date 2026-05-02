@@ -13,7 +13,7 @@ import (
 	"fyne.io/fyne/v2/widget"
 
 	shared "github.com/asolopovas/wt/internal"
-	"github.com/asolopovas/wt/internal/gui/cache"
+	"github.com/asolopovas/wt/internal/transcriber/cache"
 )
 
 var languages = []string{

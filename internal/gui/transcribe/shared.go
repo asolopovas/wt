@@ -14,7 +14,7 @@ import (
 	"fyne.io/fyne/v2/storage"
 
 	shared "github.com/asolopovas/wt/internal"
-	"github.com/asolopovas/wt/internal/gui/cache"
+	"github.com/asolopovas/wt/internal/transcriber/cache"
 	"github.com/asolopovas/wt/internal/gui/decor"
 )
 

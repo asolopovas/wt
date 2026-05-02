@@ -1,7 +1,7 @@
 package transcribe
 
 import (
-	"encoding/json"
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -13,10 +13,8 @@ import (
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/widget"
 
-	shared "github.com/asolopovas/wt/internal"
 	"github.com/asolopovas/wt/internal/appinfo"
 	"github.com/asolopovas/wt/internal/diarizer"
-	"github.com/asolopovas/wt/internal/gui/cache"
 	"github.com/asolopovas/wt/internal/gui/platsvc"
 	"github.com/asolopovas/wt/internal/gui/sysstats"
 	"github.com/asolopovas/wt/internal/progress"
@@ -279,124 +277,61 @@ func (p *Panel) transcribeFile(model whisper.Model, path, modelSize, deviceLabel
 	if err != nil {
 		return fmt.Errorf("resolving path: %w", err)
 	}
-
 	if _, err := os.Stat(absPath); err != nil {
 		return fmt.Errorf("file not found: %s", absPath)
 	}
-
 	sourceName := filepath.Base(absPath)
 	fileStart := time.Now()
 
-	params, keyErr := cache.BuildKeyParams(absPath, modelSize, language, speakers, noDiarize)
-	var cacheKey string
-	if keyErr == nil {
-		cacheKey = cache.ComputeKey(params)
-		if hitPath, _, ok := cache.Lookup(cacheKey); ok {
-			p.lastCSVPath = hitPath
-			p.results = append(p.results, ExportItem{CachePath: hitPath, SourceName: sourceName, SourcePath: absPath, CacheKey: cacheKey})
-			p.AppendLog("  ⚡ cached transcript reused")
-			p.setLocalProgress(1.0)
-			if p.History != nil {
-				p.History.Refresh()
-			}
-			return nil
-		}
-	}
-
-	p.setStatus("Loading audio...")
-	loadStart := time.Now()
-	samples, err := transcriber.LoadAudioSamples(absPath)
-	if err != nil {
-		return fmt.Errorf("loading audio: %w", err)
-	}
-
-	audioDurSec := float64(len(samples)) / transcriber.WhisperSampleRate
-	durStr := transcriber.FormatHMS(time.Duration(audioDurSec * float64(time.Second)))
-	p.setLocalProgress(0.10)
-	p.debugLog(fmt.Sprintf("audio loaded (%s, %.1fs) samples=%d rate=%d", durStr, time.Since(loadStart).Seconds(), len(samples), transcriber.WhisperSampleRate))
-
-	if p.cancelled.Load() {
-		return fmt.Errorf("cancelled at phase=after-audio-load")
-	}
-
-	var (
-		segs     []diarizer.TranscriptSegment
-		detected string
-		rawKey   string
-		rawHit   bool
-	)
-	if keyErr == nil {
-		rawKey = cache.ComputeRawKey(params.SourcePath, params.MtimeNs, modelSize, language)
-		if cached, ok := cache.LoadRawSegments(rawKey); ok {
-			segs = cached
-			rawHit = true
-			detected = language
-			p.AppendLog(fmt.Sprintf("  ⚡ raw transcript reused (%d segs)", len(cached)))
-			p.setLocalProgress(0.80)
-		}
-	}
-
-	if !rawHit {
-		ctx, err := model.NewContext()
-		if err != nil {
-			return fmt.Errorf("creating context: %w", err)
-		}
-		transcriber.ConfigureContext(ctx, transcriber.ContextConfig{
-			Threads: threads,
-			TDRZ:    false,
-		})
-		if transcriber.ConfigureVAD(ctx) {
-			p.debugLog("VAD: Silero v6.2.0")
-		}
-		transcriber.SetLanguage(ctx, language)
-
-		var (
-			resumeSegs []diarizer.TranscriptSegment
-			offsetMs   int64
-		)
-		if rawKey != "" {
-			if part, ok := cache.LoadPartial(rawKey); ok {
-				resumeAt := time.Duration(part.LastEndMs) * time.Millisecond
-				switch p.promptResume(sourceName, resumeAt, len(part.Segments)) {
-				case resumeYes:
-					resumeSegs = part.Segments
-					offsetMs = part.LastEndMs
-					ctx.SetOffset(time.Duration(offsetMs) * time.Millisecond)
-					p.AppendLog(fmt.Sprintf("  Resuming from %s (%d segments cached)",
-						transcriber.FormatHMS(resumeAt), len(resumeSegs)))
-				case resumeFresh:
-					cache.DeletePartial(rawKey)
-					p.AppendLog("  Discarded partial transcript; starting from beginning.")
-				case resumeAbort:
-					p.cancelled.Store(true)
-					return fmt.Errorf("cancelled at phase=resume-prompt")
+	jobCtx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	p.mu.Lock()
+	p.cancelFunc = cancel
+	p.mu.Unlock()
+	watchDone := make(chan struct{})
+	go func() {
+		defer close(watchDone)
+		t := time.NewTicker(100 * time.Millisecond)
+		defer t.Stop()
+		for {
+			select {
+			case <-jobCtx.Done():
+				return
+			case <-t.C:
+				if p.cancelled.Load() {
+					cancel()
+					return
 				}
 			}
 		}
+	}()
+	defer func() { cancel(); <-watchDone }()
 
-		offsetSec := float64(offsetMs) / 1000.0
-		startFrac := 0.0
-		if audioDurSec > 0 {
-			startFrac = offsetSec / audioDurSec
-		}
-		if startFrac < 0 {
-			startFrac = 0
-		}
-		if startFrac > 0.999 {
-			startFrac = 0.999
-		}
-		remainDurSec := audioDurSec - offsetSec
-		if remainDurSec <= 0 {
-			remainDurSec = 1
-		}
+	dia := p.resolveDiarizer(speakers, noDiarize)
 
-		processStart := time.Now()
-		initialRTF := loadRTF(modelSize, deviceLabel)
-		smoother := progress.NewSmoother(remainDurSec, initialRTF)
-		stopTick := make(chan struct{})
-		tickDone := make(chan struct{})
+	audioDurMs := transcriber.ProbeDurationMs(absPath)
+	audioDurSec := float64(audioDurMs) / 1000.0
+	initialRTF := loadRTF(modelSize, deviceLabel)
+	remainSec := audioDurSec
+	if remainSec <= 0 {
+		remainSec = 1
+	}
+	smoother := progress.NewSmoother(remainSec, initialRTF)
+	var (
+		startFrac     float64
+		lastTickStop  chan struct{}
+		tickDone      chan struct{}
+	)
+	startTickerOnce := func() {
+		if lastTickStop != nil {
+			return
+		}
+		lastTickStop = make(chan struct{})
+		tickDone = make(chan struct{})
+		stop := lastTickStop
+		done := tickDone
 		go func() {
-			defer close(tickDone)
+			defer close(done)
 			t := time.NewTicker(200 * time.Millisecond)
 			defer t.Stop()
 			render := func() {
@@ -413,181 +348,172 @@ func (p *Panel) transcribeFile(model whisper.Model, path, modelSize, deviceLabel
 			render()
 			for {
 				select {
-				case <-stopTick:
+				case <-stop:
 					return
 				case <-t.C:
 					render()
 				}
 			}
 		}()
-		abortCb := func() bool { return !p.cancelled.Load() }
-		progressCb := func(pct int) {
-			if pct > 100 {
-				pct = 100
-			}
-			smoother.Report(pct)
-		}
-		// Pin the process to the lower CPU cluster so the prime/big cores
-		// stay free for the UI thread. Worker threads spawned by whisper.cpp
-		// inherit affinity from the calling OS thread on Linux.
-		runtime.LockOSThread()
-		saved, reserved := sysstats.ReserveTopCores(2)
-		err = ctx.Process(samples, abortCb, nil, whisper.ProgressCallback(progressCb))
-		if reserved {
-			sysstats.RestoreAffinity(saved)
-		}
-		runtime.UnlockOSThread()
-		close(stopTick)
-		<-tickDone
-
-		newSegs := transcriber.ExtractSegments(ctx)
-		merged := make([]diarizer.TranscriptSegment, 0, len(resumeSegs)+len(newSegs))
-		merged = append(merged, resumeSegs...)
-		merged = append(merged, newSegs...)
-
-		if err != nil {
-			if p.cancelled.Load() {
-				if rawKey != "" {
-					p.savePartialIfUseful(rawKey, merged, audioDurSec)
-				}
-				return fmt.Errorf("cancelled at phase=transcribe")
-			}
-			return fmt.Errorf("processing audio: %w", err)
-		}
-		transcribeElapsed := time.Since(processStart).Seconds()
-		p.debugLog(fmt.Sprintf("transcribed in %.0fs", transcribeElapsed))
-		observedRTF := 0.0
-		if transcribeElapsed > 0 && remainDurSec > 0 {
-			observedRTF = remainDurSec / transcribeElapsed
-		}
-		p.debugLog(fmt.Sprintf("RTF=%.2f (%.1fs audio / %.1fs processing)", observedRTF, remainDurSec, transcribeElapsed))
-		if observedRTF > 0 {
-			saveRTF(modelSize, deviceLabel, observedRTF)
-		}
-		p.setLocalProgress(0.80)
-
-		detected = ctx.DetectedLanguage()
-		if detected == "" {
-			detected = language
-		}
-		segs = transcriber.DeduplicateSegments(merged)
-		if dropped := len(merged) - len(segs); dropped > 0 {
-			p.debugLog(fmt.Sprintf("dedup: removed %d repeated segments", dropped))
-		}
-		if rawKey != "" {
-			if ok, reason := cache.RawCacheSafe(segs, audioDurSec, p.cancelled.Load()); ok {
-				if err := cache.SaveRawSegments(rawKey, segs); err != nil {
-					p.debugLog(fmt.Sprintf("could not save raw transcript cache: %v", err))
-				}
-				cache.DeletePartial(rawKey)
-			} else {
-				p.debugLog(fmt.Sprintf("skipped raw cache save: %s", reason))
-			}
+	}
+	stopTicker := func() {
+		if lastTickStop != nil {
+			close(lastTickStop)
+			<-tickDone
+			lastTickStop = nil
+			tickDone = nil
 		}
 	}
+	defer stopTicker()
 
-	if p.cancelled.Load() {
-		return fmt.Errorf("cancelled at phase=before-diarize")
-	}
-
-	var diarSegs []diarizer.Segment
-	diarOK := false
-	switch {
-	case noDiarize:
-		p.debugLog("diarization skipped: noDiarize=true")
-	case !diarizer.SupportsExternalBackend():
-		p.debugLog("diarization skipped: backend unsupported on this build")
-	}
-	if !noDiarize && diarizer.SupportsExternalBackend() {
-		wavPath := transcriber.ResolveWAVPath(absPath)
-		if !strings.HasSuffix(strings.ToLower(wavPath), ".wav") || wavPath == absPath {
-			audioKey, err := transcriber.AudioCacheKey(absPath)
-			if err == nil {
-				cachePath := filepath.Join(shared.CacheDir(), audioKey)
-				if _, statErr := os.Stat(cachePath); statErr != nil {
-					if werr := transcriber.WritePCM16WAV(cachePath, samples, transcriber.WhisperSampleRate); werr == nil {
-						wavPath = cachePath
-					} else {
-						p.debugLog(fmt.Sprintf("could not write WAV cache: %v", werr))
+	phaseStart := map[transcriber.Phase]time.Time{}
+	hooks := transcriber.Hooks{
+		OnPhase: func(phase transcriber.Phase) {
+			phaseStart[phase] = time.Now()
+			switch phase {
+			case transcriber.PhaseCacheCheck:
+				p.setStatus("Checking cache...")
+			case transcriber.PhaseLoadingAudio:
+				p.setStatus("Loading audio...")
+				p.setLocalProgress(0.05)
+			case transcriber.PhaseTranscribing:
+				p.setLocalProgress(0.10)
+				startTickerOnce()
+			case transcriber.PhaseDiarizing:
+				stopTicker()
+				p.setLocalProgress(0.80)
+				p.setStatus("Diarizing...")
+			case transcriber.PhaseWriting:
+				stopTicker()
+				p.setStatus("Writing transcript...")
+				p.setLocalProgress(0.97)
+			}
+		},
+		OnProgress: func(pr transcriber.Progress) {
+			if pr.Phase == transcriber.PhaseTranscribing {
+				smoother.Report(int(pr.Pct + 0.5))
+				return
+			}
+			if pr.Phase == transcriber.PhaseDiarizing {
+				p.setStatus(fmt.Sprintf("Diarizing... %.0f%%", pr.Pct))
+				p.setLocalProgress(0.80 + pr.Pct/100.0*0.17)
+			}
+		},
+		OnLog: func(level, msg string) {
+			if level == "debug" {
+				p.debugLog(msg)
+				return
+			}
+			p.AppendLog("  " + msg)
+		},
+		OnResume: func(rp transcriber.ResumePrompt) transcriber.ResumeChoice {
+			switch p.promptResume(rp.SourceName, rp.ResumeAt, rp.Segments) {
+			case resumeYes:
+				if audioDurSec > 0 {
+					startFrac = rp.ResumeAt.Seconds() / audioDurSec
+					if startFrac < 0 {
+						startFrac = 0
 					}
-				} else {
-					wavPath = cachePath
+					if startFrac > 0.999 {
+						startFrac = 0.999
+					}
+					rem := audioDurSec - rp.ResumeAt.Seconds()
+					if rem > 0 {
+						smoother = progress.NewSmoother(rem, initialRTF)
+					}
 				}
+				return transcriber.ResumeYes
+			case resumeAbort:
+				p.cancelled.Store(true)
+				return transcriber.ResumeAbort
+			default:
+				return transcriber.ResumeFresh
 			}
+		},
+	}
+
+	job := &transcriber.Job{Model: model, Diarizer: dia, Hooks: hooks}
+	spec := transcriber.JobSpec{
+		SourcePath:  absPath,
+		ModelSize:   modelSize,
+		Language:    language,
+		Threads:     threads,
+		Speakers:    speakers,
+		NoDiarize:   noDiarize,
+		DeviceLabel: deviceLabel,
+	}
+
+	runtime.LockOSThread()
+	saved, reserved := sysstats.ReserveTopCores(2)
+	res, runErr := job.Run(jobCtx, spec)
+	if reserved {
+		sysstats.RestoreAffinity(saved)
+	}
+	runtime.UnlockOSThread()
+	stopTicker()
+
+	if runErr != nil {
+		if p.cancelled.Load() || jobCtx.Err() != nil {
+			return fmt.Errorf("cancelled")
 		}
-		diarSegs, diarOK = p.runDiarization(wavPath, speakers, audioDurSec)
+		return runErr
 	}
 
-	p.debugLog(fmt.Sprintf("transcript segments=%d diarize segments=%d diarOK=%v", len(segs), len(diarSegs), diarOK))
-
-	diarName := ""
-	if diarOK {
-		diarName = "sherpa-onnx-pyannote"
+	if res.RTF > 0 {
+		saveRTF(modelSize, deviceLabel, res.RTF)
 	}
-
-	audioDurMs := int64(audioDurSec * 1000)
-	transcript := transcriber.BuildTranscript(segs, diarSegs, diarOK, transcriber.TranscriptMeta{
-		Model:      modelSize,
-		Language:   detected,
-		DurationMs: audioDurMs,
-		Diarizer:   diarName,
-		Device:     deviceLabel,
-	})
-
-	data, err := json.MarshalIndent(transcript, "", "  ")
-	if err != nil {
-		return fmt.Errorf("marshaling transcript: %w", err)
-	}
-	data = append(data, '\n')
-
-	if cacheKey == "" {
-		cacheKey = cache.ComputeKey(cache.KeyParams{
-			SourcePath: absPath,
-			MtimeNs:    time.Now().UnixNano(),
-			Model:      modelSize,
-			Language:   detected,
-			Speakers:   speakers,
-			NoDiarize:  noDiarize,
-		})
-	}
-
-	entry := cache.Entry{
-		Key:        cacheKey,
-		SourcePath: absPath,
-		SourceName: sourceName,
-		Model:      modelSize,
-		Language:   detected,
-		Speakers:   speakers,
-		NoDiarize:  noDiarize,
-		Utterances: len(transcript.Utterances),
-		DurationMs: audioDurMs,
-		CreatedAt:  time.Now(),
-	}
-	storedPath, storeErr := cache.Store(entry, data)
-	if storeErr != nil {
-		return fmt.Errorf("storing transcript: %w", storeErr)
-	}
-
-	p.lastCSVPath = storedPath
 	p.setLocalProgress(1.0)
-	spkSet := make(map[int]struct{})
-	for _, s := range diarSegs {
-		spkSet[s.Speaker] = struct{}{}
+
+	p.lastCSVPath = res.CachePath
+	spkSet := map[int]struct{}{}
+	for _, u := range res.Transcript.Utterances {
+		_ = u
 	}
-	parts := []string{fmt.Sprintf("%.0fs", time.Since(fileStart).Seconds()), fmt.Sprintf("%d segs", len(transcript.Utterances))}
-	if detected != "" {
-		parts = append(parts, detected)
+	parts := []string{fmt.Sprintf("%.0fs", time.Since(fileStart).Seconds()), fmt.Sprintf("%d segs", len(res.Transcript.Utterances))}
+	if res.DetectedLanguage != "" {
+		parts = append(parts, res.DetectedLanguage)
 	}
-	if diarOK && len(spkSet) > 0 {
-		parts = append(parts, fmt.Sprintf("%d spk", len(spkSet)))
+	if res.DiarizerName != "" && res.Transcript.SpeakersDetected > 0 {
+		parts = append(parts, fmt.Sprintf("%d spk", res.Transcript.SpeakersDetected))
 	}
 	p.AppendLog("  ✓ " + strings.Join(parts, " · "))
+	_ = spkSet
 
-	newSrc, newName := p.autoRenameAfterTranscribe(entry.Key, storedPath, absPath, sourceName, time.Time{})
-	p.results = append(p.results, ExportItem{CachePath: storedPath, SourceName: newName, SourcePath: newSrc, CacheKey: entry.Key})
+	newSrc, newName := p.autoRenameAfterTranscribe(res.CacheKey, res.CachePath, absPath, sourceName, time.Time{})
+	p.results = append(p.results, ExportItem{CachePath: res.CachePath, SourceName: newName, SourcePath: newSrc, CacheKey: res.CacheKey})
 
 	if p.History != nil {
 		p.History.Refresh()
 	}
 	return nil
+}
+
+func (p *Panel) resolveDiarizer(speakers int, noDiarize bool) diarizer.Backend {
+	if noDiarize || !diarizer.SupportsExternalBackend() {
+		return nil
+	}
+	progByName := map[string]func(int64, int64){}
+	modelProgress := func(name string, downloaded, total int64) {
+		cb, ok := progByName[name]
+		if !ok {
+			label := map[string]string{"seg": "segmentation", "emb": "embedding"}[name]
+			if label == "" {
+				label = name
+			}
+			cb = p.makeDownloadProgress(label)
+			progByName[name] = cb
+		}
+		cb(downloaded, total)
+	}
+	if err := diarizer.EnsureSherpaModels(modelProgress); err != nil {
+		p.AppendLog(fmt.Sprintf("  Diarization model download failed: %v", err))
+		return nil
+	}
+	dia, err := diarizer.NewWithPreference(speakers, speakers > 0)
+	if err != nil {
+		p.AppendLog(fmt.Sprintf("  Diarization unavailable: %v", err))
+		return nil
+	}
+	p.debugLog(fmt.Sprintf("diarizer=%s speakers=%d", dia.Name(), speakers))
+	return dia
 }

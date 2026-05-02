@@ -12,8 +12,9 @@ import (
 
 	shared "github.com/asolopovas/wt/internal"
 	"github.com/asolopovas/wt/internal/diarizer"
-	"github.com/asolopovas/wt/internal/transcriber"
 )
+
+var ProbeDurationMsFn = func(string) int64 { return 0 }
 
 func rawTranscriptDir() string {
 	return filepath.Join(shared.CacheDir(), "raw")
@@ -270,6 +271,18 @@ func Lookup(key string) (string, *Entry, bool) {
 	return path, nil, true
 }
 
+func Export(key, dest string) error {
+	src := TranscriptPathForKey(key)
+	data, err := os.ReadFile(src)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
+		return err
+	}
+	return os.WriteFile(dest, data, 0o644)
+}
+
 func Store(entry Entry, transcriptJSON []byte) (string, error) {
 	if err := os.MkdirAll(transcriptCacheDir(), 0o755); err != nil {
 		return "", err
@@ -338,7 +351,7 @@ func StorePending(sourcePath string) error {
 		Key:        key,
 		SourcePath: abs,
 		SourceName: filepath.Base(abs),
-		DurationMs: transcriber.ProbeDurationMs(abs),
+		DurationMs: ProbeDurationMsFn(abs),
 		CreatedAt:  time.Now(),
 		RecordedAt: recordedAt,
 		SizeBytes:  size,
@@ -360,7 +373,7 @@ func BackfillDurations() int {
 		if _, err := os.Stat(entries[i].SourcePath); err != nil {
 			continue
 		}
-		if ms := transcriber.ProbeDurationMs(entries[i].SourcePath); ms > 0 {
+		if ms := ProbeDurationMsFn(entries[i].SourcePath); ms > 0 {
 			entries[i].DurationMs = ms
 			changed++
 		}

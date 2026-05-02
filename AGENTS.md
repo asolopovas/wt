@@ -115,6 +115,8 @@ stdlib `testing` only. Names: `Test<Function>_<Scenario>`, table-driven preferre
 
 **Always:** before every commit run `task lint && task test && task vet` (CGo env). No `--no-verify`. `Taskfile.yml VERSION` is the single source of truth; `installer.iss` gets it via ISCC `/D`.
 
+**Always:** when relocating a package and its dependencies form a cycle with the new parent, break the cycle via a package-level injection variable set from the parent's `init()` (e.g. `cache.ProbeDurationMsFn = transcriber.ProbeDurationMs` in `internal/transcriber/cache_probe.go`). Don't move helper functions speculatively to dodge the cycle — break the specific edge that closes it.
+
 **Ask first:** anything mutating state outside the repo (installs, registry, version bumps).
 
 **Never:**

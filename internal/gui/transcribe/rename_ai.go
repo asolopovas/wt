@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/asolopovas/wt/internal/gui/cache"
+	"github.com/asolopovas/wt/internal/transcriber/cache"
 	"github.com/asolopovas/wt/internal/namer"
 	"github.com/asolopovas/wt/internal/transcriber"
 )

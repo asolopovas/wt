@@ -7,13 +7,16 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/pterm/pterm"
 	"github.com/urfave/cli/v3"
 
 	shared "github.com/asolopovas/wt/internal"
 	"github.com/asolopovas/wt/internal/transcriber"
+	"github.com/asolopovas/wt/internal/transcriber/cache"
 	"github.com/asolopovas/wt/internal/ui"
+	whisper "github.com/ggerganov/whisper.cpp/bindings/go/pkg/whisper"
 )
 
 var Version = "dev"
@@ -150,16 +153,15 @@ func run(lang, modelSize, modelPath string, threads, speakers int, tdrz, noDiari
 	errCount := 0
 	for i, path := range paths {
 		filename := filepath.Base(path)
-		output := transcriber.OutputFilename(filename, modelSize)
 		ui.FileHeader(i+1, len(paths), filename)
-		audioPath, jsonPath, err := transcriber.TranscribeToJSON(model, path, output, modelSize, lang, threads, speakers, tdrz, noDiarize)
+		absPath, jsonPath, err := runJob(model.Model, path, modelSize, lang, threads, speakers, tdrz, noDiarize)
 		if err != nil {
 			ui.Errorf("%v", err)
 			errCount++
 			continue
 		}
 		if !noRename {
-			autoRename(audioPath, jsonPath)
+			autoRename(absPath, jsonPath)
 		}
 	}
 
@@ -195,4 +197,117 @@ func expandFiles(patterns []string) ([]string, error) {
 		paths[i] = abs
 	}
 	return paths, nil
+}
+
+func runJob(model whisper.Model, path, modelSize, lang string, threads, speakers int, tdrz, noDiarize bool) (string, string, error) {
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return "", "", fmt.Errorf("resolving path: %w", err)
+	}
+
+	loadStart := time.Now()
+	var loadSpinner *pterm.SpinnerPrinter
+	var diarStart, transcribeStart time.Time
+	lastPct := -1
+	transcribeDone := false
+	diarDone := false
+
+	hooks := transcriber.Hooks{
+		OnPhase: func(p transcriber.Phase) {
+			switch p {
+			case transcriber.PhaseLoadingAudio:
+				loadStart = time.Now()
+				loadSpinner = ui.Spinner("Loading audio...")
+			case transcriber.PhaseTranscribing:
+				if loadSpinner != nil {
+					_ = loadSpinner.Stop()
+					ui.Tickf("Audio loaded (%.1fs)", time.Since(loadStart).Seconds())
+					loadSpinner = nil
+				}
+				ui.Stage("Transcribing...")
+				transcribeStart = time.Now()
+				lastPct = -1
+			case transcriber.PhaseDiarizing:
+				if !transcribeDone && !transcribeStart.IsZero() {
+					ui.ClearProgress()
+					ui.Tickf("Transcribed (%.0fs)", time.Since(transcribeStart).Seconds())
+					transcribeDone = true
+				}
+				ui.Stage("Diarizing...")
+				diarStart = time.Now()
+				lastPct = -1
+			case transcriber.PhaseWriting:
+				if !transcribeDone && !transcribeStart.IsZero() {
+					ui.ClearProgress()
+					ui.Tickf("Transcribed (%.0fs)", time.Since(transcribeStart).Seconds())
+					transcribeDone = true
+				}
+				if !diarDone && !diarStart.IsZero() {
+					ui.ClearProgress()
+					ui.Tickf("Diarized (%.0fs)", time.Since(diarStart).Seconds())
+					diarDone = true
+				}
+			}
+		},
+		OnProgress: func(p transcriber.Progress) {
+			pct := int(p.Pct + 0.5)
+			if pct == lastPct {
+				return
+			}
+			lastPct = pct
+			start := transcribeStart
+			if p.Phase == transcriber.PhaseDiarizing {
+				start = diarStart
+			}
+			if start.IsZero() {
+				start = time.Now()
+			}
+			ui.ProgressLine(pct, time.Since(start).Seconds())
+		},
+		OnLog: func(level, msg string) {
+			switch level {
+			case "warn":
+				ui.Warn(msg)
+			case "info":
+				ui.Tick(msg)
+			default:
+				if ui.Verbose {
+					ui.Debug("", msg)
+				}
+			}
+		},
+	}
+
+	job := &transcriber.Job{Model: model, Hooks: hooks}
+	spec := transcriber.JobSpec{
+		SourcePath: absPath,
+		ModelSize:  modelSize,
+		Language:   lang,
+		Threads:    threads,
+		Speakers:   speakers,
+		NoDiarize:  noDiarize,
+		TDRZ:       tdrz,
+	}
+
+	res, err := job.Run(context.Background(), spec)
+	if loadSpinner != nil {
+		_ = loadSpinner.Stop()
+	}
+	if err != nil {
+		return absPath, "", err
+	}
+
+	dest := filepath.Join(filepath.Dir(absPath), transcriber.OutputFilename(filepath.Base(absPath), modelSize))
+	if !res.Cached {
+		if err := cache.Export(res.CacheKey, dest); err != nil {
+			return absPath, "", fmt.Errorf("exporting transcript: %w", err)
+		}
+		ui.Done(fmt.Sprintf("Output: %s (%d segments)", dest, len(res.Transcript.Utterances)))
+	} else {
+		if err := cache.Export(res.CacheKey, dest); err != nil {
+			return absPath, "", fmt.Errorf("exporting cached transcript: %w", err)
+		}
+		ui.Tickf("Cached: %s", dest)
+	}
+	return absPath, dest, nil
 }

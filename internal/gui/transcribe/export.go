@@ -23,7 +23,7 @@ import (
 	"fyne.io/fyne/v2/widget"
 	"github.com/xuri/excelize/v2"
 
-	"github.com/asolopovas/wt/internal/gui/cache"
+	"github.com/asolopovas/wt/internal/transcriber/cache"
 	"github.com/asolopovas/wt/internal/gui/preview"
 	"github.com/asolopovas/wt/internal/transcriber"
 )
