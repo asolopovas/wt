@@ -264,13 +264,33 @@ tasks:
           fi
           taskkill //F //IM {{.BINARY}}-gui.exe 2>/dev/null || true
           taskkill //F //IM {{.BINARY}}.exe 2>/dev/null || true
-          python -c "import time; time.sleep(1)"
-          cp -f dist/bin/*.exe "$dest/"
-          cp -f dist/bin/*.dll "$dest/" 2>/dev/null || true
-          cp -f dist/bin/diarize.py "$dest/" 2>/dev/null || true
+          taskkill //F //IM whisper-go-gui.exe 2>/dev/null || true
+          taskkill //F //IM whisper-go.exe 2>/dev/null || true
+          taskkill //F //IM llama-cli.exe 2>/dev/null || true
+          # Wait for Windows to release file locks on whisper.dll (large native DLL,
+          # workers can hold handles briefly after process exit). Poll up to ~10s.
+          lock_target="$dest/whisper.dll"
+          for i in $(seq 1 20); do
+            if [ ! -f "$lock_target" ]; then break; fi
+            # Try opening for write; succeeds only if no other process holds it.
+            if (exec 9>>"$lock_target") 2>/dev/null; then exec 9>&-; break; fi
+            sleep 0.5
+          done
+          # Robust copy with retry — handles transient locks.
+          copy_with_retry() {
+            local src=$1 dst=$2
+            for i in $(seq 1 10); do
+              if cp -f "$src" "$dst" 2>/dev/null; then return 0; fi
+              sleep 0.5
+            done
+            cp -f "$src" "$dst"
+          }
+          for f in dist/bin/*.exe; do copy_with_retry "$f" "$dest/"; done
+          for f in dist/bin/*.dll; do [ -f "$f" ] && copy_with_retry "$f" "$dest/"; done
+          [ -f dist/bin/diarize.py ] && cp -f dist/bin/diarize.py "$dest/"
           if [ -d dist/bin/llama ]; then
             mkdir -p "$dest/llama"
-            cp -f dist/bin/llama/* "$dest/llama/" 2>/dev/null || true
+            for f in dist/bin/llama/*; do [ -f "$f" ] && copy_with_retry "$f" "$dest/llama/"; done
           fi
           echo "Updated $dest"
           "$dest/{{.BINARY}}.exe" --version
