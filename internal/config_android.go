@@ -74,9 +74,9 @@ func affinityCPUs() int {
 func defaultThreads() int {
 	avail := affinityCPUs()
 
-	n := avail - 2
-	if n > 6 {
-		n = 6
+	n := avail - 4
+	if n > 4 {
+		n = 4
 	}
 	if n < 1 {
 		n = 1

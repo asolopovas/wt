@@ -263,7 +263,13 @@ func (p *Panel) loadModel(modelSize string) (whisper.Model, error) {
 	whisper.SetLogQuiet(true)
 
 	start := time.Now()
+	runtime.LockOSThread()
+	prio, lowered := sysstats.SetCurrentThreadBackground()
 	m, err := whisper.New(path)
+	if lowered {
+		sysstats.RestoreThreadPriority(prio)
+	}
+	runtime.UnlockOSThread()
 	if err != nil {
 		return nil, fmt.Errorf("loading model: %w", err)
 	}
@@ -450,7 +456,11 @@ func (p *Panel) transcribeFile(model whisper.Model, path, modelSize, deviceLabel
 
 	runtime.LockOSThread()
 	saved, reserved := sysstats.ReserveTopCores(2)
+	prio, lowered := sysstats.SetCurrentThreadBackground()
 	res, runErr := job.Run(jobCtx, spec)
+	if lowered {
+		sysstats.RestoreThreadPriority(prio)
+	}
 	if reserved {
 		sysstats.RestoreAffinity(saved)
 	}
