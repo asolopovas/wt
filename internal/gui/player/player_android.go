@@ -96,6 +96,66 @@ static int wt_play_is_playing(uintptr_t envPtr) {
 	(*env)->DeleteLocalRef(env, cMP);
 	return r ? 1 : 0;
 }
+
+static int wt_play_position_ms(uintptr_t envPtr) {
+	JNIEnv* env = (JNIEnv*)envPtr;
+	if (!env || !g_player) return 0;
+	jclass cMP = (*env)->GetObjectClass(env, g_player);
+	jmethodID m = (*env)->GetMethodID(env, cMP, "getCurrentPosition", "()I");
+	jint r = 0;
+	if (m) r = (*env)->CallIntMethod(env, g_player, m);
+	if ((*env)->ExceptionCheck(env)) { (*env)->ExceptionClear(env); r = 0; }
+	(*env)->DeleteLocalRef(env, cMP);
+	return (int)r;
+}
+
+static int wt_play_duration_ms(uintptr_t envPtr) {
+	JNIEnv* env = (JNIEnv*)envPtr;
+	if (!env || !g_player) return 0;
+	jclass cMP = (*env)->GetObjectClass(env, g_player);
+	jmethodID m = (*env)->GetMethodID(env, cMP, "getDuration", "()I");
+	jint r = 0;
+	if (m) r = (*env)->CallIntMethod(env, g_player, m);
+	if ((*env)->ExceptionCheck(env)) { (*env)->ExceptionClear(env); r = 0; }
+	(*env)->DeleteLocalRef(env, cMP);
+	return (int)r;
+}
+
+static int wt_play_seek_ms(uintptr_t envPtr, int positionMs) {
+	JNIEnv* env = (JNIEnv*)envPtr;
+	if (!env || !g_player) return 0;
+	jclass cMP = (*env)->GetObjectClass(env, g_player);
+	jmethodID m = (*env)->GetMethodID(env, cMP, "seekTo", "(I)V");
+	if (m) (*env)->CallVoidMethod(env, g_player, m, (jint)positionMs);
+	int ok = 1;
+	if ((*env)->ExceptionCheck(env)) { (*env)->ExceptionClear(env); ok = 0; }
+	(*env)->DeleteLocalRef(env, cMP);
+	return ok;
+}
+
+static int wt_play_pause(uintptr_t envPtr) {
+	JNIEnv* env = (JNIEnv*)envPtr;
+	if (!env || !g_player) return 0;
+	jclass cMP = (*env)->GetObjectClass(env, g_player);
+	jmethodID m = (*env)->GetMethodID(env, cMP, "pause", "()V");
+	if (m) (*env)->CallVoidMethod(env, g_player, m);
+	int ok = 1;
+	if ((*env)->ExceptionCheck(env)) { (*env)->ExceptionClear(env); ok = 0; }
+	(*env)->DeleteLocalRef(env, cMP);
+	return ok;
+}
+
+static int wt_play_resume(uintptr_t envPtr) {
+	JNIEnv* env = (JNIEnv*)envPtr;
+	if (!env || !g_player) return 0;
+	jclass cMP = (*env)->GetObjectClass(env, g_player);
+	jmethodID m = (*env)->GetMethodID(env, cMP, "start", "()V");
+	if (m) (*env)->CallVoidMethod(env, g_player, m);
+	int ok = 1;
+	if ((*env)->ExceptionCheck(env)) { (*env)->ExceptionClear(env); ok = 0; }
+	(*env)->DeleteLocalRef(env, cMP);
+	return ok;
+}
 */
 import "C"
 
@@ -109,11 +169,12 @@ import (
 )
 
 type Player struct {
-	mu      sync.Mutex
-	key     string
-	onStop  func(key string)
-	stopCh  chan struct{}
-	running bool
+	mu       sync.Mutex
+	key      string
+	onStop   func(key string)
+	stopCh   chan struct{}
+	running  bool
+	endMs    int // 0 = play to natural end
 }
 
 func (p *Player) Playing(key string) bool {
@@ -122,7 +183,41 @@ func (p *Player) Playing(key string) bool {
 	return p.running && p.key == key
 }
 
+// IsPlaying reports whether any track is loaded and playing/paused.
+func (p *Player) IsPlaying() bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.running
+}
+
+// Position returns the current MediaPlayer position in seconds.
+func (p *Player) Position() float64 {
+	p.mu.Lock()
+	if !p.running {
+		p.mu.Unlock()
+		return 0
+	}
+	p.mu.Unlock()
+	posMs := 0
+	_ = driver.RunNative(func(ctx any) error {
+		ac, valid := ctx.(*driver.AndroidContext)
+		if !valid || ac == nil || ac.Env == 0 {
+			return nil
+		}
+		posMs = int(C.wt_play_position_ms(C.uintptr_t(ac.Env)))
+		return nil
+	})
+	return float64(posMs) / 1000.0
+}
+
 func (p *Player) Start(key, path string, onStop func(key string)) error {
+	return p.StartRange(key, path, 0, 0, onStop)
+}
+
+// StartRange plays [startSec, endSec). endSec<=0 means play to EOF. Implements
+// region playback by seeking after start and polling the position in the
+// watcher; when the position crosses endSec we stop and fire onStop.
+func (p *Player) StartRange(key, path string, startSec, endSec float64, onStop func(key string)) error {
 	p.Stop()
 
 	cPath := C.CString(path)
@@ -141,12 +236,28 @@ func (p *Player) Start(key, path string, onStop func(key string)) error {
 		return fmt.Errorf("MediaPlayer failed to start")
 	}
 
+	if startSec > 0 {
+		_ = driver.RunNative(func(ctx any) error {
+			ac, valid := ctx.(*driver.AndroidContext)
+			if !valid || ac == nil || ac.Env == 0 {
+				return nil
+			}
+			C.wt_play_seek_ms(C.uintptr_t(ac.Env), C.int(int(startSec*1000)))
+			return nil
+		})
+	}
+
 	stopCh := make(chan struct{})
+	endMs := 0
+	if endSec > startSec && endSec > 0 {
+		endMs = int(endSec * 1000)
+	}
 	p.mu.Lock()
 	p.key = key
 	p.onStop = onStop
 	p.stopCh = stopCh
 	p.running = true
+	p.endMs = endMs
 	p.mu.Unlock()
 
 	go p.watch(key, stopCh)
@@ -162,14 +273,22 @@ func (p *Player) watch(key string, stopCh chan struct{}) {
 			return
 		case <-ticker.C:
 			playing := false
+			posMs := 0
 			_ = driver.RunNative(func(ctx any) error {
 				ac, valid := ctx.(*driver.AndroidContext)
 				if !valid || ac == nil || ac.Env == 0 {
 					return nil
 				}
 				playing = C.wt_play_is_playing(C.uintptr_t(ac.Env)) == 1
+				posMs = int(C.wt_play_position_ms(C.uintptr_t(ac.Env)))
 				return nil
 			})
+			p.mu.Lock()
+			endMs := p.endMs
+			p.mu.Unlock()
+			if playing && endMs > 0 && posMs >= endMs {
+				playing = false
+			}
 			if !playing {
 				p.mu.Lock()
 				if p.stopCh != stopCh {

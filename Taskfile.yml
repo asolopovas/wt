@@ -675,6 +675,19 @@ tasks:
               -o "$vk_include/$f"
           done
 
+  ffmpeg-android:
+    desc: 'Build static audio-only ffmpeg for android-arm64 (dist/ffmpeg/ffmpeg-android-arm64).'
+    status:
+      - test -f "{{.ROOT_DIR | toSlash}}/dist/ffmpeg/ffmpeg-android-arm64"
+    cmds:
+      - cmd: |
+          MSYS_BASH="C:/msys64/usr/bin/bash.exe"
+          if [ ! -f "$MSYS_BASH" ]; then
+            echo "ERROR: msys2 bash not found at $MSYS_BASH (install msys2 from https://www.msys2.org/)" >&2
+            exit 1
+          fi
+          "$MSYS_BASH" -lc "export ANDROID_NDK_HOME='{{.NDK_ROOT}}'; export PATH='/mingw64/bin:/usr/bin:'\"\$PATH\"; cd '{{.ROOT_DIR | toSlash}}' && bash scripts/build-ffmpeg-android.sh"
+
   android-whisper-lib:
     internal: true
     deps: [android-vulkan-headers]
@@ -788,7 +801,7 @@ tasks:
 
   android-apk:
     desc: 'Build Android APK (dist/wt-{{.VERSION}}.apk).'
-    deps: [android-whisper-lib]
+    deps: [android-whisper-lib, ffmpeg-android]
     cmds:
       # Materialize cmd/wt-gui/AndroidManifest.xml from .in template so Fyne
       # picks it up (build_androidapp.go reads AndroidManifest.xml from the
@@ -861,6 +874,7 @@ tasks:
           SHERPA_SEG="dist/sherpa/models/sherpa-onnx-pyannote-segmentation-3-0/model.onnx" \
           SHERPA_EMB="dist/sherpa/models/titanet_large.onnx" \
           LLAMA_BIN="dist/llama/llama-cli-android-arm64" \
+          FFMPEG_BIN="dist/ffmpeg/ffmpeg-android-arm64" \
           SVC_DEX="dist/svc-build/classes.dex" \
           OUT="dist/unsigned.apk" \
             python scripts/android-apk-patch.py
