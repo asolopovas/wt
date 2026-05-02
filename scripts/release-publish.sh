@@ -7,6 +7,16 @@
 # Usage: bash scripts/release-publish.sh <version>
 set -euo pipefail
 
+# msys64 bash strips Windows env vars (APPDATA/USERPROFILE), so gh.exe can't
+# locate its auth config at %APPDATA%\GitHub CLI\hosts.yml. Reconstruct the
+# path via cygpath -H + whoami and pass it via GH_CONFIG_DIR.
+if [ -z "${GH_CONFIG_DIR:-}" ] && command -v cygpath >/dev/null 2>&1; then
+  cfg="$(cygpath -H)/$(whoami)/AppData/Roaming/GitHub CLI"
+  if [ -f "$cfg/hosts.yml" ]; then
+    export GH_CONFIG_DIR="$cfg"
+  fi
+fi
+
 ver="${1:?version required}"
 tag="v$ver"
 echo "=== Releasing $tag ==="
