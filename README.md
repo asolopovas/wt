@@ -23,19 +23,24 @@ Silent Windows install:
 wt-setup.exe /VERYSILENT /SP-
 ```
 
-Config and models live under `%USERPROFILE%\.wt\` (Windows) or `~/.wt/` (Linux).
+Config and models directory:
+
+* **Windows:** `%APPDATA%\wt\` (i.e. `C:\Users\<you>\AppData\Roaming\wt\`)
+* **Linux:** `$XDG_CONFIG_HOME/wt/` or `~/.config/wt/`
+* **Android:** app private storage
 
 ## GUI
 
 `wt-gui` is a Fyne desktop app (Windows/Linux) and Android app:
 
 * Drag and drop audio files, or pick via file dialog
-* In app recording (Android) and live microphone transcription (desktop)
+* In-app recording (Android) and live microphone transcription (desktop)
 * Transcript history with search, replay, and re-export
-* Export to JSON, RTF, or CSV
+* Export to JSON, CSV, or plain text
 * Session log tab with live whisper.cpp / diarizer output
 * System tray icon and CPU/RAM/GPU stats
 * Settings UI for model, language, device, threads, diarization
+* Optional auto-rename of audio + transcript via local LLM (`llama-cli`)
 
 ## CLI Usage
 
@@ -46,8 +51,10 @@ wt "recordings/*.ogg"               # glob pattern
 wt -m medium -l en audio.wav        # specify model and language
 wt --speakers 3 meeting.ogg         # hint number of speakers
 wt --no-diarize audio.ogg           # skip speaker detection
-wt --tdrz audio.ogg                 # whisper.cpp tinydiarize instead of NeMo
+wt --tdrz audio.ogg                 # whisper.cpp tinydiarize (small.en-tdrz model)
 wt --live -l en                     # live microphone transcription
+wt --no-rename audio.ogg            # skip LLM-based auto-rename
+wt models                           # list / manage downloaded models
 ```
 
 Output is written next to the input as `<name>_<model>_<timestamp>.json`.
@@ -79,16 +86,17 @@ All timestamps are in milliseconds.
 | Flag | Default | Description |
 |------|---------|-------------|
 | `-l, --lang` | auto | Language code (`en`, `ru`, ...). Omit to auto detect. |
-| `-m, --model-size` | `turbo` | `tiny`, `base`, `small`, `medium`, `large-v3`, `turbo` |
+| `-m, --model-size` | `turbo` | See **Models** table below. |
 | `--model` | | Explicit path to a GGML model file. |
 | `-t, --threads` | all cores | Thread count. |
-| `--speakers` | 0 (auto) | Hint number of speakers. Forces sherpa backend when > 0. |
-| `--tdrz` | off | Use whisper.cpp tinydiarize. |
-| `--no-diarize` | off | Skip diarization entirely. |
+| `--speakers` | `0` (auto) | Hint number of speakers. Forces sherpa backend when > 0. |
+| `--tdrz` | off | Use whisper.cpp tinydiarize (requires `small.en-tdrz` model). |
+| `--no-diarize` | off | Skip diarization entirely; everything maps to `SPEAKER_01`. |
+| `--no-rename` | off | Skip LLM-based auto-rename of audio + transcript. |
 | `--live` | off | Live microphone transcription. |
 | `-V, --verbose` | off | Debug output. |
 
-CLI flags override `config.yml` values.
+CLI flags override `config.yml` values. Subcommand: `wt models` for model management.
 
 ## Models
 
@@ -98,16 +106,19 @@ CLI flags override `config.yml` values.
 | `base` / `base.en` | 142 MB | General use |
 | `small` / `small.en` | 466 MB | Better accuracy |
 | `medium` / `medium.en` | 1.5 GB | High accuracy |
-| `large-v3` | 3.1 GB | Best accuracy, slowest |
-| `turbo` | 1.6 GB | Best speed/accuracy tradeoff (default) |
+| `large-v1` / `large-v2` / `large-v3` (alias `large`) | 3.1 GB | Best accuracy, slowest |
+| `turbo` (alias `large-v3-turbo`) | 1.6 GB | Best speed/accuracy tradeoff (default) |
+| `distil-small.en` / `distil-medium.en` | 0.3 / 0.8 GB | Distilled, faster |
+| `distil-large-v2` / `distil-large-v3` | 1.5 GB | Distilled large |
 
-`.en` variants are English only and slightly faster. Models download to `~/.wt/models/` on first use.
+`.en` variants are English-only and slightly faster. Models download to `<config-dir>/models/` on first use.
 
 ## Config
 
-`~/.wt/config.yml` (created on first run):
+`<config-dir>/config.yml` (created on first run; see paths above):
 
 ```yaml
+version: 1
 model: turbo
 language: ""           # empty = auto detect
 device: auto           # auto, cuda, cpu
@@ -118,34 +129,60 @@ tdrz: false
 cache_expiry_days: 30
 ```
 
+Cache (transcripts, imports) lives at `<config-dir>/cache/`.
+
 ## Diarization
 
-* **NeMo Sortformer** (desktop CLI default): up to 4 speakers, GPU accelerated when CUDA is available, runs via the bundled Python environment. Public model, no HuggingFace token needed. Caches to `~/.cache/huggingface/`.
-* **sherpa-onnx** (GUI default, Android only backend, CLI when `--speakers N` is set): pyannote-3.0 segmentation + NeMo TitaNet-Large embeddings. Pure ONNX runtime, no Python.
-* `--tdrz`: whisper.cpp built in tinydiarize. Fast, less accurate.
+* **NeMo Sortformer** (desktop CLI default): up to 4 speakers, GPU-accelerated when CUDA is available, runs via the bundled Python environment (`uv` + `scripts/diarize.py`). Public model, no HuggingFace token needed. Caches to `~/.cache/huggingface/`.
+* **sherpa-onnx** (GUI default, only Android backend, CLI when `--speakers N` is set): pyannote-3.0 segmentation + NeMo TitaNet-Large embeddings. Pure ONNX runtime, no Python.
+* `--tdrz`: whisper.cpp built-in tinydiarize. Fast, less accurate, requires the `small.en-tdrz` model.
 * `--no-diarize`: every utterance gets `SPEAKER_01`.
 
 ## Logs
 
-* `~/.wt/setup.log` — installer output (ffmpeg, CUDA, Python env, NeMo, model download)
+* `%APPDATA%\wt\setup.log` (Windows) — installer output (ffmpeg, CUDA, Python env, NeMo, model download)
 * `%TEMP%\Setup Log *.txt` — Inno Setup file operations
+* GUI: **Session log** tab streams live whisper.cpp / diarizer output
 
 ## Build from Source
 
-Requires Go 1.26+, GCC (MinGW on Windows), CMake, ffmpeg, [Task](https://taskfile.dev/).
+Requires Go 1.26+, GCC (MinGW on Windows), CMake, ffmpeg, [Task](https://taskfile.dev/). On first run `task build` clones whisper.cpp into `third_party/`.
 
 ```bash
 git clone https://github.com/asolopovas/wt.git
 cd wt
-task build              # compile CLI + GUI (clones whisper.cpp on first run)
-task build ONLY=cli     # CLI only
-task install            # replace installed binaries locally
-task test               # run test suite
-task check              # verify toolchain
+
+task build                       # CLI + GUI + installer (host platform)
+task build ONLY=cli              # CLI only (skip installer)
+task build ONLY=gui              # GUI only (skip installer)
+task build ONLY=android          # Android APK
+task install                     # build + replace local install
+task install TARGET=android      # build APK + adb install + launch
+task test                        # full test suite (rebuilds whisper lib)
+task test SHORT=1                # skip CGo / model tests
+task test INTEGRATION=1          # diarization integration tests
+task lint [FIX=1] [ANDROID=1]    # golangci-lint (+gofumpt with FIX)
+task models FETCH=samples        # fetch diarization test samples
+task models FETCH=import         # import models from Windows mounts (WSL)
+task release [ROLLING=1]         # bump + GH release (or update rolling prerelease)
+task clean [DEEP=1]              # clean dist/ (+ whisper.cpp build with DEEP)
 ```
 
-Android APK: `task install-android` (requires Android SDK/NDK + adb).
+Android build requires Android SDK + NDK 27.2.x + msys2 (for ffmpeg cross-compile). See `AGENTS.md` for the full task reference.
+
+## Project Layout
+
+```
+cmd/{wt,wt-gui,wt-test}    CLI / Fyne GUI / Android test CLI
+internal/transcriber/      Audio, model resolution, CSV, live mode
+internal/diarizer/         NeMo subprocess + sherpa-onnx
+internal/llm/              llama-cli subprocess (auto-rename)
+internal/gui/              Fyne GUI (token-based design system)
+internal/ui/               Terminal spinners (CLI only)
+bindings/go/               Vendored whisper.cpp CGo bindings
+scripts/                   Build helpers, Inno Setup, diarize.py
+```
 
 ## License
 
-MIT. Provided as is, no warranty. PRs welcome.
+MIT. Provided as-is, no warranty. PRs welcome.
