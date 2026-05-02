@@ -23,7 +23,10 @@ var (
 	newLimitSelect           = decor.NewLimitSelect
 )
 
-const notifyInfo = decor.NotifyInfo
+const (
+	notifyInfo    = decor.NotifyInfo
+	notifySuccess = decor.NotifySuccess
+)
 
 var monoBoldStyle = decor.MonoBoldStyle
 

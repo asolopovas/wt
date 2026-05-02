@@ -28,7 +28,9 @@ func Run(version, buildDate string) error {
 
 	settings := newSettingsPanel(cfg, w)
 	tp := transcribe.New(w, settings)
+	dock := newPlayerDock(w, tp)
 	history := newHistoryPanel(w, tp)
+	history.dock = dock
 	tp.History = history
 	attachLibrary(tp, history)
 	settings.onCacheCleared = history.Refresh
@@ -58,7 +60,7 @@ func Run(version, buildDate string) error {
 
 	transcribe.SetupTray(a, w, tp, appIcon)
 
-	w.SetContent(tabs)
+	w.SetContent(container.NewBorder(nil, dock.Container(), nil, nil, tabs))
 	w.ShowAndRun()
 	return nil
 }

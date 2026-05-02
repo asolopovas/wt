@@ -103,6 +103,8 @@ func parseFFmpegDuration(stderr string) int64 {
 	return int64(total * 1000)
 }
 
+func FindFFmpeg() string { return findFFmpeg() }
+
 func findFFmpeg() string {
 	ffmpegOnce.Do(func() {
 		if p, err := exec.LookPath("ffmpeg"); err == nil {

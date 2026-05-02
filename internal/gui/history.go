@@ -28,6 +28,7 @@ type historyPanel struct {
 	container   fyne.CanvasObject
 	headerRight *fyne.Container
 	player      player.Player
+	dock        *playerDock
 }
 
 func (h *historyPanel) Container() fyne.CanvasObject {
@@ -124,6 +125,10 @@ func (h *historyPanel) buildRow(e cache.Entry) fyne.CanvasObject {
 		playBtn.OnTapped = func() {
 			if e.SourcePath == "" {
 				showError(h.window, fmt.Errorf("source file path missing"))
+				return
+			}
+			if h.dock != nil {
+				h.dock.Load(e.Key, e.SourcePath, e.SourceName, true)
 				return
 			}
 			if h.player.Playing(e.Key) {
