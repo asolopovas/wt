@@ -11,14 +11,12 @@ import (
 	whisper "github.com/ggerganov/whisper.cpp/bindings/go/pkg/whisper"
 )
 
-// panicModel implements whisper.Model but panics on every call.
-// Used to prove a code path never reaches whisper.
 type panicModel struct{}
 
-func (panicModel) Close() error                       { panic("Close called") }
+func (panicModel) Close() error                         { panic("Close called") }
 func (panicModel) NewContext() (whisper.Context, error) { panic("NewContext called") }
-func (panicModel) IsMultilingual() bool               { panic("IsMultilingual called") }
-func (panicModel) Languages() []string                { panic("Languages called") }
+func (panicModel) IsMultilingual() bool                 { panic("IsMultilingual called") }
+func (panicModel) Languages() []string                  { panic("Languages called") }
 
 func redirectAppDir(t *testing.T) {
 	t.Helper()
@@ -41,9 +39,9 @@ func writeFakeAudio(t *testing.T, name string) string {
 }
 
 type recordingHooks struct {
-	phases    []Phase
-	logs      []string
-	resumeFn  func(ResumePrompt) ResumeChoice
+	phases   []Phase
+	logs     []string
+	resumeFn func(ResumePrompt) ResumeChoice
 }
 
 func (r *recordingHooks) hooks() Hooks {
@@ -59,9 +57,6 @@ func (r *recordingHooks) hooks() Hooks {
 	}
 }
 
-// TestJob_CacheHitShortCircuits proves the seam works: a pre-populated
-// transcript cache makes Run return without touching whisper or diarizer.
-// The Model is nil, which would panic if any whisper code path ran.
 func TestJob_CacheHitShortCircuits(t *testing.T) {
 	redirectAppDir(t)
 
@@ -117,8 +112,6 @@ func TestJob_CacheHitShortCircuits(t *testing.T) {
 	}
 }
 
-// TestHooks_ZeroValueIsSilent: an unset Hooks must be safe to call.
-// This is the test-fixture contract — fakeable without ceremony.
 func TestHooks_ZeroValueIsSilent(t *testing.T) {
 	var h Hooks
 	h.phase(PhaseLoadingAudio)
@@ -129,7 +122,6 @@ func TestHooks_ZeroValueIsSilent(t *testing.T) {
 	}
 }
 
-// TestJob_RejectsMissingModel: documents the precondition.
 func TestJob_RejectsMissingModel(t *testing.T) {
 	redirectAppDir(t)
 	job := &Job{}
@@ -139,7 +131,6 @@ func TestJob_RejectsMissingModel(t *testing.T) {
 	}
 }
 
-// TestJob_RejectsMissingPath: documents the precondition.
 func TestJob_RejectsMissingPath(t *testing.T) {
 	job := &Job{Model: panicModel{}}
 	_, err := job.Run(context.Background(), JobSpec{SourcePath: ""})

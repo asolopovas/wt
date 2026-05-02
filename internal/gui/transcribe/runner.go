@@ -120,7 +120,7 @@ func (p *Panel) runTranscription(files []string) {
 	p.results = nil
 	p.resetSpeakerRenames()
 
-	notify(appinfo.Name,fmt.Sprintf("Transcribing %d file(s)…", len(files)))
+	notify(appinfo.Name, fmt.Sprintf("Transcribing %d file(s)…", len(files)))
 
 	runStart := time.Now()
 	p.debugLog(fmt.Sprintf("run start: files=%d", len(files)))
@@ -190,7 +190,7 @@ func (p *Panel) runTranscription(files []string) {
 		if p.cancelled.Load() {
 			p.AppendLog("Cancelled by user.")
 			p.setStatus("Cancelled.")
-			notify(appinfo.Name,"Cancelled.")
+			notify(appinfo.Name, "Cancelled.")
 			p.debugLog(fmt.Sprintf("run done: outcome=cancelled phase=between-files done=%d/%d failed=%d elapsed=%.1fs", i, total, errCount, time.Since(runStart).Seconds()))
 			return
 		}
@@ -213,7 +213,7 @@ func (p *Panel) runTranscription(files []string) {
 			if p.cancelled.Load() {
 				p.AppendLog("Cancelled by user.")
 				p.setStatus("Cancelled.")
-				notify(appinfo.Name,"Cancelled.")
+				notify(appinfo.Name, "Cancelled.")
 				p.debugLog(fmt.Sprintf("file done: file=%q outcome=cancelled reason=%v elapsed=%.1fs", filename, err, time.Since(fileStart).Seconds()))
 				p.debugLog(fmt.Sprintf("run done: outcome=cancelled phase=in-file done=%d/%d failed=%d elapsed=%.1fs", i, total, errCount, time.Since(runStart).Seconds()))
 				return
@@ -239,7 +239,7 @@ func (p *Panel) runTranscription(files []string) {
 	}
 	p.AppendLog(summary)
 	p.setStatus(summary)
-	notify(appinfo.Name,summary)
+	notify(appinfo.Name, summary)
 	outcome := "ok"
 	if errCount > 0 {
 		outcome = "partial"
@@ -318,9 +318,9 @@ func (p *Panel) transcribeFile(model whisper.Model, path, modelSize, deviceLabel
 	}
 	smoother := progress.NewSmoother(remainSec, initialRTF)
 	var (
-		startFrac     float64
-		lastTickStop  chan struct{}
-		tickDone      chan struct{}
+		startFrac    float64
+		lastTickStop chan struct{}
+		tickDone     chan struct{}
 	)
 	startTickerOnce := func() {
 		if lastTickStop != nil {

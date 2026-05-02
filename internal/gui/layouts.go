@@ -32,4 +32,3 @@ func (t *tightVBox) Layout(objects []fyne.CanvasObject, size fyne.Size) {
 		y += m.Height + t.gap
 	}
 }
-

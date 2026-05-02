@@ -48,8 +48,6 @@ func exeExt() string {
 	return ""
 }
 
-// Player wraps an ffplay subprocess. Pause/Seek are implemented by killing and
-// restarting at a new offset (ffplay has no in-band control without a TTY).
 type Player struct {
 	mu        sync.Mutex
 	cmd       *exec.Cmd
@@ -57,8 +55,8 @@ type Player struct {
 	path      string
 	onStop    func(key string)
 	startWall time.Time
-	startSec  float64 // playback offset (seconds) at process start
-	endSec    float64 // 0 = play to end; otherwise stop after this absolute pos
+	startSec  float64
+	endSec    float64
 	stopping  bool
 }
 
@@ -74,7 +72,6 @@ func (p *Player) IsPlaying() bool {
 	return p.cmd != nil
 }
 
-// Position returns the current playback position in seconds, 0 if stopped.
 func (p *Player) Position() float64 {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -84,12 +81,10 @@ func (p *Player) Position() float64 {
 	return p.startSec + time.Since(p.startWall).Seconds()
 }
 
-// Start plays the whole file from the beginning. Back-compat.
 func (p *Player) Start(key, path string, onStop func(key string)) error {
 	return p.StartRange(key, path, 0, 0, onStop)
 }
 
-// StartRange plays [startSec, endSec). endSec<=0 means play to EOF.
 func (p *Player) StartRange(key, path string, startSec, endSec float64, onStop func(key string)) error {
 	p.Stop()
 	bin, err := findFfplay()
@@ -133,8 +128,7 @@ func (p *Player) StartRange(key, path string, startSec, endSec float64, onStop f
 			p.path = ""
 		}
 		p.mu.Unlock()
-		// Don't fire onStop when caller explicitly stopped (avoids icon flicker
-		// during seek/restart which itself calls Stop).
+
 		if !stopping && stoppedCb != nil {
 			stoppedCb(stoppedKey)
 		}
@@ -157,7 +151,7 @@ func formatSec(s float64) string {
 	if s < 0 {
 		s = 0
 	}
-	// ffmpeg accepts plain seconds with decimals
+
 	whole := int(s)
 	frac := int((s - float64(whole)) * 1000)
 	return itoaPad(whole, 1) + "." + itoaPad(frac, 3)

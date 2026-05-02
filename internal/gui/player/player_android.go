@@ -174,8 +174,8 @@ type Player struct {
 	onStop   func(key string)
 	stopCh   chan struct{}
 	running  bool
-	stopping bool // set by Stop() so onStop suppresses during seek-restart
-	endMs    int  // 0 = play to natural end
+	stopping bool
+	endMs    int
 }
 
 func (p *Player) Playing(key string) bool {
@@ -184,14 +184,12 @@ func (p *Player) Playing(key string) bool {
 	return p.running && p.key == key
 }
 
-// IsPlaying reports whether any track is loaded and playing/paused.
 func (p *Player) IsPlaying() bool {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	return p.running
 }
 
-// Position returns the current MediaPlayer position in seconds.
 func (p *Player) Position() float64 {
 	p.mu.Lock()
 	if !p.running {
@@ -215,9 +213,6 @@ func (p *Player) Start(key, path string, onStop func(key string)) error {
 	return p.StartRange(key, path, 0, 0, onStop)
 }
 
-// StartRange plays [startSec, endSec). endSec<=0 means play to EOF. Implements
-// region playback by seeking after start and polling the position in the
-// watcher; when the position crosses endSec we stop and fire onStop.
 func (p *Player) StartRange(key, path string, startSec, endSec float64, onStop func(key string)) error {
 	p.Stop()
 	p.mu.Lock()
@@ -347,9 +342,7 @@ func (p *Player) Stop() {
 			C.wt_play_stop(C.uintptr_t(ac.Env))
 			return nil
 		})
-		// Don't fire onStop from explicit Stop; the dock relies on this
-		// during seek-restart to keep the playhead visible. The callback
-		// still fires from the watcher when playback ends naturally.
+
 		_ = cb
 		_ = key
 	}

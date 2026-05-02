@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/asolopovas/wt/internal/transcriber/cache"
 	"github.com/asolopovas/wt/internal/namer"
 	"github.com/asolopovas/wt/internal/transcriber"
+	"github.com/asolopovas/wt/internal/transcriber/cache"
 )
 
 func (p *Panel) autoRenameAfterTranscribe(cacheKey, jsonPath, sourcePath, sourceName string, fallback time.Time) (string, string) {

@@ -29,24 +29,20 @@ var (
 	colTimeLabel  = color.NRGBA{R: 235, G: 235, B: 235, A: 255}
 )
 
-// Widget is a horizontal waveform strip with two draggable region handles
-// and a playhead. Region values are normalized [0,1].
 type Widget struct {
 	widget.BaseWidget
 
-	mu    sync.Mutex
-	peaks *Peaks
+	mu      sync.Mutex
+	peaks   *Peaks
 	loading bool
 
-	regionStart float64 // 0..1
-	regionEnd   float64 // 0..1
-	playhead    float64 // 0..1, -1 hides
+	regionStart float64
+	regionEnd   float64
+	playhead    float64
 
-	// callbacks (called from UI thread)
 	OnRegionChanged func(start, end float64)
-	OnSeek          func(pos float64) // tap on waveform body
+	OnSeek          func(pos float64)
 
-	// drag state
 	dragKind  dragKind
 	dragStart float64
 }
@@ -57,7 +53,7 @@ const (
 	dragNone dragKind = iota
 	dragStartHandle
 	dragEndHandle
-	dragSeek // scrubbing inside the body
+	dragSeek
 )
 
 func New() *Widget {
@@ -134,8 +130,6 @@ func (w *Widget) MinSize() fyne.Size {
 	return fyne.NewSize(200, 64)
 }
 
-// --- Renderer ---
-
 type waveformRenderer struct {
 	w        *Widget
 	bg       *canvas.Rectangle
@@ -180,7 +174,7 @@ func (w *Widget) CreateRenderer() fyne.WidgetRenderer {
 		startH: startH, endH: endH, playhead: playhead,
 		leftLbl: leftLbl, rightLbl: rightLbl, spinner: spinner,
 	}
-	// Z-order: bg, wave, region tint, played overlay, handles, playhead, labels, spinner.
+
 	r.objects = []fyne.CanvasObject{bg, wave, region, played, startH, endH, playhead, leftLbl, rightLbl, spinner}
 	return r
 }
@@ -199,9 +193,6 @@ func (r *waveformRenderer) Layout(sz fyne.Size) {
 	peaks := w.peaks
 	w.mu.Unlock()
 
-	// Rasterize when either the peaks slice changed (new track loaded) or the
-	// size changed (window resize). Pointer compare on Peaks is intentional:
-	// SetPeaks always passes a fresh struct from waveform.Extract.
 	if peaks != nil && (sz != r.lastSize || peaks != r.lastPeaks) {
 		r.wave.Image = renderPeaks(peaks, int(sz.Width), int(sz.Height))
 		r.wave.Refresh()
@@ -267,16 +258,16 @@ func (r *waveformRenderer) Layout(sz fyne.Size) {
 	}
 }
 
-func (r *waveformRenderer) MinSize() fyne.Size       { return r.w.MinSize() }
-func (r *waveformRenderer) Refresh()                 { r.Layout(r.w.Size()) }
+func (r *waveformRenderer) MinSize() fyne.Size           { return r.w.MinSize() }
+func (r *waveformRenderer) Refresh()                     { r.Layout(r.w.Size()) }
 func (r *waveformRenderer) Objects() []fyne.CanvasObject { return r.objects }
-func (r *waveformRenderer) Destroy()                 {}
+func (r *waveformRenderer) Destroy()                     {}
 
-// --- Mouse / drag ---
-
-var _ fyne.Draggable = (*Widget)(nil)
-var _ fyne.Tappable = (*Widget)(nil)
-var _ desktop.Cursorable = (*Widget)(nil)
+var (
+	_ fyne.Draggable     = (*Widget)(nil)
+	_ fyne.Tappable      = (*Widget)(nil)
+	_ desktop.Cursorable = (*Widget)(nil)
+)
 
 func (w *Widget) Cursor() desktop.Cursor { return desktop.PointerCursor }
 
@@ -365,9 +356,7 @@ func (w *Widget) DragEnd() {
 	start := w.dragStart
 	w.dragKind = dragNone
 	w.mu.Unlock()
-	// A platform tap can register as a single Dragged event of zero distance
-	// followed by DragEnd, never firing Tapped. Treat that as a seek so
-	// touchscreens can click-to-position the playhead.
+
 	if kind == dragSeek {
 		w.seekFromPointer(float32(start) * w.Size().Width)
 	}
@@ -404,14 +393,12 @@ func nearFrac(a, b, tol float64) bool {
 	return d <= tol
 }
 
-// --- Drawing ---
-
 func renderPeaks(p *Peaks, w, h int) image.Image {
 	if w <= 0 || h <= 0 {
 		return blankImage(2, 2)
 	}
 	img := image.NewNRGBA(image.Rect(0, 0, w, h))
-	// fill bg
+
 	for y := 0; y < h; y++ {
 		for x := 0; x < w; x++ {
 			img.Set(x, y, colWaveformBG)
@@ -482,9 +469,9 @@ func formatMS(sec float64) string {
 
 func formatN(n int) string {
 	if n < 10 {
-		return string(rune('0'+n))
+		return string(rune('0' + n))
 	}
-	// fall back
+
 	return itoa(n)
 }
 

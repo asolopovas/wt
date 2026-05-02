@@ -23,8 +23,6 @@ func defaultModel() string {
 	return "tiny"
 }
 
-// affinityCPUs returns the number of CPUs the current process is allowed to
-// run on (cpuset cpus & sched_setaffinity mask). Falls back to runtime.NumCPU.
 func affinityCPUs() int {
 	const setSize = 128
 	var mask [setSize]byte
@@ -52,9 +50,7 @@ func affinityCPUs() int {
 
 func defaultThreads() int {
 	avail := affinityCPUs()
-	// Reserve 2 cores for the UI/render thread + Go runtime so the GUI stays
-	// responsive during transcription. Cap at 6 because turbo+Vulkan saturates
-	// memory bandwidth before more CPU threads help.
+
 	n := avail - 2
 	if n > 6 {
 		n = 6

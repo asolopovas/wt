@@ -18,10 +18,10 @@ import (
 )
 
 const (
-	peakBuckets    = 2000
+	peakBuckets     = 2000
 	peaksSampleRate = 16000
-	peaksFileMagic = uint32(0x57544b50) // "WTKP"
-	peaksFileVer   = uint32(1)
+	peaksFileMagic  = uint32(0x57544b50)
+	peaksFileVer    = uint32(1)
 )
 
 type Peaks struct {
@@ -122,8 +122,6 @@ var (
 	inflight = map[string]chan struct{}{}
 )
 
-// Extract loads or computes peaks for path. Safe to call from any goroutine.
-// Concurrent calls for the same path coalesce.
 func Extract(path string) (*Peaks, error) {
 	key, _, err := cacheKey(path)
 	if err != nil {
@@ -183,8 +181,6 @@ func decodePeaks(path string) (*Peaks, error) {
 	const chunkSamples = 4096
 	buf := make([]byte, chunkSamples*2)
 
-	// First pass: stream all samples into a slice (capped). For typical files (<2h)
-	// memory is ~230MB max @16kHz mono int16. We then bucket into peaks.
 	var all []int16
 	for {
 		n, rerr := io.ReadFull(stdout, buf)

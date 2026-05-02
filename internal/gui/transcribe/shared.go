@@ -14,8 +14,8 @@ import (
 	"fyne.io/fyne/v2/storage"
 
 	shared "github.com/asolopovas/wt/internal"
-	"github.com/asolopovas/wt/internal/transcriber/cache"
 	"github.com/asolopovas/wt/internal/gui/decor"
+	"github.com/asolopovas/wt/internal/transcriber/cache"
 )
 
 var baseAudioExtensions = []string{

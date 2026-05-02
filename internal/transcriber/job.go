@@ -158,11 +158,11 @@ func (j *Job) Run(ctx context.Context, spec JobSpec) (Result, error) {
 	}
 
 	var (
-		segs       []diarizer.TranscriptSegment
+		segs         []diarizer.TranscriptSegment
 		detectedLang string
-		rawKey     string
-		rawHit     bool
-		rtf        float64
+		rawKey       string
+		rawHit       bool
+		rtf          float64
 	)
 	if keyErr == nil {
 		rawKey = cache.ComputeRawKey(keyParams.SourcePath, keyParams.MtimeNs, spec.ModelSize, spec.Language)

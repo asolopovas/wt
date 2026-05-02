@@ -11,11 +11,11 @@ import (
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
-	"github.com/asolopovas/wt/internal/transcriber/cache"
 	"github.com/asolopovas/wt/internal/gui/decor"
 	"github.com/asolopovas/wt/internal/gui/player"
 	"github.com/asolopovas/wt/internal/gui/transcribe"
 	"github.com/asolopovas/wt/internal/transcriber"
+	"github.com/asolopovas/wt/internal/transcriber/cache"
 )
 
 const startTimeLayout = "2006-01-02 15:04:05"
@@ -123,7 +123,7 @@ func (h *historyPanel) buildRow(e cache.Entry) fyne.CanvasObject {
 			return
 		}
 		if h.dock != nil {
-			// Open the editor without autoplay; user explicitly presses ▶ in the dock.
+
 			h.dock.Load(e.Key, e.SourcePath, e.SourceName, false)
 			return
 		}

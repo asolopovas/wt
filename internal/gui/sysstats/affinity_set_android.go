@@ -7,14 +7,6 @@ import (
 	"unsafe"
 )
 
-// ReserveTopCores masks off the top `reserve` CPU cores for the calling OS
-// thread. Threads spawned afterwards inherit this affinity on Linux, so a
-// caller that runs runtime.LockOSThread() before calling this and starts the
-// compute pipeline immediately after will see worker threads pinned to the
-// remaining cores. Returns the saved mask so it can be restored.
-//
-// Used to keep the prime + big cluster cores idle during whisper.cpp inference
-// so that the UI thread + Fyne render thread aren't fighting for them.
 func ReserveTopCores(reserve int) ([]byte, bool) {
 	const setSize = 128
 	var current [setSize]byte
@@ -52,7 +44,6 @@ func ReserveTopCores(reserve int) ([]byte, bool) {
 	return saved, true
 }
 
-// RestoreAffinity re-applies a mask saved by ReserveTopCores.
 func RestoreAffinity(saved []byte) {
 	if len(saved) == 0 {
 		return

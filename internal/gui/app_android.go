@@ -14,10 +14,10 @@ import (
 	shared "github.com/asolopovas/wt/internal"
 	"github.com/asolopovas/wt/internal/appinfo"
 	"github.com/asolopovas/wt/internal/gui/assets"
-	"github.com/asolopovas/wt/internal/transcriber/cache"
 	"github.com/asolopovas/wt/internal/gui/decor"
 	"github.com/asolopovas/wt/internal/gui/platsvc"
 	"github.com/asolopovas/wt/internal/gui/transcribe"
+	"github.com/asolopovas/wt/internal/transcriber/cache"
 )
 
 func Run(version, buildDate string) error {

@@ -14,8 +14,6 @@ var (
 	ffmpegPath string
 )
 
-// FindFFmpeg locates the bundled libffmpeg.so (renamed ffmpeg binary) inside
-// the APK's native library dir. Returns "" if not found. Result cached.
 func FindFFmpeg() string {
 	ffmpegOnce.Do(func() {
 		for _, dir := range androidLibDirs() {
@@ -29,8 +27,6 @@ func FindFFmpeg() string {
 	return ffmpegPath
 }
 
-// androidLibDirs enumerates plausible nativeLibraryDir locations. Mirrors the
-// pattern used by internal/llm and internal/diarizer.
 func androidLibDirs() []string {
 	var dirs []string
 	if v := os.Getenv("ANDROID_NATIVE_LIBS_DIR"); v != "" {

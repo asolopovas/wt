@@ -118,7 +118,6 @@ func (r *Runner) Generate(ctx context.Context, opts Options) (string, error) {
 		return obj, nil
 	}
 
-	// Crashed (e.g. CUDA access violation 0xc0000005) and produced no JSON — retry on CPU.
 	if !cpuOnly && waitErr != nil {
 		out2, waitErr2, stderrStr2, runErr2 := r.runOnce(ctx, buildArgs(true), true)
 		if runErr2 == nil {

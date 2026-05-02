@@ -359,7 +359,6 @@ func modelShortName(s string) string {
 	return s
 }
 
-
 func (s *modelsSection) startDownload(e models.Entry) {
 	ctx, cancel := context.WithCancel(context.Background())
 	s.mu.Lock()

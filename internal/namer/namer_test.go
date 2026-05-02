@@ -8,11 +8,11 @@ import (
 
 func TestSanitizeTopic(t *testing.T) {
 	cases := map[string]string{
-		"  Quarterly Review ":    "quarterly-review",
-		"foo/bar baz":            "foo-bar-baz",
-		"hello___world":          "hello-world",
-		"---trim me---":          "trim-me",
-		"emoji 🎉 ok":             "emoji-ok",
+		"  Quarterly Review ":   "quarterly-review",
+		"foo/bar baz":           "foo-bar-baz",
+		"hello___world":         "hello-world",
+		"---trim me---":         "trim-me",
+		"emoji 🎉 ok":            "emoji-ok",
 		strings.Repeat("a", 80): strings.Repeat("a", 60),
 	}
 	for in, want := range cases {

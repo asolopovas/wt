@@ -46,11 +46,11 @@ type Panel struct {
 
 	speakerRenames map[string]string
 
-	Progress   *thinProgress
-	StatusText *canvas.Text
-	TimerText  *canvas.Text
-	StatsLine   *fyne.Container
-	StatsFooter *fyne.Container
+	Progress     *thinProgress
+	StatusText   *canvas.Text
+	TimerText    *canvas.Text
+	StatsLine    *fyne.Container
+	StatsFooter  *fyne.Container
 	lastStatsKey string
 
 	runStart    time.Time
