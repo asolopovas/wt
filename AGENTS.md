@@ -57,6 +57,16 @@ whisper.cpp builds; only Taskfile picks the right flags.
 
 Requires Go 1.26+, GCC/MinGW, CMake, ffmpeg, [Task](https://taskfile.dev/). CGo env is set by Taskfile.
 
+## Android-bundled CLI binaries
+
+The APK ships CLI binaries (sherpa-diar, llama-cli, ffmpeg) renamed `lib<name>.so` under `lib/arm64-v8a/`. Android only grants exec permission to files matching `lib*.so` inside `nativeLibraryDir`, so the rename is mandatory — bundling them as `assets/<name>` or `bin/<name>` does not work. Locate at runtime by globbing `nativeLibraryDir`; the dir-discovery pattern (env vars → `/proc/self/maps` → `/data/app/.../lib/arm64` glob) is duplicated across `internal/llm/dirs_android.go`, `internal/diarizer/sherpa.go`, and `internal/transcriber/ffmpeg_android.go`. Adding a new bundled binary requires four edits: (1) `scripts/build-<name>-android.sh`, (2) `task <name>-android` depended on by `android-apk`, (3) a new env var + `zout.write` in `scripts/android-apk-patch.py`, (4) a Go-side `Find<Name>()` that globs `nativeLibraryDir`.
+
+## Cross-compile build tooling
+
+Autoconf-style projects (FFmpeg) cross-compiled to android-arm64 require **msys2 GNU make** (`pacman -S make` inside `C:\msys64\usr\bin\bash.exe`), not `mingw32-make.exe`. Reason: msys2's `configure` emits Makefiles with `include /c/...` paths; only msys2's own `make` runs them through the MSYS path conversion layer. `mingw32-make` chokes with `No such file or directory`. The `scripts/build-ffmpeg-android.sh` recipe also uses `--disable-asm` — NDK clang can compile FFmpeg's ARM asm in principle, but configure's asm probes are flaky on Windows hosts and the perf cost is irrelevant for one-shot peak extraction (results are cached per file).
+
+When invoking msys2 bash from a Taskfile shell block, use Windows-style paths (`C:/msys64/usr/bin/bash.exe`) not msys-style (`/c/msys64/...`) — Task's mvdan/sh path resolution doesn't translate the latter and `[ -x ]` will report the binary missing.
+
 ## Boundaries
 
 **Always:**
@@ -110,7 +120,7 @@ Module: `github.com/asolopovas/wt` (Go 1.26). Key deps: `fyne.io/fyne/v2`, `pter
 `//go:build android` / `//go:build !android` pairs:
 `config_*`, `app_*`, `transcribe_*`, `audio_*`. Windows uses `_windows.go` / `_other.go` (with `//go:build !windows`).
 
-If a new package imports a desktop-only symbol from `internal/transcriber` (e.g. `FindFFmpeg`, defined behind `//go:build !android`), tag every file in the new package `//go:build !android` too, otherwise `task vet-android` fails with `undefined: transcriber.<sym>`. The `internal/gui/waveform` package is the canonical example. Don't silence this by stubbing on the android side of transcriber unless the symbol genuinely has an android implementation.
+If a new package imports a desktop-only symbol from `internal/transcriber` (e.g. `FindFFmpeg`, defined behind `//go:build !android`), tag every file in the new package `//go:build !android` too, otherwise `task vet-android` fails with `undefined: transcriber.<sym>`. The inverse also holds: once you provide an android-tagged implementation of the symbol (e.g. `internal/transcriber/ffmpeg_android.go` returning a path to a bundled binary), drop the `!android` tag from the downstream package so it compiles cross-platform — `internal/gui/waveform` followed exactly this trajectory. Don't keep the tags as a precaution after the symbol is real on both sides.
 
 ## Testing
 
