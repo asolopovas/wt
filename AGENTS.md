@@ -27,6 +27,8 @@ Never dispatch to an `internal: true` task via `cmd: 'task X'` — that spawns a
 
 Never cross-compile sherpa-onnx for Android via direct cmake — their `cmake/onnxruntime.cmake` only handles Linux/macOS/Windows hosts and aborts with `Only support Linux, macOS, and Windows at present`. Always invoke their upstream `build-android-<abi>.sh` via msys2 bash; it pre-fetches onnxruntime android libs from `csukuangfj/onnxruntime-libs` and sets `SHERPA_ONNXRUNTIME_{LIB,INCLUDE}_DIR` correctly. Same pattern as `ffmpeg-android`.
 
+When building sherpa-onnx for Android with the **static** onnxruntime archive (`BUILD_SHARED_LIBS=OFF`), keep `SHERPA_ONNX_ANDROID_PLATFORM=android-21` (sherpa upstream default). API ≥ 27 unconditionally pulls in `nnapi_provider_factory.h` from `session.cc`, but the static prebuilts ship without that header (only the JNI/AAR distribution includes it). Binary remains forward-compatible with API 28+ devices.
+
 Release tasks create the GH release empty first, then upload artifacts in a 3-attempt retry loop (large APK/EXE uploads occasionally fail mid-stream). `task release` re-reads `VERSION` from `Taskfile.yml` post-bump because `{{.VERSION}}` captures at parse time.
 
 ## Layout
