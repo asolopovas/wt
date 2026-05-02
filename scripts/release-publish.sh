@@ -56,6 +56,18 @@ if [ "$view_rc" -ne 0 ]; then
   gh release create "$tag" --title "$tag" --generate-notes
 fi
 
+# Inlined upload retry: a child `bash` process started under msys2 does not
+# inherit GH_CONFIG_DIR (msys2 strips most env vars on subprocess fork), so
+# delegating to scripts/gh-release-upload.sh loses the gh auth context.
 echo "--- gh release upload $tag ---"
-bash scripts/gh-release-upload.sh "$tag" "${artifacts[@]}"
+attempt=0
+until gh release upload "$tag" "${artifacts[@]}" --clobber; do
+  attempt=$((attempt+1))
+  if [ "$attempt" -ge 3 ]; then
+    echo "ERROR: gh release upload failed after $attempt attempts" >&2
+    exit 1
+  fi
+  echo "Upload attempt $attempt failed; retrying in 5s..." >&2
+  sleep 5
+done
 echo "=== Released $tag: https://github.com/asolopovas/wt/releases/tag/$tag ==="
