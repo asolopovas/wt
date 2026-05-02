@@ -60,6 +60,10 @@ Backend selection via `internal/diarizer/New(numSpeakers)` / `NewWithPreference(
 --min-duration-off             = 0.5
 ```
 
+## Speaker labeling
+
+`SPEAKER_NN` labels in `Transcript.Utterances` must be assigned **after** mapping whisper segments to diarization speakers, not before. `BuildTranscript` (`internal/transcriber/output.go`) collects raw int cluster IDs from `diarizer.SpeakerIDForTime`, then walks utterances+words in time order and lazy-assigns sequential `SPEAKER_01..NN` labels only to IDs that actually win at least one segment. Otherwise sherpa's free-clustering can over-segment (e.g. 3 raw clusters → `SpeakerLabels` produces 01/02/03, but the middle cluster wins zero whisper-segment overlap), and the GUI shows non-contiguous labels (`SPEAKER_01` + `SPEAKER_03`) while `speakers_detected=2`. Don't reintroduce the old `SpeakerLabels(diarSegs)` → `SpeakerForTime` path inside `BuildTranscript`. The `SpeakerLabels`/`SpeakerForTime` helpers remain for `MapSegmentsToSpeakers` (separate code path).
+
 ## GUI design system (`internal/gui/`)
 
 No raw pixel literals, hex colors, or `widget.NewButton` + manual styling.

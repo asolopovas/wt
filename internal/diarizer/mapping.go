@@ -42,7 +42,10 @@ func SpeakerLabels(diarSegs []Segment) map[int]string {
 	return labels
 }
 
-func SpeakerForTime(startSec, endSec float64, diarSegs []Segment, labels map[int]string) string {
+func SpeakerIDForTime(startSec, endSec float64, diarSegs []Segment) (int, bool) {
+	if len(diarSegs) == 0 {
+		return 0, false
+	}
 	overlapBySpeaker := make(map[int]float64)
 	for _, ds := range diarSegs {
 		if ds.EndSec <= startSec || ds.StartSec >= endSec {
@@ -58,7 +61,7 @@ func SpeakerForTime(startSec, endSec float64, diarSegs []Segment, labels map[int
 	if len(overlapBySpeaker) == 0 {
 		mid := (startSec + endSec) / 2
 		bestDist := math.MaxFloat64
-		bestSpk := 0
+		bestSpk := diarSegs[0].Speaker
 		for _, ds := range diarSegs {
 			dsMid := (ds.StartSec + ds.EndSec) / 2
 			if d := math.Abs(mid - dsMid); d < bestDist {
@@ -66,10 +69,7 @@ func SpeakerForTime(startSec, endSec float64, diarSegs []Segment, labels map[int
 				bestSpk = ds.Speaker
 			}
 		}
-		if l, ok := labels[bestSpk]; ok {
-			return l
-		}
-		return "SPEAKER_01"
+		return bestSpk, true
 	}
 
 	bestSpk := 0
@@ -80,7 +80,15 @@ func SpeakerForTime(startSec, endSec float64, diarSegs []Segment, labels map[int
 			bestSpk = spk
 		}
 	}
-	if l, ok := labels[bestSpk]; ok {
+	return bestSpk, true
+}
+
+func SpeakerForTime(startSec, endSec float64, diarSegs []Segment, labels map[int]string) string {
+	id, ok := SpeakerIDForTime(startSec, endSec, diarSegs)
+	if !ok {
+		return "SPEAKER_01"
+	}
+	if l, ok := labels[id]; ok {
 		return l
 	}
 	return "SPEAKER_01"

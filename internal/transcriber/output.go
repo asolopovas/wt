@@ -94,34 +94,77 @@ type TranscriptMeta struct {
 }
 
 func BuildTranscript(segs []diarizer.TranscriptSegment, diarSegs []diarizer.Segment, diarOK bool, meta TranscriptMeta) *Transcript {
-	labels := diarizer.SpeakerLabels(diarSegs)
+	useDiar := diarOK && len(diarSegs) > 0
 
-	var utterances []Utterance
-	var words []Word
-	speakers := make(map[string]struct{})
+	type rawUtt struct {
+		start, end time.Duration
+		text       string
+		spkID      int
+		hasID      bool
+	}
+	type rawWord struct {
+		text       string
+		start, end time.Duration
+		conf       float32
+		spkID      int
+		hasID      bool
+	}
+
+	rawUtts := make([]rawUtt, 0, len(segs))
+	var rawWords []rawWord
+	labels := map[int]string{}
+	next := 1
+	assign := func(id int, has bool) string {
+		if !has {
+			return "SPEAKER_01"
+		}
+		if l, ok := labels[id]; ok {
+			return l
+		}
+		l := fmt.Sprintf("SPEAKER_%02d", next)
+		next++
+		labels[id] = l
+		return l
+	}
 
 	for _, seg := range segs {
-		segSpeaker := assignSpeaker(seg.Start, seg.End, diarSegs, labels, diarOK)
-
-		utterances = append(utterances, Utterance{
-			Start:   msFromDuration(seg.Start),
-			End:     msFromDuration(seg.End),
-			Speaker: segSpeaker,
-			Text:    seg.Text,
-		})
-		speakers[segSpeaker] = struct{}{}
-
-		for _, tok := range seg.Tokens {
-			tokSpeaker := assignSpeaker(tok.Start, tok.End, diarSegs, labels, diarOK)
-			words = append(words, Word{
-				Text:       tok.Text,
-				Start:      msFromDuration(tok.Start),
-				End:        msFromDuration(tok.End),
-				Speaker:    tokSpeaker,
-				Confidence: tok.P,
-			})
-			speakers[tokSpeaker] = struct{}{}
+		u := rawUtt{start: seg.Start, end: seg.End, text: seg.Text}
+		if useDiar {
+			u.spkID, u.hasID = diarizer.SpeakerIDForTime(seg.Start.Seconds(), seg.End.Seconds(), diarSegs)
 		}
+		rawUtts = append(rawUtts, u)
+		for _, tok := range seg.Tokens {
+			w := rawWord{text: tok.Text, start: tok.Start, end: tok.End, conf: tok.P}
+			if useDiar {
+				w.spkID, w.hasID = diarizer.SpeakerIDForTime(tok.Start.Seconds(), tok.End.Seconds(), diarSegs)
+			}
+			rawWords = append(rawWords, w)
+		}
+	}
+
+	utterances := make([]Utterance, 0, len(rawUtts))
+	speakers := make(map[string]struct{})
+	for _, u := range rawUtts {
+		lbl := assign(u.spkID, u.hasID)
+		utterances = append(utterances, Utterance{
+			Start:   msFromDuration(u.start),
+			End:     msFromDuration(u.end),
+			Speaker: lbl,
+			Text:    u.text,
+		})
+		speakers[lbl] = struct{}{}
+	}
+	words := make([]Word, 0, len(rawWords))
+	for _, w := range rawWords {
+		lbl := assign(w.spkID, w.hasID)
+		words = append(words, Word{
+			Text:       w.text,
+			Start:      msFromDuration(w.start),
+			End:        msFromDuration(w.end),
+			Speaker:    lbl,
+			Confidence: w.conf,
+		})
+		speakers[lbl] = struct{}{}
 	}
 
 	return &Transcript{
@@ -134,13 +177,6 @@ func BuildTranscript(segs []diarizer.TranscriptSegment, diarSegs []diarizer.Segm
 		Utterances:       utterances,
 		Words:            words,
 	}
-}
-
-func assignSpeaker(start, end time.Duration, diarSegs []diarizer.Segment, labels map[int]string, diarOK bool) string {
-	if !diarOK || len(diarSegs) == 0 {
-		return "SPEAKER_01"
-	}
-	return diarizer.SpeakerForTime(start.Seconds(), end.Seconds(), diarSegs, labels)
 }
 
 func WriteJSON(outputPath string, t *Transcript) (string, error) {
