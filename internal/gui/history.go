@@ -108,6 +108,41 @@ func (h *historyPanel) buildRow(e cache.Entry) fyne.CanvasObject {
 
 	actions := container.NewHBox()
 
+	rowIcon := playIconResource
+	if h.dock != nil {
+		rowIcon = editAudioIcon
+	}
+	playBtn := newPointerButtonWithIcon("", rowIcon, nil)
+	playBtn.Importance = widget.LowImportance
+	if h.dock == nil && h.player.Playing(e.Key) {
+		playBtn.SetIcon(pauseIconResource)
+	}
+	playBtn.OnTapped = func() {
+		if e.SourcePath == "" {
+			showError(h.window, fmt.Errorf("source file path missing"))
+			return
+		}
+		if h.dock != nil {
+			// Open the editor without autoplay; user explicitly presses ▶ in the dock.
+			h.dock.Load(e.Key, e.SourcePath, e.SourceName, false)
+			return
+		}
+		if h.player.Playing(e.Key) {
+			h.player.Stop()
+			playBtn.SetIcon(playIconResource)
+			return
+		}
+		err := h.player.Start(e.Key, e.SourcePath, func(string) {
+			fyne.Do(func() { playBtn.SetIcon(playIconResource) })
+		})
+		if err != nil {
+			showError(h.window, fmt.Errorf("ffplay not available: %w", err))
+			return
+		}
+		playBtn.SetIcon(pauseIconResource)
+	}
+	actions.Add(wrap(playBtn))
+
 	if e.Pending {
 		if h.transcribe != nil && h.transcribe.IsActivePath(e.SourcePath) {
 			spinner := widget.NewActivity()
@@ -117,40 +152,6 @@ func (h *historyPanel) buildRow(e cache.Entry) fyne.CanvasObject {
 			actions.Add(wrap(container.NewCenter(canvas.NewText("…", colMuted))))
 		}
 	} else {
-		rowIcon := playIconResource
-		if h.dock != nil {
-			rowIcon = editAudioIcon
-		}
-		playBtn := newPointerButtonWithIcon("", rowIcon, nil)
-		playBtn.Importance = widget.LowImportance
-		if h.dock == nil && h.player.Playing(e.Key) {
-			playBtn.SetIcon(pauseIconResource)
-		}
-		playBtn.OnTapped = func() {
-			if e.SourcePath == "" {
-				showError(h.window, fmt.Errorf("source file path missing"))
-				return
-			}
-			if h.dock != nil {
-				// Open the editor without autoplay; user explicitly presses ▶ in the dock.
-				h.dock.Load(e.Key, e.SourcePath, e.SourceName, false)
-				return
-			}
-			if h.player.Playing(e.Key) {
-				h.player.Stop()
-				playBtn.SetIcon(playIconResource)
-				return
-			}
-			err := h.player.Start(e.Key, e.SourcePath, func(string) {
-				fyne.Do(func() { playBtn.SetIcon(playIconResource) })
-			})
-			if err != nil {
-				showError(h.window, fmt.Errorf("ffplay not available: %w", err))
-				return
-			}
-			playBtn.SetIcon(pauseIconResource)
-		}
-
 		previewBtn := newPointerButtonWithIcon("", theme.VisibilityIcon(), nil)
 		previewBtn.Importance = widget.LowImportance
 		previewBtn.OnTapped = func() {
@@ -162,8 +163,6 @@ func (h *historyPanel) buildRow(e cache.Entry) fyne.CanvasObject {
 				RecordedAt: recorded,
 			}, nil)
 		}
-
-		actions.Add(wrap(playBtn))
 		actions.Add(wrap(previewBtn))
 	}
 
