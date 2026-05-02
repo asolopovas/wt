@@ -118,11 +118,15 @@ func (r *Runner) Generate(ctx context.Context, opts Options) (string, error) {
 			"-t", fmt.Sprintf("%d", r.Threads),
 			"--temp", fmt.Sprintf("%.2f", opts.Temp),
 			"--no-display-prompt",
-			"--log-disable",
 			"--no-conversation",
 			"--single-turn",
 			"--simple-io",
 			"--no-warmup",
+		}
+		// Keep llama.cpp's own logs on stderr so timeout reports surface real
+		// progress (prefill/eval rates) instead of an empty tail.
+		if os.Getenv("WT_LLM_LOG") == "0" {
+			a = append(a, "--log-disable")
 		}
 		if cpuOnly {
 			a = append(a, "-ngl", "0")
@@ -160,13 +164,17 @@ func (r *Runner) Generate(ctx context.Context, opts Options) (string, error) {
 // are slower, so the default is generous; can be overridden via WT_LLM_TIMEOUT
 // (seconds, e.g. "600").
 func llmTimeout() time.Duration {
-	if s := os.Getenv("WT_LLM_TIMEOUT"); s != "" {
-		if n, err := time.ParseDuration(s + "s"); err == nil && n > 0 {
+	return computeLLMTimeout(runtime.GOOS, os.Getenv("WT_LLM_TIMEOUT"))
+}
+
+func computeLLMTimeout(goos, envOverride string) time.Duration {
+	if envOverride != "" {
+		if n, err := time.ParseDuration(envOverride + "s"); err == nil && n > 0 {
 			return n
 		}
 	}
-	if runtime.GOOS == "android" {
-		return 5 * time.Minute
+	if goos == "android" {
+		return 10 * time.Minute
 	}
 	return 2 * time.Minute
 }

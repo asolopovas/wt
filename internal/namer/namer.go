@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
@@ -29,10 +31,7 @@ func Suggest(ctx context.Context, transcript string, fallbackDate time.Time) (Su
 		return Suggestion{}, err
 	}
 
-	excerpt := transcript
-	if len(excerpt) > 6000 {
-		excerpt = excerpt[:6000]
-	}
+	excerpt := truncateExcerpt(transcript, excerptLimit(runtime.GOOS, os.Getenv("WT_NAMER_EXCERPT")))
 
 	prompt := buildPrompt(excerpt)
 	out, err := r.Generate(ctx, llm.Options{
@@ -102,6 +101,35 @@ func extractJSON(data []byte) (string, error) {
 		return string(data), nil
 	}
 	return b.String(), nil
+}
+
+// excerptLimit returns the max prompt length (chars) we feed the LLM.
+// Phone CPUs spend most of the budget on prefill (~5–10 tok/s), so the
+// android default is much smaller than desktop. envOverride parses an
+// optional explicit override (chars, must be > minExcerpt).
+func excerptLimit(goos, envOverride string) int {
+	const (
+		defaultDesktop = 6000
+		defaultAndroid = 1500
+		minExcerpt     = 200
+	)
+	limit := defaultDesktop
+	if goos == "android" {
+		limit = defaultAndroid
+	}
+	if envOverride != "" {
+		if n, err := strconv.Atoi(envOverride); err == nil && n > minExcerpt {
+			limit = n
+		}
+	}
+	return limit
+}
+
+func truncateExcerpt(s string, limit int) string {
+	if limit <= 0 || len(s) <= limit {
+		return s
+	}
+	return s[:limit]
 }
 
 func buildPrompt(excerpt string) string {

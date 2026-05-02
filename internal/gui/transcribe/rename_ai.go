@@ -41,7 +41,9 @@ func (p *Panel) autoRenameAfterTranscribe(cacheKey, jsonPath, sourcePath, source
 	p.setStatus("Auto-naming...")
 	platsvc.UpdateProgress(-1, "Auto-naming…")
 	renameStart := time.Now()
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	// Outer ctx is generous; the actual per-invocation timeout lives in
+	// llm.runOnce so the error reports llama-cli stderr cleanly.
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 	defer cancel()
 
 	s, err := namer.Suggest(ctx, text, fallback)

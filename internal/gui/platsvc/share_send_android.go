@@ -353,19 +353,4 @@ func ShareFile(srcPath, mime, subject string) error {
 	return nil
 }
 
-func sanitizeShareName(name string) string {
-	name = strings.TrimSpace(name)
-	if name == "" {
-		return "share.bin"
-	}
-	var b strings.Builder
-	for _, r := range name {
-		switch {
-		case r == '/' || r == '\\' || r == ':' || r == 0:
-			b.WriteByte('_')
-		default:
-			b.WriteRune(r)
-		}
-	}
-	return b.String()
-}
+
