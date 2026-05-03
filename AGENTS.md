@@ -50,9 +50,9 @@ Default: **don't add anything**. Most footguns are better captured in code (name
 
 Add to `docs/<topic>.md` only when **all** apply:
 
-1. A future session would otherwise burn >5 min re-deriving it.
-2. The fact isn't discoverable from code, error messages, or `--help`.
-3. It's not training-data-level advice.
+1. The fact isn't discoverable from code, error messages, `--help`, or a quick grep.
+2. Getting it wrong has a real cost — broken build, shipped bug, wasted rebuild, device reboot, irreversible change.
+3. The trap is non-obvious: a reasonable default approach would hit it.
 
 Rules for additions:
 
