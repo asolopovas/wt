@@ -26,7 +26,6 @@ Linux QUICK requires the full `.deb` installed once first (postinst sets up `/op
 
 ## Windows
 
-- PowerShell PATH usually omits `C:\Program Files\Git\usr\bin` → Task fails with `"awk": executable file not found`. Prepend Git's `usr\bin` to user PATH or run from Git Bash.
 - DLL handles held briefly after `taskkill` — install must wait+retry `cp` (whisper.dll especially); a single sleep is insufficient.
 
 ## Cross-compile sherpa-onnx for Android
