@@ -101,6 +101,11 @@ func (p *settingsPanel) build() {
 	p.langSelect = newLimitSelect(languages, 300, p.onLangChanged)
 	p.langSelect.Inner.Selected = langLabel
 	p.langMirrors = append(p.langMirrors, p.langSelect)
+	// Constrain to the active engine's whitelist after both the model and
+	// language widgets are wired (filterLanguageOptions reads the
+	// manager). Safe to call before mirrors exist; refreshLanguageOptions
+	// is a no-op when langMirrors is empty.
+	defer p.refreshLanguageOptions()
 
 	p.deviceSelect = newPointerSelect([]string{"auto", "cuda", "cpu"}, persist)
 	p.deviceSelect.Selected = p.cfg.Device
@@ -349,7 +354,36 @@ func (p *settingsPanel) onModelChanged(v string) {
 			p.onModelsChanged()
 		}
 	}
+	p.refreshLanguageOptions()
 	p.persist()
+}
+
+// refreshLanguageOptions recomputes the LANGUAGE dropdown options to
+// match the active engine's whitelist (e.g. Parakeet -> ["en"] only).
+// Whisper / multilingual engines see the full list.
+func (p *settingsPanel) refreshLanguageOptions() {
+	if len(p.langMirrors) == 0 {
+		return
+	}
+	mgr := models.NewManager()
+	allowed := supportedLanguagesForActive(mgr)
+	current := p.langSelect.Inner.Selected
+	opts, selected := filterLanguageOptions(languages, allowed, current)
+	for _, m := range p.langMirrors {
+		m.Inner.Options = opts
+		m.Inner.Selected = selected
+		// Disable the dropdown when there's only one valid choice (no
+		// point letting the user open a single-item menu).
+		if len(opts) <= 1 {
+			m.Inner.Disable()
+		} else {
+			m.Inner.Enable()
+		}
+		m.Inner.Refresh()
+	}
+	if current != selected {
+		p.persist()
+	}
 }
 
 func (p *settingsPanel) onDiarizerChanged(v string) {
@@ -440,6 +474,7 @@ func (p *settingsPanel) refreshModelOptions() {
 		m.Refresh()
 	}
 	p.refreshDiarizerOptions()
+	p.refreshLanguageOptions()
 }
 
 func (p *settingsPanel) newLangSelectMirror() *limitSelect {

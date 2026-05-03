@@ -32,6 +32,23 @@ type Entry struct {
 	// internal/diarizer/sherpa.go uses these to build the CLI args.
 	DiarSegRelPath string
 	DiarEmbRelPath string
+
+	// Languages the model can transcribe. Empty == "all / multilingual"
+	// (whisper-style). Drives the LANGUAGE dropdown filtering on the
+	// Transcode tab — picking Parakeet (en-only) collapses the dropdown
+	// to ["en"]; picking Whisper restores the full 99-lang list.
+	Languages []string
+}
+
+// LanguagesFor returns the language whitelist for the given model entry
+// ID. Empty result means "unrestricted / multilingual" (whisper) and the
+// caller should show the full languages list.
+func LanguagesFor(id string) []string {
+	e, ok := ByID(id)
+	if !ok {
+		return nil
+	}
+	return e.Languages
 }
 
 type FileSpec struct {
@@ -223,6 +240,7 @@ var asrEntries = []Entry{
 		ID:          "parakeet-tdt-0.6b-v2-int8",
 		Family:      FamilyASR,
 		Engine:      shared.EngineParakeet,
+		Languages:   []string{"en"},
 		DisplayName: "Parakeet TDT 0.6B v2 (English)",
 		Description: "#1 English ASR on Open ASR Leaderboard (~1.9% LibriSpeech WER). Native casing + punctuation. Best for English-only audio.",
 		SizeBytes:   635_000_000,
@@ -238,6 +256,7 @@ var asrEntries = []Entry{
 		ID:          "sense-voice-zh-en-ja-ko-yue-int8",
 		Family:      FamilyASR,
 		Engine:      shared.EngineSenseVoice,
+		Languages:   []string{"auto", "zh", "en", "ja", "ko", "yue"},
 		DisplayName: "SenseVoice (zh/en/ja/ko/yue)",
 		Description: "Alibaba FunAudio — fast multilingual ASR for Chinese/English/Japanese/Korean/Cantonese. Native casing + punctuation. Single 228 MB model. Best for Asian-language audio.",
 		SizeBytes:   228_000_000,

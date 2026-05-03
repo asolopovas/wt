@@ -16,8 +16,8 @@ func sanitizeShareName(name string) string {
 	var b strings.Builder
 	b.Grow(len(name))
 	for _, r := range name {
-		switch {
-		case r == '/' || r == '\\' || r == ':' || r == 0:
+		switch r {
+		case '/', '\\', ':', 0:
 			b.WriteByte('_')
 		default:
 			b.WriteRune(r)

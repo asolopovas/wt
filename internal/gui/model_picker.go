@@ -130,3 +130,53 @@ func containsDisplayName(opts []pickerOption, name string) bool {
 		return o.DisplayName == name
 	})
 }
+
+// supportedLanguagesForActive returns the list of language codes the
+// currently active transcription engine accepts. nil means "unrestricted"
+// (whisper-style multilingual) and the caller should show the full
+// language picker.
+//
+// Used by the LANGUAGE dropdown to constrain options when an English-only
+// engine like Parakeet is picked.
+func supportedLanguagesForActive(mgr *models.Manager) []string {
+	id := activeTranscriptionID(mgr)
+	if id == "" {
+		return nil
+	}
+	return models.LanguagesFor(id)
+}
+
+// filterLanguageOptions intersects the global `all` language list with
+// the engine's `allowed` whitelist, preserving the order of `all` so the
+// dropdown stays stable. If `allowed` is nil/empty, returns `all`
+// unchanged. If `current` isn't in the resulting list, the first allowed
+// option is returned as the new selection (otherwise `current`).
+func filterLanguageOptions(all, allowed []string, current string) (opts []string, selected string) {
+	if len(allowed) == 0 {
+		return all, current
+	}
+	allowSet := make(map[string]struct{}, len(allowed))
+	for _, l := range allowed {
+		allowSet[l] = struct{}{}
+	}
+	for _, l := range all {
+		if _, ok := allowSet[l]; ok {
+			opts = append(opts, l)
+		}
+	}
+	// Append any whitelisted entries that weren't in `all` (e.g. "yue"
+	// for SenseVoice which isn't in the whisper language list).
+	for _, l := range allowed {
+		if slices.Contains(opts, l) {
+			continue
+		}
+		opts = append(opts, l)
+	}
+	if slices.Contains(opts, current) {
+		return opts, current
+	}
+	if len(opts) > 0 {
+		return opts, opts[0]
+	}
+	return opts, current
+}

@@ -19,16 +19,16 @@ func setupTestModels(t *testing.T) *models.Manager {
 	t.Setenv("XDG_DATA_HOME", filepath.Join(home, ".local", "share"))
 	t.Setenv("APPDATA", filepath.Join(home, "AppData", "Roaming"))
 
-	mgr := models.NewManager()
 	root := filepath.Join(home, "wt-test-models")
 	t.Setenv("WT_MODELS_DIR", root)
-	mgr = models.NewManager() // re-create after env
+	mgr := models.NewManager() // create after env so paths use the temp root
 
 	// Materialise files for: whisper-turbo + whisper-tiny + parakeet ASR + diar default
 	wantInstalled := []string{
 		"whisper-tiny",
 		"whisper-turbo",
 		"parakeet-tdt-0.6b-v2-int8",
+		"sense-voice-zh-en-ja-ko-yue-int8",
 		"diar-titanet-large",
 	}
 	for _, id := range wantInstalled {
@@ -189,6 +189,75 @@ func TestSync_Diarizer_RoundTrip(t *testing.T) {
 		t.Errorf("FamilyDiarizer active = %q, want diar-titanet-large",
 			mgr.Active(models.FamilyDiarizer))
 	}
+}
+
+// Per-engine language gating: when an English-only engine like Parakeet
+// is active, the LANGUAGE dropdown options must collapse to ["en"].
+// SenseVoice (multilingual) must show its supported subset. Whisper
+// (no Languages constraint) must show the full list unchanged.
+func TestLanguageFilter_PerEngine(t *testing.T) {
+	mgr := setupTestModels(t)
+
+	// Use a representative whisper-style "all languages" superset for
+	// the test — anything not in the engine whitelist must be removed.
+	all := []string{"auto", "en", "zh", "ja", "ko", "de", "es", "fr", "ru"}
+
+	tests := []struct {
+		name     string
+		activeID string
+		current  string
+		wantOpts []string
+		wantSel  string
+	}{
+		{
+			name:     "parakeet collapses to en only",
+			activeID: "parakeet-tdt-0.6b-v2-int8",
+			current:  "de",
+			wantOpts: []string{"en"},
+			wantSel:  "en", // current "de" not allowed -> reset to first option
+		},
+		{
+			name:     "sensevoice keeps zh/en/ja/ko + auto + adds yue",
+			activeID: "sense-voice-zh-en-ja-ko-yue-int8",
+			current:  "ja",
+			wantOpts: []string{"auto", "en", "zh", "ja", "ko", "yue"},
+			wantSel:  "ja", // ja is allowed -> preserved
+		},
+		{
+			name:     "whisper keeps everything",
+			activeID: "whisper-turbo",
+			current:  "de",
+			wantOpts: all,
+			wantSel:  "de",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := setActiveTranscription(mgr, tt.activeID); err != nil {
+				t.Fatalf("setActiveTranscription: %v", err)
+			}
+			allowed := supportedLanguagesForActive(mgr)
+			gotOpts, gotSel := filterLanguageOptions(all, allowed, tt.current)
+			if !equalStringSlice(gotOpts, tt.wantOpts) {
+				t.Errorf("options = %v, want %v", gotOpts, tt.wantOpts)
+			}
+			if gotSel != tt.wantSel {
+				t.Errorf("selected = %q, want %q", gotSel, tt.wantSel)
+			}
+		})
+	}
+}
+
+func equalStringSlice(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }
 
 // Shared-file deletion safety: deleting one diarizer preset must not

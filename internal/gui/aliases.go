@@ -83,21 +83,6 @@ func defaultWhisperSize() string {
 	return "turbo"
 }
 
-func installedModelSizes() []string {
-	mgr := models.NewManager()
-	var out []string
-	for _, sz := range allowedModelSizes() {
-		id, ok := whisperSizeToID[sz]
-		if !ok {
-			continue
-		}
-		if mgr.Status(id) == models.StatusInstalled {
-			out = append(out, sz)
-		}
-	}
-	return out
-}
-
 // dropdownModels returns the unified list of installed transcription
 // engine display names — whisper sizes followed by sherpa-backed ASR
 // engines (Parakeet, SenseVoice, etc.). Both Settings→Models and the

@@ -106,14 +106,17 @@ tasks:
 
   test:
     desc: 'Run tests. SHORT=1 skips CGo/model. INTEGRATION=1 runs diarization integration suite.'
+    # Scope to our own packages — ./... would also descend into
+    # third_party/sherpa-onnx/scripts/go, vendored CGo bindings that
+    # need sherpa-onnx C headers we don't ship in test environments.
     cmds:
-      - cmd: 'export PATH="{{.EXTRA_PATH}};$PATH" && go test -v -short ./...'
+      - cmd: 'export PATH="{{.EXTRA_PATH}};$PATH" && go test -v -short ./cmd/... ./internal/...'
         if: '[ -n "{{.SHORT}}" ]'
       - task: whisper-lib
         if: '[ -z "{{.SHORT}}" ]'
       - cmd: '{{.GO_ENV}} && go test -v -tags=integration ./internal/diarizer/...'
         if: '[ -n "{{.INTEGRATION}}" ]'
-      - cmd: '{{.GO_ENV}} && go test -v ./...'
+      - cmd: '{{.GO_ENV}} && go test -v ./cmd/... ./internal/...'
         if: '[ -z "{{.SHORT}}" ] && [ -z "{{.INTEGRATION}}" ]'
 
   lint:
