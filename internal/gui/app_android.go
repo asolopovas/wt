@@ -267,7 +267,7 @@ func buildTranscodeTabAndroid(tp *transcribe.Panel, settings *settingsPanel) fyn
 	bottomBar := container.NewVBox(
 		tp.Progress,
 		container.NewBorder(nil, nil, tp.StatusText, nil),
-		vGap(spaceXL),
+		vGap(spaceLG),
 		settingsRow,
 		vGap(spaceXXL),
 		actionRow,
