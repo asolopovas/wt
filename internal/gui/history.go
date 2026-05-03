@@ -282,15 +282,8 @@ func (h *historyPanel) renameEntry(e cache.Entry) {
 	pasteBtn := newSecondaryButton("PASTE", func() {
 		entry.TypedShortcut(&fyne.ShortcutPaste{Clipboard: clipboard})
 	})
-	selectAllBtn := newSecondaryButton("ALL", func() {
-		entry.TypedShortcut(&fyne.ShortcutSelectAll{})
-	})
-	clearBtn := newSecondaryButton("CLEAR", func() {
-		entry.SetText("")
-	})
-	toolbar := container.NewGridWithColumns(5,
+	toolbar := container.NewGridWithColumns(3,
 		wrapAction(cutBtn), wrapAction(copyBtn), wrapAction(pasteBtn),
-		wrapAction(selectAllBtn), wrapAction(clearBtn),
 	)
 
 	caption := newCaptionText("NAME")

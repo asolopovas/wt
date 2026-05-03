@@ -21,9 +21,9 @@ func (t *renameEntryTheme) Icon(n fyne.ThemeIconName) fyne.Resource { return t.p
 func (t *renameEntryTheme) Size(n fyne.ThemeSizeName) float32 {
 	switch n {
 	case theme.SizeNameText:
-		return 18
+		return 14
 	case theme.SizeNameInnerPadding:
-		return 12
+		return 8
 	}
 	return t.parent.Size(n)
 }
