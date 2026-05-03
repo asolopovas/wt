@@ -43,4 +43,3 @@ docs/                          Topic-scoped rules (see below)
 - Run `go run ./scripts/clean-comments ./cmd ./internal ./bindings && gofmt -w ./cmd/ ./internal/` before every commit. Repo style is comment-free Go — rules live in `docs/*.md`, not source.
 - Never write screenshots/logs/binary debug files into the repo or any tracked dir. Use system tempdir or `_tmp/` (gitignored). The Read tool can't access `C:\tmp` — copy into `_tmp/` first. Clean up afterwards.
 - GUI compile-checks **only** through `task build ONLY=gui` (`CGO_LDFLAGS` differs across toolchains).
-
