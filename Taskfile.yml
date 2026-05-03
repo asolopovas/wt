@@ -189,9 +189,20 @@ tasks:
   # Internal: host build pipeline
   # =========================================================================
 
+  fetch-vad:
+    internal: true
+    run: once
+    desc: Download Silero VAD model for embedding into the binary
+    sources:
+      - scripts/fetch-vad.sh
+    generates:
+      - internal/transcriber/assets/ggml-silero-v6.2.0.bin
+    cmds:
+      - bash scripts/fetch-vad.sh
+
   _build-host:
     internal: true
-    deps: [whisper-lib, fetch-deps]
+    deps: [whisper-lib, fetch-deps, fetch-vad]
     # Re-read VERSION from Taskfile.yml at task-execution time. Task captures the
     # global {{.VERSION}} at parse time, so when `task release` runs bump (which
     # rewrites Taskfile.yml) before reaching here, downstream tasks would still
@@ -938,6 +949,7 @@ tasks:
         ffmpeg-android,
         android-llama-cli,
         android-sherpa-bin,
+        fetch-vad,
       ]
     vars:
       VERSION:

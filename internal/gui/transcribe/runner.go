@@ -40,10 +40,7 @@ func formatETA(secs float64) string {
 	h := total / 3600
 	m := (total % 3600) / 60
 	s := total % 60
-	if h > 0 {
-		return fmt.Sprintf("%d:%02d:%02d", h, m, s)
-	}
-	return fmt.Sprintf("%d:%02d", m, s)
+	return fmt.Sprintf("%02d:%02d:%02d", h, m, s)
 }
 
 func formatProgressTime(elapsedSec, etaSec float64) string {

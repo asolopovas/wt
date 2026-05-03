@@ -144,16 +144,11 @@ func wrapForCLI(prog DownloadProgress, label string) DownloadProgress {
 	}
 }
 
-const (
-	vadModelFile = "ggml-silero-v6.2.0.bin"
-	vadModelURL  = "https://huggingface.co/ggml-org/whisper-vad/resolve/main/" + vadModelFile
-)
-
 func ResolveVADModelPath() (string, error) {
 	dir := shared.ModelsDir()
-	path := filepath.Join(dir, vadModelFile)
+	path := filepath.Join(dir, embeddedVADName)
 
-	if _, err := os.Stat(path); err == nil {
+	if st, err := os.Stat(path); err == nil && st.Size() == int64(len(vadModelBytes)) {
 		return path, nil
 	}
 
@@ -161,13 +156,14 @@ func ResolveVADModelPath() (string, error) {
 		return "", fmt.Errorf("creating models dir: %w", err)
 	}
 
-	ui.Stage("Downloading VAD model...")
-	if err := shared.DownloadFile(path, vadModelURL, wrapForCLI(nil, "VAD")); err != nil {
-		_ = os.Remove(path)
-		return "", fmt.Errorf("downloading VAD model: %w", err)
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, vadModelBytes, 0o644); err != nil {
+		return "", fmt.Errorf("extracting embedded VAD model: %w", err)
 	}
-
-	ui.Done(fmt.Sprintf("VAD model saved to %s", path))
+	if err := os.Rename(tmp, path); err != nil {
+		_ = os.Remove(tmp)
+		return "", fmt.Errorf("installing VAD model: %w", err)
+	}
 	return path, nil
 }
 

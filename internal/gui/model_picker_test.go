@@ -18,6 +18,7 @@ func setupTestModels(t *testing.T) *models.Manager {
 
 	root := filepath.Join(home, "wt-test-models")
 	t.Setenv("WT_MODELS_DIR", root)
+	t.Setenv("WT_FORCE_SHERPA_ASR", "1")
 	mgr := models.NewManager()
 
 	wantInstalled := []string{

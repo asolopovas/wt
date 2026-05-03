@@ -11,7 +11,10 @@ import (
 	"github.com/asolopovas/wt/internal/models"
 )
 
-func sherpaASRBinaryAvailable() bool {
+var sherpaASRBinaryAvailable = func() bool {
+	if v := os.Getenv("WT_FORCE_SHERPA_ASR"); v == "1" {
+		return true
+	}
 	name := "sherpa-onnx-offline"
 	if runtime.GOOS == "windows" {
 		name = "sherpa-onnx-offline.exe"

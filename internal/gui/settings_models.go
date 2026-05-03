@@ -40,7 +40,7 @@ func isCatalogEntryAllowed(e models.Entry) bool {
 			return true
 		}
 	}
-	return e.ID == "whisper-vad-silero"
+	return false
 }
 
 func newModelsSection(win fyne.Window) *modelsSection {
