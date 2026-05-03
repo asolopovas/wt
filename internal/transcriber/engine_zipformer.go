@@ -286,15 +286,20 @@ func parseSherpaJSON(stdout string) (sherpaResult, error) {
 	return sherpaResult{}, fmt.Errorf("no JSON result line found in subprocess output")
 }
 
-// coalesceTokens merges BPE sub-word pieces into word-level segments. Each
-// token's leading space (decoded from BPE's '▁') marks a word boundary.
+// coalesceTokens merges BPE sub-word pieces from a sherpa-onnx token
+// stream into a single chunk-level segment whose Tokens carry per-word
+// timings. Returning one segment per chunk (instead of per-word) lets
+// the output layer assign speakers at the WORD level via the embedded
+// Tokens — then group consecutive same-speaker words into utterances.
+// This is what avoids the per-word speaker flicker we'd see if the
+// segment list itself were word-level.
 func coalesceTokens(tokens []string, timestamps []float64, audioDurSec float64) []diarizer.TranscriptSegment {
 	if len(tokens) == 0 {
 		return nil
 	}
 	type word struct {
-		text  string
-		start float64
+		text       string
+		start, end float64
 	}
 	words := make([]word, 0, len(tokens)/2+1)
 	for i, tok := range tokens {
@@ -309,19 +314,36 @@ func coalesceTokens(tokens []string, timestamps []float64, audioDurSec float64) 
 		}
 		words[len(words)-1].text += piece
 	}
-	segs := make([]diarizer.TranscriptSegment, 0, len(words))
-	for i, w := range words {
-		end := audioDurSec
-		if i+1 < len(words) {
-			end = words[i+1].start
-		}
-		segs = append(segs, diarizer.TranscriptSegment{
-			Start: time.Duration(w.start * float64(time.Second)),
-			End:   time.Duration(end * float64(time.Second)),
-			Text:  w.text,
-		})
+	if len(words) == 0 {
+		return nil
 	}
-	return segs
+	// Fill end-times: each word ends where the next word starts (or at
+	// audioDurSec for the last word). sherpa's timestamps array gives
+	// word-onset times only.
+	for i := range words {
+		if i+1 < len(words) {
+			words[i].end = words[i+1].start
+		} else {
+			words[i].end = audioDurSec
+		}
+	}
+
+	parts := make([]string, len(words))
+	toks := make([]diarizer.TokenData, len(words))
+	for i, w := range words {
+		parts[i] = w.text
+		toks[i] = diarizer.TokenData{
+			Text:  w.text,
+			Start: time.Duration(w.start * float64(time.Second)),
+			End:   time.Duration(w.end * float64(time.Second)),
+		}
+	}
+	return []diarizer.TranscriptSegment{{
+		Start:  time.Duration(words[0].start * float64(time.Second)),
+		End:    time.Duration(words[len(words)-1].end * float64(time.Second)),
+		Text:   strings.Join(parts, " "),
+		Tokens: toks,
+	}}
 }
 
 func truncate(s string, n int) string {
