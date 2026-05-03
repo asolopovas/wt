@@ -2,6 +2,7 @@
 /build/
 dist/
 .claude
+.a5c/
 
 # Dependencies (cloned/downloaded at build time)
 third_party/
