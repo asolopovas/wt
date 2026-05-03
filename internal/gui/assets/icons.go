@@ -77,3 +77,19 @@ var DownloadIcon = &fyne.StaticResource{
 	StaticName:    "icon_download.svg",
 	StaticContent: downloadIconData,
 }
+
+//go:embed icon_cancel.svg
+var cancelIconData []byte
+
+var CancelIcon = &fyne.StaticResource{
+	StaticName:    "icon_cancel.svg",
+	StaticContent: cancelIconData,
+}
+
+//go:embed icon_add_file.svg
+var addFileIconData []byte
+
+var AddFileIcon = &fyne.StaticResource{
+	StaticName:    "icon_add_file.svg",
+	StaticContent: addFileIconData,
+}

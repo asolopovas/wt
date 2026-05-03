@@ -237,8 +237,10 @@ func wireShareIntake(tp *transcribe.Panel, tabs *container.AppTabs) {
 func buildTranscodeTabAndroid(tp *transcribe.Panel, settings *settingsPanel) fyne.CanvasObject {
 	tp.TranscribeBtn.Importance = widget.HighImportance
 
-	addBtn := newSecondaryButton("ADD FILES", tp.OnBrowse)
-	cancelBtn := decor.NewDangerButton("CANCEL", tp.OnCancel)
+	addBtn := newPointerButtonWithIcon("ADD FILES", assets.AddFileIcon, tp.OnBrowse)
+	addBtn.Importance = widget.LowImportance
+	cancelBtn := newPointerButtonWithIcon("CANCEL", assets.CancelIcon, tp.OnCancel)
+	cancelBtn.Importance = widget.DangerImportance
 	cancelBtn.Disable()
 	tp.CancelBtn = cancelBtn
 
