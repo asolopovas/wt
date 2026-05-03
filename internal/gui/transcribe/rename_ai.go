@@ -9,12 +9,62 @@ import (
 	"strings"
 	"time"
 
+	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/widget"
+
 	"github.com/asolopovas/wt/internal/gui/platsvc"
 	"github.com/asolopovas/wt/internal/llm"
 	"github.com/asolopovas/wt/internal/namer"
 	"github.com/asolopovas/wt/internal/transcriber"
 	"github.com/asolopovas/wt/internal/transcriber/cache"
 )
+
+type renameDecision struct {
+	keep    bool
+	newName string
+}
+
+func (p *Panel) promptRename(originalName, suggested string) renameDecision {
+	if p.window == nil {
+		return renameDecision{newName: suggested}
+	}
+
+	info := widget.NewLabel("Original: " + originalName)
+	info.Wrapping = fyne.TextWrapWord
+
+	entry := widget.NewEntry()
+	entry.SetText(suggested)
+
+	caption := newCaptionText("Edit the suggested name or keep the original.")
+
+	body := container.NewVBox(info, entry, caption)
+
+	ch := make(chan renameDecision, 1)
+	send := func(d renameDecision) {
+		select {
+		case ch <- d:
+		default:
+		}
+	}
+
+	fyne.Do(func() {
+		showDialog(dialogConfig{
+			Parent: p.window,
+			Title:  "AUTO-RENAME FILE?",
+			Body:   body,
+			Actions: []dialogAction{
+				{Label: "KEEP ORIGINAL", Kind: kindSecondary, OnTap: func() { send(renameDecision{keep: true}) }},
+				{Label: "RENAME", Kind: kindPrimary, OnTap: func() {
+					send(renameDecision{newName: strings.TrimSpace(entry.Text)})
+				}},
+			},
+			WidthFrac: 0.6,
+		})
+	})
+
+	return <-ch
+}
 
 func (p *Panel) autoRenameAfterTranscribe(cacheKey, jsonPath, sourcePath, sourceName string, fallback time.Time) (string, string) {
 	if sourcePath == "" {
@@ -59,13 +109,28 @@ func (p *Panel) autoRenameAfterTranscribe(cacheKey, jsonPath, sourcePath, source
 
 	ext := filepath.Ext(sourcePath)
 	suggested := s.Filename(ext)
-	dst := filepath.Join(filepath.Dir(sourcePath), suggested)
+
+	decision := p.promptRename(sourceName, suggested)
+	if decision.keep {
+		p.AppendLog("  Auto-name: kept original name")
+		return sourcePath, sourceName
+	}
+	finalName := decision.newName
+	if finalName == "" {
+		p.AppendLog("  Auto-name: empty name, kept original")
+		return sourcePath, sourceName
+	}
+	// Re-attach extension if user stripped it.
+	if ext != "" && filepath.Ext(finalName) == "" {
+		finalName += ext
+	}
+	dst := filepath.Join(filepath.Dir(sourcePath), finalName)
 	if dst == sourcePath {
-		p.AppendLog("  Auto-name: already named: " + suggested)
+		p.AppendLog("  Auto-name: already named: " + finalName)
 		return sourcePath, sourceName
 	}
 	if _, err := os.Stat(dst); err == nil {
-		p.AppendLog("  Auto-name skipped: destination exists: " + suggested)
+		p.AppendLog("  Auto-name skipped: destination exists: " + finalName)
 		return sourcePath, sourceName
 	}
 	if err := os.Rename(sourcePath, dst); err != nil {
@@ -73,12 +138,12 @@ func (p *Panel) autoRenameAfterTranscribe(cacheKey, jsonPath, sourcePath, source
 		return sourcePath, sourceName
 	}
 	if cacheKey != "" {
-		if err := cache.SetSource(cacheKey, dst, suggested); err != nil {
+		if err := cache.SetSource(cacheKey, dst, finalName); err != nil {
 			p.AppendLog(fmt.Sprintf("  Auto-name: cache update failed: %v", err))
 		}
 	}
-	p.AppendLog("  Renamed: " + suggested)
-	return dst, suggested
+	p.AppendLog("  Renamed: " + finalName)
+	return dst, finalName
 }
 
 func loadTranscriptText(jsonPath string) (string, error) {
