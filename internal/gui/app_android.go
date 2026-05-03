@@ -243,8 +243,9 @@ func buildTranscodeTabAndroid(tp *transcribe.Panel, settings *settingsPanel) fyn
 	recBtn = newPointerButtonWithIcon("RECORD", assets.MicIcon, func() { tp.OnToggleRecord(recBtn) })
 	recBtn.Importance = widget.HighImportance
 
-	settingsRow := container.NewGridWithColumns(3,
+	settingsRow := container.NewGridWithColumns(2,
 		newFormField("MODEL", settings.newModelSelectMirror()),
+		newFormField("DIARIZER", settings.newDiarizerSelectMirror()),
 		newFormField("LANGUAGE", settings.newLangSelectMirror()),
 		newFormField("SPEAKERS", settings.newSpeakersSelectMirror()),
 	)

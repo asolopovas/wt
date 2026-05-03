@@ -158,7 +158,8 @@ func (s *modelsSection) refresh() {
 		f     models.Family
 		title string
 	}{
-		{models.FamilyWhisper, "TRANSCRIPTION"},
+		{models.FamilyWhisper, "TRANSCRIPTION (WHISPER)"},
+		{models.FamilyASR, "TRANSCRIPTION (FAST ASR)"},
 		{models.FamilyDiarizer, "DIARIZATION"},
 		{models.FamilyLLM, "LANGUAGE MODELS"},
 	}
@@ -308,7 +309,8 @@ func (s *modelsSection) openDownloadDialog() {
 			f     models.Family
 			title string
 		}{
-			{models.FamilyWhisper, "TRANSCRIPTION"},
+			{models.FamilyWhisper, "TRANSCRIPTION (WHISPER)"},
+			{models.FamilyASR, "TRANSCRIPTION (FAST ASR)"},
 			{models.FamilyDiarizer, "DIARIZATION"},
 			{models.FamilyLLM, "LANGUAGE MODELS"},
 		}

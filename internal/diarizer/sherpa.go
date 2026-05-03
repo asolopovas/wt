@@ -17,6 +17,7 @@ import (
 	"time"
 
 	shared "github.com/asolopovas/wt/internal"
+	"github.com/asolopovas/wt/internal/models"
 )
 
 type sherpaDiarizer struct {
@@ -49,15 +50,43 @@ func newSherpaDiarizer() (Backend, error) {
 	return &sherpaDiarizer{binPath: bin, segModel: seg, embModel: emb}, nil
 }
 
-const (
-	sherpaSegURL = "https://huggingface.co/csukuangfj/sherpa-onnx-pyannote-segmentation-3-0/resolve/main/model.onnx"
-	sherpaEmbURL = "https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-recongition-models/nemo_en_titanet_large.onnx"
-)
+// activeDiarizerPaths returns (segURL, segRel, embURL, embRel) for the
+// currently active FamilyDiarizer entry. Falls back to pyannote-3.0 +
+// TitaNet-Large if no entry is active or the active entry doesn't
+// declare a diarizer pair.
+func activeDiarizerPaths() (segURL, segRel, embURL, embRel string) {
+	// Defaults match the historical hardcoded values for backward compat.
+	segURL = "https://huggingface.co/csukuangfj/sherpa-onnx-pyannote-segmentation-3-0/resolve/main/model.onnx"
+	segRel = "sherpa-onnx-pyannote-segmentation-3-0/model.onnx"
+	embURL = "https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-recongition-models/nemo_en_titanet_large.onnx"
+	embRel = "titanet_large.onnx"
+
+	mgr := models.NewManager()
+	active := mgr.Active(models.FamilyDiarizer)
+	if active == "" {
+		return
+	}
+	e, ok := models.ByID(active)
+	if !ok || e.DiarSegRelPath == "" || e.DiarEmbRelPath == "" {
+		return
+	}
+	// Resolve URLs by matching RelPath inside the entry's Files.
+	for _, f := range e.FileSpecs() {
+		switch f.RelPath {
+		case e.DiarSegRelPath:
+			segURL, segRel = f.URL, f.RelPath
+		case e.DiarEmbRelPath:
+			embURL, embRel = f.URL, f.RelPath
+		}
+	}
+	return
+}
 
 func SherpaModelPaths() (string, string) {
 	root := shared.ModelsDir()
-	catSeg := filepath.Join(root, "sherpa-onnx-pyannote-segmentation-3-0", "model.onnx")
-	catEmb := filepath.Join(root, "titanet_large.onnx")
+	_, segRel, _, embRel := activeDiarizerPaths()
+	catSeg := filepath.Join(root, filepath.FromSlash(segRel))
+	catEmb := filepath.Join(root, filepath.FromSlash(embRel))
 	if runtime.GOOS == "android" {
 		legacySeg := filepath.Join(root, "seg.onnx")
 		legacyEmb := filepath.Join(root, "emb.onnx")
@@ -89,7 +118,8 @@ func EnsureSherpaModels(progress func(name string, downloaded, total int64)) err
 				progress("seg", d, t)
 			}
 		}
-		if err := shared.DownloadFile(seg, sherpaSegURL, cb); err != nil {
+		segURL, _, _, _ := activeDiarizerPaths()
+		if err := shared.DownloadFile(seg, segURL, cb); err != nil {
 			return fmt.Errorf("downloading segmentation model: %w", err)
 		}
 	}
@@ -99,7 +129,8 @@ func EnsureSherpaModels(progress func(name string, downloaded, total int64)) err
 				progress("emb", d, t)
 			}
 		}
-		if err := shared.DownloadFile(emb, sherpaEmbURL, cb); err != nil {
+		_, _, embURL, _ := activeDiarizerPaths()
+		if err := shared.DownloadFile(emb, embURL, cb); err != nil {
 			return fmt.Errorf("downloading embedding model: %w", err)
 		}
 	}

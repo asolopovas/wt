@@ -79,6 +79,11 @@ func (m *Manager) Status(id string) Status {
 func (m *Manager) Active(f Family) string {
 	m.mu.Lock()
 	if id, ok := m.active[f]; ok {
+		// Empty string is the explicit "none" marker (set via ClearActive).
+		// Important for FamilyASR: when the user picks a whisper entry from
+		// the unified dropdown we clear FamilyASR so the engine resolver
+		// stops preferring the previously-picked ASR engine. The auto-pick
+		// fallbacks below would otherwise resurrect it.
 		m.mu.Unlock()
 		return id
 	}
@@ -135,6 +140,21 @@ func (m *Manager) SetActive(id string) error {
 	}
 	m.mu.Lock()
 	m.active[e.Family] = id
+	m.mu.Unlock()
+	return m.saveActive()
+}
+
+// ClearActive marks the family as explicitly having NO active selection.
+// This is distinct from "unset" (which falls back to defaults / first
+// installed). Used by the unified transcription dropdown to drop a
+// previously-picked ASR engine when the user switches to whisper.
+func (m *Manager) ClearActive(f Family) error {
+	m.mu.Lock()
+	if id, ok := m.active[f]; ok && id == "" {
+		m.mu.Unlock()
+		return nil
+	}
+	m.active[f] = ""
 	m.mu.Unlock()
 	return m.saveActive()
 }
@@ -229,13 +249,29 @@ func (m *Manager) Delete(id string) error {
 	if !ok {
 		return fmt.Errorf("unknown model: %s", id)
 	}
+	// Build set of paths shared with other catalog entries (e.g. pyannote-3.0
+	// segmentation is shared by 3 of the 5 diarizer presets). Skip removal
+	// for shared files so deleting one preset doesn't break the others.
+	shared := map[string]bool{}
+	for _, other := range Catalog() {
+		if other.ID == e.ID {
+			continue
+		}
+		for _, p := range PathsFor(other) {
+			shared[p] = true
+		}
+	}
 	any := false
 	for _, p := range PathsFor(e) {
-		if fileExists(p) {
-			any = true
-			if err := os.Remove(p); err != nil {
-				return err
-			}
+		if !fileExists(p) {
+			continue
+		}
+		any = true
+		if shared[p] {
+			continue // keep — referenced by another entry
+		}
+		if err := os.Remove(p); err != nil {
+			return err
 		}
 	}
 	if !any {

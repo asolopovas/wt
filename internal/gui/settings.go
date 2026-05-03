@@ -13,6 +13,7 @@ import (
 	"fyne.io/fyne/v2/widget"
 
 	shared "github.com/asolopovas/wt/internal"
+	"github.com/asolopovas/wt/internal/models"
 	"github.com/asolopovas/wt/internal/transcriber/cache"
 )
 
@@ -23,8 +24,12 @@ var languages = []string{
 	"no", "th", "ur", "hr", "bg", "lt", "la", "mi", "ml", "cy",
 }
 
+// speakerOptions is capped at 4 because the active diarizer
+// (NeMo Sortformer 4spk) is hardcoded at 4 speakers; passing >4 is
+// silently ignored upstream (see scripts/diarize.py:110). "auto" lets
+// the model decide.
 var speakerOptions = []string{
-	"auto", "2", "3", "4", "5", "6", "7", "8", "9", "10",
+	"auto", "2", "3", "4",
 }
 
 var cacheExpiryOptions = []string{"7", "30", "90", "365", "never"}
@@ -41,6 +46,8 @@ type settingsPanel struct {
 	expirySelect   *pointerSelect
 
 	modelMirrors    []*pointerSelect
+	diarizerMirrors []*pointerSelect
+	onModelsChanged func()
 	langMirrors     []*limitSelect
 	speakersMirrors []*pointerSelect
 	noDiarizeBtn    *pointerButton
@@ -67,12 +74,24 @@ func newSettingsPanel(cfg shared.Config, window fyne.Window) *settingsPanel {
 func (p *settingsPanel) build() {
 	persist := func(string) { p.persist() }
 
-	modelOpts := dropdownModels(p.cfg.Model)
+	modelOpts := dropdownModels("")
 	p.modelSelect = newPointerSelect(modelOpts, p.onModelChanged)
-	p.modelSelect.Selected = p.cfg.Model
-	if !slices.Contains(modelOpts, p.modelSelect.Selected) {
-		p.modelSelect.Selected = modelOpts[0]
+	// Initial dropdown selection: prefer the manager's active transcription
+	// entry (covers the user picking from Settings→Models). Fall back to
+	// translating the legacy cfg.Model size string to a display name.
+	mgr := models.NewManager()
+	selected := activeTranscriptionDisplayName(transcriptionPickerOptions(mgr), mgr)
+	if selected == "" {
+		if id, ok := whisperSizeToID[p.cfg.Model]; ok {
+			if e, ok2 := models.ByID(id); ok2 {
+				selected = e.DisplayName
+			}
+		}
 	}
+	if selected == "" || !slices.Contains(modelOpts, selected) {
+		selected = modelOpts[0]
+	}
+	p.modelSelect.Selected = selected
 	p.modelMirrors = append(p.modelMirrors, p.modelSelect)
 
 	langLabel := "auto"
@@ -252,7 +271,12 @@ func (p *settingsPanel) writeConfig() error {
 		return fmt.Errorf("loading config: %w", err)
 	}
 
-	cfg.Model = p.modelSelect.Selected
+	// p.modelSelect.Selected is now a display name ("Whisper large-v3-turbo"
+	// or "Parakeet TDT 0.6B v2 (English)"). Translate back to a whisper
+	// size string for cfg.Model so legacy code paths (e.g. whisper-cpp
+	// model loader) keep working. ASR engine routing is driven by the
+	// manager's active state — cfg.Model is only relevant for whisper.
+	cfg.Model = displayNameToWhisperSize(p.modelSelect.Selected, p.cfg.Model)
 	cfg.Language = p.Language()
 	cfg.Device = p.deviceSelect.Selected
 	cfg.Threads = p.Threads()
@@ -268,7 +292,7 @@ func (p *settingsPanel) writeConfig() error {
 }
 
 func (p *settingsPanel) ModelSize() string {
-	return p.modelSelect.Selected
+	return displayNameToWhisperSize(p.modelSelect.Selected, p.cfg.Model)
 }
 
 func (p *settingsPanel) Language() string {
@@ -314,7 +338,59 @@ func (p *settingsPanel) onModelChanged(v string) {
 			m.Refresh()
 		}
 	}
+	// Sync the change into the models manager so Settings→Models reflects
+	// the dropdown choice and runner.go's engine resolver picks the right
+	// entry. Lookup is by display name (the option label).
+	mgr := models.NewManager()
+	opts := transcriptionPickerOptions(mgr)
+	if id := pickerByDisplayName(opts, v); id != "" {
+		_ = setActiveTranscription(mgr, id)
+		if p.onModelsChanged != nil {
+			p.onModelsChanged()
+		}
+	}
 	p.persist()
+}
+
+func (p *settingsPanel) onDiarizerChanged(v string) {
+	for _, m := range p.diarizerMirrors {
+		if m.Selected != v {
+			m.Selected = v
+			m.Refresh()
+		}
+	}
+	mgr := models.NewManager()
+	opts := diarizerPickerOptions(mgr)
+	if id := pickerByDisplayName(opts, v); id != "" {
+		_ = mgr.SetActive(id)
+		if p.onModelsChanged != nil {
+			p.onModelsChanged()
+		}
+	}
+	p.persist()
+}
+
+func (p *settingsPanel) newDiarizerSelectMirror() *pointerSelect {
+	mgr := models.NewManager()
+	opts := dropdownDiarizers("")
+	selected := activeDiarizerDisplayName(diarizerPickerOptions(mgr), mgr)
+	s := newPointerSelect(opts, p.onDiarizerChanged)
+	s.Selected = selected
+	p.diarizerMirrors = append(p.diarizerMirrors, s)
+	return s
+}
+
+// refreshDiarizerOptions repopulates all diarizer mirrors after
+// install/delete/active changes from Settings→Models.
+func (p *settingsPanel) refreshDiarizerOptions() {
+	mgr := models.NewManager()
+	opts := dropdownDiarizers("")
+	selected := activeDiarizerDisplayName(diarizerPickerOptions(mgr), mgr)
+	for _, m := range p.diarizerMirrors {
+		m.Options = opts
+		m.Selected = selected
+		m.Refresh()
+	}
 }
 
 func (p *settingsPanel) onLangChanged(v string) {
@@ -345,14 +421,25 @@ func (p *settingsPanel) newModelSelectMirror() *pointerSelect {
 }
 
 func (p *settingsPanel) refreshModelOptions() {
+	// Pull the active transcription entry from the manager so changes made
+	// in Settings→Models tap-to-activate are reflected in the dropdown.
+	mgr := models.NewManager()
+	pickerOpts := transcriptionPickerOptions(mgr)
 	opts := dropdownModels(p.modelSelect.Selected)
+	selected := activeTranscriptionDisplayName(pickerOpts, mgr)
+	if selected == "" {
+		selected = p.modelSelect.Selected
+	}
 	for _, m := range p.modelMirrors {
 		m.Options = opts
-		if m.Selected == "" || !slices.Contains(opts, m.Selected) {
+		if selected != "" && slices.Contains(opts, selected) {
+			m.Selected = selected
+		} else if m.Selected == "" || !slices.Contains(opts, m.Selected) {
 			m.Selected = opts[0]
 		}
 		m.Refresh()
 	}
+	p.refreshDiarizerOptions()
 }
 
 func (p *settingsPanel) newLangSelectMirror() *limitSelect {
