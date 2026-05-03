@@ -57,20 +57,11 @@ func findSherpaASRBinary() (string, error) {
 	}
 
 	if runtime.GOOS == "android" {
-		for _, env := range []string{"ANDROID_NATIVE_LIBS_DIR", "LD_LIBRARY_PATH"} {
-			for _, p := range strings.Split(os.Getenv(env), ":") {
-				if p == "" {
-					continue
-				}
-				c := filepath.Join(p, name)
-				if fileExists(c) {
-					return c, nil
-				}
+		for _, dir := range androidNativeLibDirs() {
+			c := filepath.Join(dir, name)
+			if fileExists(c) {
+				return c, nil
 			}
-		}
-		matches, _ := filepath.Glob("/data/app/*/com.asolopovas.wtranscribe-*/lib/arm64/" + name)
-		if len(matches) > 0 {
-			return matches[0], nil
 		}
 	}
 
@@ -86,6 +77,45 @@ func findSherpaASRBinary() (string, error) {
 func fileExists(p string) bool {
 	st, err := os.Stat(p)
 	return err == nil && !st.IsDir()
+}
+
+// androidNativeLibDirs mirrors internal/diarizer.androidNativeLibDirs.
+// On Android the app user can't read /data/app/, so filepath.Glob over
+// that tree returns nothing. Instead, read /proc/self/maps which lists
+// every .so currently mapped into the process — the dirs containing
+// those are the real nativeLibraryDir paths Android resolved at load
+// time. This works even with randomised UUID-style /data/app/ subdirs.
+func androidNativeLibDirs() []string {
+	var dirs []string
+	if v := os.Getenv("ANDROID_NATIVE_LIBS_DIR"); v != "" {
+		dirs = append(dirs, v)
+	}
+	for _, env := range []string{"LD_LIBRARY_PATH", "LIB_DIR"} {
+		for _, p := range strings.Split(os.Getenv(env), ":") {
+			if p != "" {
+				dirs = append(dirs, p)
+			}
+		}
+	}
+	if data, err := os.ReadFile("/proc/self/maps"); err == nil {
+		seen := map[string]bool{}
+		for _, line := range strings.Split(string(data), "\n") {
+			idx := strings.Index(line, "/data/app/")
+			if idx < 0 {
+				continue
+			}
+			path := line[idx:]
+			if !strings.HasSuffix(path, ".so") {
+				continue
+			}
+			dir := filepath.Dir(path)
+			if !seen[dir] {
+				seen[dir] = true
+				dirs = append(dirs, dir)
+			}
+		}
+	}
+	return dirs
 }
 
 // sherpaProvider returns the ONNX Runtime provider. WT_ZIPFORMER_PROVIDER is
