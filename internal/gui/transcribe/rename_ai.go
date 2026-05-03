@@ -60,6 +60,9 @@ func (p *Panel) promptRename(originalName, suggested string) renameDecision {
 				}},
 			},
 			WidthFrac: 0.6,
+			// Pin to top so the soft keyboard on Android doesn't cover the
+			// editable filename. Harmless on desktop (just renders near top).
+			AnchorTop: true,
 		})
 	})
 

@@ -1,8 +1,12 @@
 package decor
 
 import (
+	"image/color"
+
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 )
 
@@ -29,6 +33,11 @@ type DialogConfig struct {
 	Size        *fyne.Size
 	TopInset    float32
 	BottomInset float32
+	// AnchorTop pins the dialog to the top of the canvas's InteractiveArea
+	// instead of centering it. Required for dialogs containing text inputs
+	// on Android — the centered modal popup ignores soft-keyboard insets and
+	// gets clipped behind the keyboard.
+	AnchorTop bool
 }
 
 func ShowDialog(cfg DialogConfig) func() {
@@ -75,6 +84,12 @@ func ShowDialog(cfg DialogConfig) func() {
 	}
 
 	bodyContainer := container.NewBorder(top, bottom, nil, nil, cfg.Body)
+
+	if cfg.AnchorTop {
+		hide = showAnchoredDialog(cfg, bodyContainer)
+		return hide
+	}
+
 	pop := widget.NewModalPopUp(DialogBordered(bodyContainer), cfg.Parent.Canvas())
 
 	if cfg.Size != nil {
@@ -86,5 +101,72 @@ func ShowDialog(cfg DialogConfig) func() {
 
 	hide = pop.Hide
 	pop.Show()
+	return hide
+}
+
+// showAnchoredDialog renders the dialog as a non-modal PopUp pinned to the
+// top of the canvas's InteractiveArea, with a hand-rolled dim underlay. This
+// keeps the dialog visible above the Android soft keyboard (which the
+// centered ModalPopUp layout otherwise ignores).
+func showAnchoredDialog(cfg DialogConfig, bodyContainer fyne.CanvasObject) func() {
+	c := cfg.Parent.Canvas()
+
+	th := fyne.CurrentApp().Settings().Theme()
+	var shadow color.Color = color.NRGBA{A: 0xa8}
+	if th != nil {
+		v := fyne.CurrentApp().Settings().ThemeVariant()
+		shadow = th.Color(theme.ColorNameShadow, v)
+	}
+	underlay := canvas.NewRectangle(shadow)
+	underlay.Resize(c.Size())
+	underlay.Move(fyne.NewPos(0, 0))
+
+	pop := widget.NewPopUp(DialogBordered(bodyContainer), c)
+
+	canvasSize := c.Size()
+	areaPos, areaSize := c.InteractiveArea()
+
+	var w, h float32
+	if cfg.Size != nil {
+		w = cfg.Size.Width
+		h = cfg.Size.Height
+	} else {
+		widthFrac := cfg.WidthFrac
+		if widthFrac <= 0 {
+			widthFrac = 0.92
+		}
+		w = canvasSize.Width * widthFrac
+		h = pop.MinSize().Height
+	}
+	if w > areaSize.Width {
+		w = areaSize.Width
+	}
+	if h > areaSize.Height {
+		h = areaSize.Height
+	}
+	pop.Resize(fyne.NewSize(w, h))
+
+	// Pin to top of the interactive area with a small breathing margin.
+	topMargin := float32(SpaceXL)
+	x := areaPos.X + (areaSize.Width-w)/2
+	if x < 0 {
+		x = 0
+	}
+	y := areaPos.Y + topMargin
+	pop.Move(fyne.NewPos(x, y))
+
+	overlays := c.Overlays()
+	overlays.Add(underlay)
+	pop.Show()
+
+	hidden := false
+	hide := func() {
+		if hidden {
+			return
+		}
+		hidden = true
+		pop.Hide()
+		overlays.Remove(underlay)
+	}
 	return hide
 }

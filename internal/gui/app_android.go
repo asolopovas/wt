@@ -263,6 +263,7 @@ func buildTranscodeTabAndroid(tp *transcribe.Panel, settings *settingsPanel) fyn
 		tp.Progress,
 		container.NewBorder(nil, nil, tp.StatusText, nil),
 		settingsRow,
+		vGap(spaceXXL),
 		actionRow,
 		vGap(spaceMD),
 	)
