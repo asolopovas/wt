@@ -17,12 +17,12 @@ import (
 	"github.com/asolopovas/wt/internal/transcriber/cache"
 )
 
-var languages = []string{
-	"auto", "en", "zh", "de", "es", "ru", "ko", "fr", "ja", "pt",
-	"tr", "pl", "ca", "nl", "ar", "sv", "it", "id", "hi", "fi",
-	"vi", "he", "uk", "el", "ms", "cs", "ro", "da", "hu", "ta",
-	"no", "th", "ur", "hr", "bg", "lt", "la", "mi", "ml", "cy",
-}
+// languages keeps the legacy code list for code paths that still expect
+// raw codes. Prefer allLanguageCodes()/allLanguageNames() for new code
+// — those return whisper.cpp's full 99-language registry sorted by
+// display name (with "auto" first), and pair with the languageNames
+// map for human-readable dropdown labels.
+var languages = allLanguageCodes()
 
 // speakerOptions is capped at 4 because the active diarizer
 // (NeMo Sortformer 4spk) is hardcoded at 4 speakers; passing >4 is
@@ -94,11 +94,15 @@ func (p *settingsPanel) build() {
 	p.modelSelect.Selected = selected
 	p.modelMirrors = append(p.modelMirrors, p.modelSelect)
 
-	langLabel := "auto"
-	if p.cfg.Language != "" {
-		langLabel = p.cfg.Language
+	// langCode is the raw code persisted in cfg.Language ("" == auto).
+	// The dropdown shows the friendly name from languageNames; selection
+	// changes are translated back to a code in onLangChanged.
+	langCode := p.cfg.Language
+	if langCode == "" {
+		langCode = "auto"
 	}
-	p.langSelect = newLimitSelect(languages, 300, p.onLangChanged)
+	langLabel := languageDisplayName(langCode)
+	p.langSelect = newLimitSelect(allLanguageNames(), 300, p.onLangChanged)
 	p.langSelect.Inner.Selected = langLabel
 	p.langMirrors = append(p.langMirrors, p.langSelect)
 	// Constrain to the active engine's whitelist after both the model and
@@ -301,11 +305,9 @@ func (p *settingsPanel) ModelSize() string {
 }
 
 func (p *settingsPanel) Language() string {
-	lang := p.langSelect.Inner.Selected
-	if lang == "auto" {
-		return ""
-	}
-	return lang
+	// Inner.Selected stores a display name ("English", "Russian"...).
+	// Convert back to a code for cfg/runner; "Auto-detect" maps to "".
+	return languageCodeFromName(p.langSelect.Inner.Selected)
 }
 
 func (p *settingsPanel) Device() string {
@@ -366,12 +368,23 @@ func (p *settingsPanel) refreshLanguageOptions() {
 		return
 	}
 	mgr := models.NewManager()
-	allowed := supportedLanguagesForActive(mgr)
-	current := p.langSelect.Inner.Selected
-	opts, selected := filterLanguageOptions(languages, allowed, current)
+	allowed := supportedLanguagesForActive(mgr) // []code
+
+	// Filter operates on codes (engine whitelists are code-based) but
+	// the dropdown displays names. Convert: filter codes -> map to
+	// display names; same for current selection.
+	currentName := p.langSelect.Inner.Selected
+	currentCode := languageCodeFromName(currentName)
+	if currentCode == "" {
+		currentCode = "auto"
+	}
+	codes, selectedCode := filterLanguageOptions(allLanguageCodes(), allowed, currentCode)
+	opts := codesToNames(codes)
+	selectedName := languageDisplayName(selectedCode)
+
 	for _, m := range p.langMirrors {
 		m.Inner.Options = opts
-		m.Inner.Selected = selected
+		m.Inner.Selected = selectedName
 		// Disable the dropdown when there's only one valid choice (no
 		// point letting the user open a single-item menu).
 		if len(opts) <= 1 {
@@ -381,7 +394,7 @@ func (p *settingsPanel) refreshLanguageOptions() {
 		}
 		m.Inner.Refresh()
 	}
-	if current != selected {
+	if currentName != selectedName {
 		p.persist()
 	}
 }
@@ -428,6 +441,9 @@ func (p *settingsPanel) refreshDiarizerOptions() {
 }
 
 func (p *settingsPanel) onLangChanged(v string) {
+	// v is a display name from the dropdown. Mirror it across all
+	// LANGUAGE selects (settings tab + transcode tab). Code conversion
+	// for cfg.Language happens in writeConfig via Language().
 	for _, m := range p.langMirrors {
 		if m.Inner.Selected != v {
 			m.Inner.Selected = v

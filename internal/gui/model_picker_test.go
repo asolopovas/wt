@@ -195,6 +195,9 @@ func TestSync_Diarizer_RoundTrip(t *testing.T) {
 // is active, the LANGUAGE dropdown options must collapse to ["en"].
 // SenseVoice (multilingual) must show its supported subset. Whisper
 // (no Languages constraint) must show the full list unchanged.
+//
+// Filter operates on codes; UI conversion to display names is tested
+// separately in TestLanguageDisplay_RoundTrip.
 func TestLanguageFilter_PerEngine(t *testing.T) {
 	mgr := setupTestModels(t)
 
@@ -245,6 +248,47 @@ func TestLanguageFilter_PerEngine(t *testing.T) {
 				t.Errorf("selected = %q, want %q", gotSel, tt.wantSel)
 			}
 		})
+	}
+}
+
+// Round-trip the dropdown's display-name layer: every code in the
+// canonical list must have a name, and lookups in both directions must
+// match. Catches typos in languageNames and ensures Russian (the user's
+// reported missing-from-the-dropdown lang) is present and correctly
+// labelled.
+func TestLanguageDisplay_RoundTrip(t *testing.T) {
+	codes := allLanguageCodes()
+	names := allLanguageNames()
+	if len(codes) != len(names) {
+		t.Fatalf("codes/names length mismatch: %d vs %d", len(codes), len(names))
+	}
+	if codes[0] != "auto" || names[0] != "Auto-detect" {
+		t.Errorf("first option must be auto/Auto-detect, got %q/%q", codes[0], names[0])
+	}
+
+	must := map[string]string{
+		"en":  "English",
+		"ru":  "Russian",
+		"zh":  "Chinese",
+		"ja":  "Japanese",
+		"yue": "Cantonese",
+		"uk":  "Ukrainian",
+	}
+	for code, want := range must {
+		if got := languageDisplayName(code); got != want {
+			t.Errorf("languageDisplayName(%q) = %q, want %q", code, got, want)
+		}
+		if got := languageCodeFromName(want); got != code {
+			t.Errorf("languageCodeFromName(%q) = %q, want %q", want, got, code)
+		}
+	}
+	if languageCodeFromName("Auto-detect") != "" {
+		t.Error("languageCodeFromName(Auto-detect) must be \"\" (cfg.Language convention)")
+	}
+
+	// Whisper supports ~99 languages — catalog must list at least 90.
+	if len(codes) < 90 {
+		t.Errorf("only %d languages registered, expected ~99 (whisper coverage)", len(codes))
 	}
 }
 
