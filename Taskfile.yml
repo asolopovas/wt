@@ -1,13 +1,13 @@
-version: '3'
+version: "3"
 
 vars:
   BINARY: wt
   APP_NAME: WTranscribe
-  VERSION: '0.0.7'
-  WHISPER_ROOT: '{{.ROOT_DIR | toSlash}}/third_party/whisper.cpp'
-  WHISPER_BUILD: '{{.WHISPER_ROOT}}/build'
-  LLAMA_ROOT: '{{.ROOT_DIR | toSlash}}/third_party/llama.cpp'
-  SHERPA_ROOT: '{{.ROOT_DIR | toSlash}}/third_party/sherpa-onnx'
+  VERSION: "0.0.7"
+  WHISPER_ROOT: "{{.ROOT_DIR | toSlash}}/third_party/whisper.cpp"
+  WHISPER_BUILD: "{{.WHISPER_ROOT}}/build"
+  LLAMA_ROOT: "{{.ROOT_DIR | toSlash}}/third_party/llama.cpp"
+  SHERPA_ROOT: "{{.ROOT_DIR | toSlash}}/third_party/sherpa-onnx"
 
   IS_LINUX:
     sh: |
@@ -35,7 +35,7 @@ vars:
       done
       echo ""
 
-  CUDA_ARCH: '61;75;80;86;89'
+  CUDA_ARCH: "61;75;80;86;89"
 
   GIT_DATE:
     sh: 'if git describe --tags --exact-match HEAD >/dev/null 2>&1; then echo ""; else git log -1 --format=%cd --date=format:%y%m%d%H%M%S 2>/dev/null || echo ""; fi'
@@ -50,9 +50,9 @@ vars:
 
   NDK_ROOT:
     sh: echo "$LOCALAPPDATA/Android/Sdk/ndk/27.2.12479018"
-  NDK_TOOLCHAIN: '{{.NDK_ROOT}}/toolchains/llvm/prebuilt/windows-x86_64'
-  ANDROID_SYSROOT: '{{.NDK_TOOLCHAIN}}/sysroot'
-  ANDROID_CC: '{{.NDK_TOOLCHAIN}}/bin/aarch64-linux-android28-clang'
+  NDK_TOOLCHAIN: "{{.NDK_ROOT}}/toolchains/llvm/prebuilt/windows-x86_64"
+  ANDROID_SYSROOT: "{{.NDK_TOOLCHAIN}}/sysroot"
+  ANDROID_CC: "{{.NDK_TOOLCHAIN}}/bin/aarch64-linux-android28-clang"
   BUILD_TOOLS:
     sh: echo "$LOCALAPPDATA/Android/Sdk/build-tools/36.1.0"
 
@@ -70,10 +70,10 @@ vars:
   GO_ENV: 'export PATH="{{.WHISPER_BUILD}}/bin;{{.EXTRA_PATH}};$PATH" LD_LIBRARY_PATH="{{.WHISPER_BUILD}}/src:{{.WHISPER_BUILD}}/ggml/src:{{.WHISPER_BUILD}}/ggml/src/ggml-cuda${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"'
 
 env:
-  CGO_ENABLED: '1'
-  CC: '{{if .IS_LINUX}}gcc{{else}}{{.GCC_PATH}}{{end}}'
-  CGO_CFLAGS: '-I{{.WHISPER_ROOT}}/include -I{{.WHISPER_ROOT}}/ggml/include'
-  CGO_LDFLAGS: '{{if .IS_LINUX}}-L{{.WHISPER_BUILD}}/src -L{{.WHISPER_BUILD}}/ggml/src -lwhisper -lggml -lggml-base -lggml-cpu -lm -lstdc++ -ldl -lpthread -Wl,-rpath,$ORIGIN{{else if .CUDA_DIR}}-L{{.WHISPER_BUILD}}/src -L{{.WHISPER_BUILD}}/ggml/src {{.WHISPER_BUILD}}/src/whisper.lib {{.WHISPER_BUILD}}/ggml/src/ggml.lib {{.WHISPER_BUILD}}/ggml/src/ggml-base.lib -lm -lstdc++ -fopenmp{{else}}-L{{.WHISPER_ROOT}}/build/src -L{{.WHISPER_ROOT}}/build/ggml/src -lwhisper -lggml -lggml-base -lggml-cpu -lm -lstdc++ -fopenmp -static{{end}}'
+  CGO_ENABLED: "1"
+  CC: "{{if .IS_LINUX}}gcc{{else}}{{.GCC_PATH}}{{end}}"
+  CGO_CFLAGS: "-I{{.WHISPER_ROOT}}/include -I{{.WHISPER_ROOT}}/ggml/include"
+  CGO_LDFLAGS: "{{if .IS_LINUX}}-L{{.WHISPER_BUILD}}/src -L{{.WHISPER_BUILD}}/ggml/src -lwhisper -lggml -lggml-base -lggml-cpu -lm -lstdc++ -ldl -lpthread -Wl,-rpath,$ORIGIN{{else if .CUDA_DIR}}-L{{.WHISPER_BUILD}}/src -L{{.WHISPER_BUILD}}/ggml/src {{.WHISPER_BUILD}}/src/whisper.lib {{.WHISPER_BUILD}}/ggml/src/ggml.lib {{.WHISPER_BUILD}}/ggml/src/ggml-base.lib -lm -lstdc++ -fopenmp{{else}}-L{{.WHISPER_ROOT}}/build/src -L{{.WHISPER_ROOT}}/build/ggml/src -lwhisper -lggml -lggml-base -lggml-cpu -lm -lstdc++ -fopenmp -static{{end}}"
   CGO_LDFLAGS_ALLOW: '.*\.(lib|so|so\..*)'
 
 tasks:
@@ -87,17 +87,17 @@ tasks:
   # =========================================================================
 
   build:
-    desc: 'Build binaries + installer. ONLY=cli|gui|android to limit (cli/gui skip installer; android builds APK).'
+    desc: "Build binaries + installer. ONLY=cli|gui|android to limit (cli/gui skip installer; android builds APK)."
     cmds:
       - task: android-apk
         if: '[ "{{.ONLY}}" = "android" ]'
       - task: _build-host
         vars:
-          ONLY: '{{.ONLY}}'
+          ONLY: "{{.ONLY}}"
         if: '[ "{{.ONLY}}" != "android" ]'
 
   install:
-    desc: 'Build + replace local install. TARGET=android pushes APK to device and launches.'
+    desc: "Build + replace local install. TARGET=android pushes APK to device and launches."
     cmds:
       - task: _install-android
         if: '[ "{{.TARGET}}" = "android" ]'
@@ -105,22 +105,30 @@ tasks:
         if: '[ "{{.TARGET}}" != "android" ]'
 
   test:
-    desc: 'Run tests. SHORT=1 skips CGo/model. INTEGRATION=1 runs diarization integration suite.'
+    desc: "Run tests. SHORT=1 skips CGo/model. INTEGRATION=1 runs diarization integration suite."
     # Scope to our own packages — ./... would also descend into
     # third_party/sherpa-onnx/scripts/go, vendored CGo bindings that
     # need sherpa-onnx C headers we don't ship in test environments.
     cmds:
+      # SHORT branch on Windows: EXTRA_PATH already contains WHISPER_BUILD/bin, so PATH-based DLL discovery works.
       - cmd: 'export PATH="{{.EXTRA_PATH}};$PATH" && go test -v -short ./cmd/... ./internal/...'
-        if: '[ -n "{{.SHORT}}" ]'
+        if: '[ -n "{{.SHORT}}" ] && [ -z "{{.IS_LINUX}}" ]'
+      # SHORT branch on Linux: cgo test binaries dynamically link against libwhisper.so / libggml*.so, so we need
+      # LD_LIBRARY_PATH pointing at the whisper.cpp build dirs. GO_ENV already sets that correctly (and a harmless
+      # PATH prefix on Linux). whisper-lib is required so the .so files exist.
+      - task: whisper-lib
+        if: '[ -n "{{.SHORT}}" ] && [ -n "{{.IS_LINUX}}" ]'
+      - cmd: "{{.GO_ENV}} && go test -v -short ./cmd/... ./internal/..."
+        if: '[ -n "{{.SHORT}}" ] && [ -n "{{.IS_LINUX}}" ]'
       - task: whisper-lib
         if: '[ -z "{{.SHORT}}" ]'
-      - cmd: '{{.GO_ENV}} && go test -v -tags=integration ./internal/diarizer/...'
+      - cmd: "{{.GO_ENV}} && go test -v -tags=integration ./internal/diarizer/..."
         if: '[ -n "{{.INTEGRATION}}" ]'
-      - cmd: '{{.GO_ENV}} && go test -v ./cmd/... ./internal/...'
+      - cmd: "{{.GO_ENV}} && go test -v ./cmd/... ./internal/..."
         if: '[ -z "{{.SHORT}}" ] && [ -z "{{.INTEGRATION}}" ]'
 
   lint:
-    desc: 'Run golangci-lint (falls back to go vet). FIX=1 also runs gofumpt. ANDROID=1 uses NDK toolchain.'
+    desc: "Run golangci-lint (falls back to go vet). FIX=1 also runs gofumpt. ANDROID=1 uses NDK toolchain."
     cmds:
       - task: _lint-android
         if: '[ -n "{{.ANDROID}}" ]'
@@ -145,9 +153,9 @@ tasks:
     desc: 'Bump → build → push tag → GH release + upload. ROLLING=1 skips bump and updates "rolling" prerelease.'
     preconditions:
       - sh: command -v gh >/dev/null 2>&1
-        msg: 'gh CLI not found. Install via: winget install GitHub.cli'
+        msg: "gh CLI not found. Install via: winget install GitHub.cli"
       - sh: '[ -z "$(git status --porcelain)" ]'
-        msg: 'Working tree has uncommitted changes; commit or stash first.'
+        msg: "Working tree has uncommitted changes; commit or stash first."
     cmds:
       - task: _release-rolling
         if: '[ -n "{{.ROLLING}}" ]'
@@ -155,14 +163,14 @@ tasks:
         if: '[ -z "{{.ROLLING}}" ]'
 
   clean:
-    desc: 'Remove dist/. DEEP=1 also clears whisper.cpp build.'
+    desc: "Remove dist/. DEEP=1 also clears whisper.cpp build."
     cmds:
       - rm -rf dist
       - cmd: rm -rf {{.WHISPER_BUILD}}
         if: '[ -n "{{.DEEP}}" ]'
 
   models:
-    desc: 'Model utilities. FETCH=samples downloads diarization test samples. FETCH=import copies models from Windows mounts (Linux/WSL).'
+    desc: "Model utilities. FETCH=samples downloads diarization test samples. FETCH=import copies models from Windows mounts (Linux/WSL)."
     cmds:
       - task: _fetch-samples
         if: '[ "{{.FETCH}}" = "samples" ]'
@@ -516,7 +524,6 @@ tasks:
         git add Taskfile.yml
         git commit -m "Bump version $cur -> $new"
 
-
   clean-comments:
     internal: true
     cmds:
@@ -600,7 +607,7 @@ tasks:
             exit 1
           fi
       - '"{{.ISCC_PATH}}" /DMyAppVersion={{.VERSION}} scripts/installer.iss'
-      - 'ls -l dist/wt-setup-{{.VERSION}}.exe'
+      - "ls -l dist/wt-setup-{{.VERSION}}.exe"
 
   linux-deb:
     internal: true
@@ -615,8 +622,8 @@ tasks:
   android-vulkan-headers:
     internal: true
     vars:
-      VK_VER: '1.3.275'
-      VK_INCLUDE: '{{.ANDROID_SYSROOT}}/usr/include/vulkan'
+      VK_VER: "1.3.275"
+      VK_INCLUDE: "{{.ANDROID_SYSROOT}}/usr/include/vulkan"
     status:
       - test -f "{{.VK_INCLUDE}}/vulkan.hpp"
       - test -f "{{.VK_INCLUDE}}/vulkan_hpp_macros.hpp"
@@ -651,7 +658,7 @@ tasks:
     internal: true
     deps: [android-vulkan-headers]
     vars:
-      ANDROID_BUILD: '{{.WHISPER_ROOT}}/build-android-arm64'
+      ANDROID_BUILD: "{{.WHISPER_ROOT}}/build-android-arm64"
     status:
       - test -f "{{.ANDROID_BUILD}}/src/libwhisper.a"
       - test -f "{{.ANDROID_BUILD}}/ggml/src/ggml-vulkan/libggml-vulkan.a"
@@ -684,8 +691,8 @@ tasks:
   llama-cli-host:
     internal: true
     vars:
-      HOST_DIR: '{{.ROOT_DIR | toSlash}}/dist/llama'
-      HOST_BIN: '{{if .IS_LINUX}}llama-cli{{else}}llama-cli.exe{{end}}'
+      HOST_DIR: "{{.ROOT_DIR | toSlash}}/dist/llama"
+      HOST_BIN: "{{if .IS_LINUX}}llama-cli{{else}}llama-cli.exe{{end}}"
     status:
       - test -f "{{.HOST_DIR}}/{{.HOST_BIN}}"
     cmds:
@@ -714,11 +721,31 @@ tasks:
           set -e
           mkdir -p "{{.HOST_DIR}}"
           tag=$(gh release list --repo ggml-org/llama.cpp --limit 1 --json tagName --jq '.[0].tagName')
-          asset="llama-${tag}-bin-ubuntu-x64.zip"
+          # Upstream switched the linux release artifact from .zip to .tar.gz some time after b4xxx.
+          # Try the current (.tar.gz) name first, then fall back to the legacy (.zip) name for older tags.
+          asset_tgz="llama-${tag}-bin-ubuntu-x64.tar.gz"
+          asset_zip="llama-${tag}-bin-ubuntu-x64.zip"
           tmp=$(mktemp -d)
-          gh release download "$tag" --repo ggml-org/llama.cpp --pattern "$asset" --dir "$tmp"
-          unzip -o "$tmp/$asset" -d "$tmp/extracted" >/dev/null
-          src=$(find "$tmp/extracted" -maxdepth 2 -type d | head -2 | tail -1)
+          if gh release download "$tag" --repo ggml-org/llama.cpp --pattern "$asset_tgz" --dir "$tmp" 2>/dev/null; then
+            mkdir -p "$tmp/extracted"
+            tar -xzf "$tmp/$asset_tgz" -C "$tmp/extracted"
+          else
+            gh release download "$tag" --repo ggml-org/llama.cpp --pattern "$asset_zip" --dir "$tmp"
+            unzip -o "$tmp/$asset_zip" -d "$tmp/extracted" >/dev/null
+          fi
+          # Layout is either $tmp/extracted/llama-cli (flat) or $tmp/extracted/build/bin/llama-cli (nested).
+          if [ -f "$tmp/extracted/llama-cli" ]; then
+            src="$tmp/extracted"
+          elif [ -f "$tmp/extracted/build/bin/llama-cli" ]; then
+            src="$tmp/extracted/build/bin"
+          else
+            src=$(dirname "$(find "$tmp/extracted" -maxdepth 4 -type f -name llama-cli | head -1)")
+          fi
+          if [ -z "$src" ] || [ ! -f "$src/llama-cli" ]; then
+            echo "ERROR: could not locate llama-cli in extracted archive" >&2
+            ls -R "$tmp/extracted" >&2
+            exit 1
+          fi
           cp -f "$src"/llama-cli "{{.HOST_DIR}}/"
           cp -f "$src"/*.so* "{{.HOST_DIR}}/" 2>/dev/null || true
           chmod +x "{{.HOST_DIR}}/llama-cli"
@@ -729,7 +756,7 @@ tasks:
   android-llama-cli:
     internal: true
     vars:
-      ANDROID_BUILD: '{{.LLAMA_ROOT}}/build-android-arm64'
+      ANDROID_BUILD: "{{.LLAMA_ROOT}}/build-android-arm64"
     status:
       - test -f "{{.ROOT_DIR | toSlash}}/dist/llama/llama-cli-android-arm64"
     cmds:
@@ -766,7 +793,7 @@ tasks:
     # build at them via SHERPA_ONNXRUNTIME_{LIB,INCLUDE}_DIR. We invoke that script via
     # msys2 bash (same pattern as ffmpeg-android).
     vars:
-      BUILD_OUT: '{{.SHERPA_ROOT}}/build-android-arm64-v8a-static'
+      BUILD_OUT: "{{.SHERPA_ROOT}}/build-android-arm64-v8a-static"
     status:
       - test -f "{{.ROOT_DIR | toSlash}}/dist/sherpa/sherpa-diar-android"
       - test -f "{{.ROOT_DIR | toSlash}}/dist/sherpa/sherpa-asr-android"
@@ -820,7 +847,7 @@ tasks:
              "{{.ROOT_DIR | toSlash}}/dist/sherpa/sherpa-asr-android"
 
   android-sherpa-bin-nnapi:
-    desc: 'Build sherpa-onnx-offline ASR with NNAPI provider (Exynos NPU / Hexagon NPU acceleration). Requires shared onnxruntime.'
+    desc: "Build sherpa-onnx-offline ASR with NNAPI provider (Exynos NPU / Hexagon NPU acceleration). Requires shared onnxruntime."
     # Differs from android-sherpa-bin in two ways:
     #   1. BUILD_SHARED_LIBS=ON — pulls onnxruntime AAR (which ships
     #      nnapi_provider_factory.h, missing from the static archive)
@@ -831,7 +858,7 @@ tasks:
       # NOTE: shared build's CMake hardcodes the dir as build-android-arm64-v8a
       # (no -shared suffix); the -static suffix only kicks in for the static
       # path. We honor that.
-      BUILD_OUT: '{{.SHERPA_ROOT}}/build-android-arm64-v8a'
+      BUILD_OUT: "{{.SHERPA_ROOT}}/build-android-arm64-v8a"
     status:
       - test -f "{{.ROOT_DIR | toSlash}}/dist/sherpa/sherpa-asr-android-nnapi"
       - test -f "{{.ROOT_DIR | toSlash}}/dist/sherpa/libonnxruntime.so"
@@ -873,7 +900,13 @@ tasks:
 
   android-apk:
     internal: true
-    deps: [android-whisper-lib, ffmpeg-android, android-llama-cli, android-sherpa-bin]
+    deps:
+      [
+        android-whisper-lib,
+        ffmpeg-android,
+        android-llama-cli,
+        android-sherpa-bin,
+      ]
     vars:
       VERSION:
         sh: awk -F"\x27" '/^  VERSION:/{print $2; exit}' Taskfile.yml
@@ -963,10 +996,10 @@ tasks:
           rm -f "$apk" "${apk}.idsig"
 
   android-test:
-    desc: 'Build wt-test CLI for Android arm64, push to /data/local/tmp, run via adb (forward CLI_ARGS).'
+    desc: "Build wt-test CLI for Android arm64, push to /data/local/tmp, run via adb (forward CLI_ARGS)."
     deps: [android-whisper-lib]
     vars:
-      NDK_CC: '{{.NDK_TOOLCHAIN}}/bin/aarch64-linux-android35-clang'
+      NDK_CC: "{{.NDK_TOOLCHAIN}}/bin/aarch64-linux-android35-clang"
     cmds:
       - mkdir -p dist/bin
       - cmd: |
