@@ -11,7 +11,7 @@ User-facing tasks are flag-driven; internals are hidden (`internal: true`).
 
 ```
 task build [ONLY=cli|gui|android]        Build binaries + installer; android = APK
-task install [TARGET=android]            Replace local install (or push APK + launch)
+task install [TARGET=android] [QUICK=1]  Replace local install (or push APK + launch). QUICK redeploys binaries only (no .deb/installer).
 task test [SHORT=1|INTEGRATION=1]        Default = full; SHORT skips CGo; INTEGRATION = diarizer
 task lint [FIX=1] [ANDROID=1]            golangci-lint (+gofumpt with FIX); ANDROID = NDK toolchain
 task release [ROLLING=1]                 Default bumps + publishes; ROLLING updates `rolling` prerelease
@@ -22,6 +22,10 @@ task models FETCH=samples|import          Fetch diarization samples / import mod
 Internal tasks (callable but hidden): `whisper-lib`, `fetch-deps`, `installer-exe`, `linux-deb`, `bump`, `clean-comments`, `android-apk`, `android-whisper-lib`, `android-vulkan-headers`, `ffmpeg-android`, `llama-cli-host`, `android-llama-cli`, `android-test`. The `_build-host`, `_install-host`, `_install-android`, `_lint-android`, `_fetch-samples`, `_models-import`, `_release-stable`, `_release-rolling` tasks are dispatch helpers — invoke via the public flag-driven entrypoints.
 
 GUI compile-checks **only** through `task build ONLY=gui` — `CGO_LDFLAGS` differs between MinGW (`-lwhisper`) and CUDA/MSVC (`whisper.lib`).
+
+`task install QUICK=1` is the dev-loop install (~7 s on Linux). It skips `linux-deb` / `installer-exe` and drops fresh `wt` + `wt-gui` (plus any rebuilt `lib*.so*`, symlinks preserved via `cp -Pf`) directly into the existing install location: `/opt/wt/` on Linux (via `sudo install`), `$LOCALAPPDATA\wt\` on Windows (via the existing taskkill+retry-cp logic). Linux QUICK requires the full `.deb` to have been installed once first so `/opt/wt`, the `/usr/bin` symlinks, and the per-user `wt-setup` venv already exist — error out with a clear message otherwise. Don't try to bootstrap `/opt/wt` from QUICK mode; the .deb does much more (postinst hooks, icon cache, desktop entry).
+
+Version rendering policy: from-source builds (HEAD not exactly on a release tag) display the latest commit date (`YYYY-MM-DD`) instead of `VERSION`; tagged builds show the version. Wired via the `GIT_DATE` Taskfile var (empty when on a tag) → `-X main.BuildDate=$GIT_DATE` on **both** wt CLI and wt-gui (don't forget the CLI). Centralize the precedence in `appinfo.DisplayVersion(version, buildDate)` — never inline `if buildDate != "" {…}` in callers. The wt-gui's `versionLabel` adds a `v` prefix only on the tagged-version path; date-shaped labels and `"dev"` are returned as-is. urfave/cli/v3.7 with `cli.Command{Version: …}` set DOES expose `--version` and renders a `VERSION:` block in `--help`; no need to add a manual flag.
 
 Never dispatch to an `internal: true` task via `cmd: 'task X'` — that spawns a new task process which sees the internal flag and exits 202. Always use `task: X` cmd entries (supports `vars:` and `if:` in Task v3.30+). Same applies to compound shell calls like `task whisper-lib && go test ...` — split into a `task:` step plus a `cmd:` step.
 
