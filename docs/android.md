@@ -12,7 +12,7 @@ ContentProviders sharing files to other apps need `android:grantUriPermissions="
 
 ## Native lib discovery
 
-Never glob `/data/app/*/...` from inside an app process — app user gets EPERM. Read `/proc/self/maps` and extract dirs containing already-loaded `.so` files: those are the real `nativeLibraryDir` paths Android resolved at load time, randomised UUID subdirs included. Helpers: `internal/diarizer/sherpa.go:androidNativeLibDirs`, mirrored in `internal/transcriber/engine_zipformer.go`. Any new sherpa/llama-cli launcher must use this, not `filepath.Glob`.
+Never glob `/data/app/*/...` from inside an app process — app user gets EPERM. Read `/proc/self/maps` and extract dirs containing already-loaded `.so` files: those are the real `nativeLibraryDir` paths Android resolved at load time, randomised UUID subdirs included. Helpers: `internal/diarizer/sherpa.go:androidNativeLibDirs`, mirrored in `internal/transcriber/engine_zipformer.go:androidNativeLibDirs`. Any new sherpa/llama-cli launcher must use this, not `filepath.Glob`.
 
 ## JNI
 
@@ -20,7 +20,7 @@ Never call `FindClass` for app classes from a JNI thread — boot ClassLoader ca
 
 ## Sherpa CLI binaries
 
-Bundled as `lib*.so` (e.g. `libsherpa-diar.so`, `libsherpa-asr.so`) so packager installs under `/data/app/<pkg>/lib/arm64/`. Binary discovery must check that path **before** `exec.LookPath` — see `findSherpaBinary` / `findZipformerBinary`.
+Bundled as `lib*.so` (e.g. `libsherpa-diar.so`, `libsherpa-asr.so`) so packager installs under `/data/app/<pkg>/lib/arm64/`. Binary discovery must check that path **before** `exec.LookPath` — see `internal/diarizer/sherpa.go:findSherpaBinary` and `internal/transcriber/engine_zipformer.go:findSherpaASRBinary`.
 
 `android-sherpa-bin` task already produces `sherpa-onnx-offline` (not just diarization CLI) — `SHERPA_ONNX_ENABLE_BINARY=ON` builds all CLIs. Reuse for ASR engines unless you want NNAPI.
 

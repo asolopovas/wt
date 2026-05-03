@@ -15,8 +15,10 @@ Pluggable via `shared.Config.Engine` / `WT_ENGINE` / `JobSpec.Engine`. Values:
 - `whisper` (default) — 99-lang fallback
 - `zipformer` — sherpa transducer, uppercase output
 - `moonshine` — sherpa, cased+punctuated, ~10× RTF on Exynos 2400 CPU
+- `parakeet` — sherpa NeMo TDT, English, ~9× RTF, native cased+punct
+- `sensevoice` — sherpa, multilingual zh/en/ja/ko/yue, ~16× RTF
 
-Dispatch in `internal/transcriber/engine.go` `Job.runASR`. New sherpa-backed engine: reuse helpers in `engine_zipformer.go` (`findSherpaASRBinary`, `writeTempWAV`, `invokeSherpaCLI`, `finalizeSherpaRun`, `coalesceTokens`) and add a case to `runASR` — do **not** branch inside `runWhisper`.
+Dispatch in `internal/transcriber/engine.go` `Job.runASR`. New sherpa-backed engine: reuse helpers in `engine_zipformer.go` (`findSherpaASRBinary`, `writeTempWAV`, `runSherpaCmd`, `parseSherpaJSON`, `runSherpaEngineChunked`, `coalesceTokens`) and add a case to `runASR` — do **not** branch inside `runWhisper`.
 
 GUI must set `spec.Engine = models.EngineForActiveASR(mgr.Active(models.FamilyASR))` (or fall back to whisper). Catalog entries need `Family: FamilyASR` and `Engine: shared.EngineX`.
 
