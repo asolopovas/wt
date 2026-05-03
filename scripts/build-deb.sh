@@ -7,16 +7,16 @@ BINARY="$2"
 ROOT_DIR="$3"
 
 if ! command -v dpkg-deb >/dev/null 2>&1; then
-  echo "ERROR: dpkg-deb not found (install: sudo apt install dpkg-dev fakeroot)" >&2
-  exit 1
+	echo "ERROR: dpkg-deb not found (install: sudo apt install dpkg-dev fakeroot)" >&2
+	exit 1
 fi
 
 root="dist/wt-deb"
 rm -rf "$root"
 mkdir -p "$root/DEBIAN" "$root/opt/wt" "$root/opt/wt/models" \
-         "$root/usr/bin" "$root/usr/share/applications" \
-         "$root/usr/share/icons/hicolor/256x256/apps" \
-         "$root/usr/share/doc/wt"
+	"$root/usr/bin" "$root/usr/share/applications" \
+	"$root/usr/share/icons/hicolor/256x256/apps" \
+	"$root/usr/share/doc/wt"
 
 cp -P "dist/bin/$BINARY" "dist/bin/$BINARY-gui" "$root/opt/wt/"
 cp -P dist/bin/*.so* "$root/opt/wt/" 2>/dev/null || true
@@ -25,23 +25,15 @@ cp dist/deps/uv-linux "$root/opt/wt/uv"
 cp scripts/setup-linux-user.sh "$root/opt/wt/wt-setup"
 chmod +x "$root/opt/wt/uv" "$root/opt/wt/wt-setup" "$root/opt/wt/$BINARY" "$root/opt/wt/$BINARY-gui"
 
-if [ -d dist/bin/llama ]; then
-  mkdir -p "$root/opt/wt/llama"
-  cp -P dist/bin/llama/* "$root/opt/wt/llama/" 2>/dev/null || true
-  [ -f "$root/opt/wt/llama/llama-cli" ] && chmod +x "$root/opt/wt/llama/llama-cli"
-else
-  echo "  WARN: dist/bin/llama missing (run 'task llama-cli-host')"
-fi
-
 # Bundled models (whisper turbo + Silero VAD)
 src_models="${XDG_CONFIG_HOME:-$HOME/.config}/wt/models"
 for f in ggml-large-v3-turbo.bin ggml-silero-v6.2.0.bin; do
-  if [ -f "$src_models/$f" ]; then
-    echo "  bundling $f"
-    cp "$src_models/$f" "$root/opt/wt/models/$f"
-  else
-    echo "  WARN: $src_models/$f missing (run 'task models-import' first)"
-  fi
+	if [ -f "$src_models/$f" ]; then
+		echo "  bundling $f"
+		cp "$src_models/$f" "$root/opt/wt/models/$f"
+	else
+		echo "  WARN: $src_models/$f missing (run 'task models-import' first)"
+	fi
 done
 
 # Docs
@@ -50,15 +42,15 @@ cp THIRD-PARTY-LICENSES.txt "$root/usr/share/doc/wt/" 2>/dev/null || true
 cp README.md "$root/usr/share/doc/wt/" 2>/dev/null || true
 cp AGENTS.md "$root/usr/share/doc/wt/" 2>/dev/null || true
 
-ln -sf "/opt/wt/$BINARY"     "$root/usr/bin/$BINARY"
+ln -sf "/opt/wt/$BINARY" "$root/usr/bin/$BINARY"
 ln -sf "/opt/wt/$BINARY-gui" "$root/usr/bin/$BINARY-gui"
-ln -sf /opt/wt/wt-setup      "$root/usr/bin/wt-setup"
+ln -sf /opt/wt/wt-setup "$root/usr/bin/wt-setup"
 
 if [ -f winres/icon.png ]; then
-  cp winres/icon.png "$root/usr/share/icons/hicolor/256x256/apps/wt.png"
+	cp winres/icon.png "$root/usr/share/icons/hicolor/256x256/apps/wt.png"
 fi
 
-cat > "$root/usr/share/applications/wt.desktop" <<EOF
+cat >"$root/usr/share/applications/wt.desktop" <<EOF
 [Desktop Entry]
 Type=Application
 Name=wt
@@ -70,7 +62,7 @@ Categories=AudioVideo;Audio;Utility;
 EOF
 
 inst_size=$(du -sk "$root/opt" | cut -f1)
-cat > "$root/DEBIAN/control" <<EOF
+cat >"$root/DEBIAN/control" <<EOF
 Package: wt
 Version: ${VERSION}
 Section: sound
@@ -87,7 +79,7 @@ Description: Whisper.cpp CLI + GUI with NeMo speaker diarization
  with NeMo (one-time, ~2 GB) and link bundled models into your config dir.
 EOF
 
-cat > "$root/DEBIAN/postinst" <<'EOF'
+cat >"$root/DEBIAN/postinst" <<'EOF'
 #!/bin/sh
 set -e
 if [ -d /usr/share/icons/hicolor ] && command -v gtk-update-icon-cache >/dev/null 2>&1; then

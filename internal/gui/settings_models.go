@@ -26,7 +26,7 @@ type modelsSection struct {
 
 	mu            sync.Mutex
 	cancels       map[string]context.CancelFunc
-	progress      map[string]*widget.ProgressBar
+	percent       map[string]*canvas.Text
 	dialogRefresh func()
 	onChanged     func()
 }
@@ -45,10 +45,10 @@ func isCatalogEntryAllowed(e models.Entry) bool {
 
 func newModelsSection(win fyne.Window) *modelsSection {
 	s := &modelsSection{
-		window:   win,
-		mgr:      models.NewManager(),
-		cancels:  map[string]context.CancelFunc{},
-		progress: map[string]*widget.ProgressBar{},
+		window:  win,
+		mgr:     models.NewManager(),
+		cancels: map[string]context.CancelFunc{},
+		percent: map[string]*canvas.Text{},
 	}
 
 	header := canvas.NewText("MODELS", decor.TextMuted)
@@ -221,14 +221,8 @@ func (s *modelsSection) buildRow(e models.Entry) fyne.CanvasObject {
 	info := s.modelInfoBlock(e, status, isActive, downloading)
 
 	if downloading {
-		bar := s.progress[e.ID]
-		if bar == nil {
-			bar = widget.NewProgressBar()
-			s.progress[e.ID] = bar
-		}
 		cancel := newIconTap(theme.CancelIcon(), 18, func() { s.cancel(e.ID) })
-		row := container.NewBorder(nil, nil, nil, cancel, info)
-		return container.NewVBox(row, progressBarFixed(bar))
+		return container.NewBorder(nil, nil, nil, cancel, info)
 	}
 
 	del := newIconTap(theme.DeleteIcon(), 18, func() {
@@ -271,11 +265,23 @@ func (s *modelsSection) modelInfoBlock(e models.Entry, status models.Status, isA
 	name.TextSize = textBody
 	name.TextStyle = fyne.TextStyle{Bold: true}
 
-	size := canvas.NewText(humanBytes(e.SizeBytes), decor.TextMuted)
-	size.TextSize = textCaption
-	size.TextStyle = fyne.TextStyle{Monospace: true}
+	var trailing *canvas.Text
+	if downloading {
+		trailing = canvas.NewText("  0%", decor.ActionPrimary)
+		trailing.TextStyle = fyne.TextStyle{Monospace: true, Bold: true}
+		s.mu.Lock()
+		if prev, ok := s.percent[e.ID]; ok && prev.Text != "" {
+			trailing.Text = prev.Text
+		}
+		s.percent[e.ID] = trailing
+		s.mu.Unlock()
+	} else {
+		trailing = canvas.NewText(humanBytes(e.SizeBytes), decor.TextMuted)
+		trailing.TextStyle = fyne.TextStyle{Monospace: true}
+	}
+	trailing.TextSize = textCaption
 
-	return container.NewBorder(nil, nil, leadBox, size, name)
+	return container.NewBorder(nil, nil, leadBox, trailing, name)
 }
 
 type tappableRow struct {
@@ -377,14 +383,8 @@ func (s *modelsSection) buildDownloadRow(e models.Entry) fyne.CanvasObject {
 	info := s.modelInfoBlock(e, status, false, downloading)
 
 	if downloading {
-		bar := s.progress[e.ID]
-		if bar == nil {
-			bar = widget.NewProgressBar()
-			s.progress[e.ID] = bar
-		}
 		cancel := newIconTap(theme.CancelIcon(), 18, func() { s.cancel(e.ID) })
-		row := container.NewBorder(nil, nil, nil, cancel, info)
-		return container.NewVBox(row, progressBarFixed(bar))
+		return container.NewBorder(nil, nil, nil, cancel, info)
 	}
 
 	dl := newIconTap(downloadIcon, 18, func() { s.startDownload(e) })
@@ -423,11 +423,6 @@ func (s *modelsSection) startDownload(e models.Entry) {
 	s.cancels[e.ID] = cancel
 	s.mu.Unlock()
 
-	bar := widget.NewProgressBar()
-	s.mu.Lock()
-	s.progress[e.ID] = bar
-	s.mu.Unlock()
-
 	fyne.Do(s.refresh)
 
 	go func() {
@@ -442,12 +437,21 @@ func (s *modelsSection) startDownload(e models.Entry) {
 			if frac > 1 {
 				frac = 1
 			}
-			fyne.Do(func() { bar.SetValue(frac) })
+			text := fmt.Sprintf("%3d%%", int(frac*100+0.5))
+			s.mu.Lock()
+			label := s.percent[e.ID]
+			s.mu.Unlock()
+			if label != nil {
+				fyne.Do(func() {
+					label.Text = text
+					label.Refresh()
+				})
+			}
 		})
 
 		s.mu.Lock()
 		delete(s.cancels, e.ID)
-		delete(s.progress, e.ID)
+		delete(s.percent, e.ID)
 		s.mu.Unlock()
 
 		if err != nil && ctx.Err() == nil {
@@ -503,10 +507,6 @@ func (l *fixedHeightLayout) MinSize(objs []fyne.CanvasObject) fyne.Size {
 		}
 	}
 	return fyne.NewSize(w, l.height)
-}
-
-func progressBarFixed(bar *widget.ProgressBar) fyne.CanvasObject {
-	return container.New(&fixedHeightLayout{height: 32}, bar)
 }
 
 type fixedWidthLayoutModels struct {
