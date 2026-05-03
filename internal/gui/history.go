@@ -10,6 +10,7 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
@@ -262,13 +263,21 @@ func (h *historyPanel) showRowMenu(e cache.Entry, recorded time.Time, anchor fyn
 }
 
 func (h *historyPanel) renameEntry(e cache.Entry) {
-	entry := widget.NewEntry()
-	entry.SetText(e.SourceName)
+	ext := filepath.Ext(e.SourceName)
+	stem := strings.TrimSuffix(e.SourceName, ext)
 
-	form := container.New(&tightVBox{gap: spaceSM},
-		newCaptionText("NAME"),
-		entry,
-	)
+	entry := widget.NewEntry()
+	entry.SetText(stem)
+
+	caption := newCaptionText("NAME")
+	var hint fyne.CanvasObject = layout.NewSpacer()
+	if ext != "" {
+		hintText := canvas.NewText("Extension "+ext+" is preserved automatically.", colMuted)
+		hintText.TextSize = textCaption
+		hint = hintText
+	}
+
+	form := container.New(&tightVBox{gap: spaceSM}, caption, entry, hint)
 
 	showDialog(dialogConfig{
 		Parent:    h.window,
@@ -278,19 +287,14 @@ func (h *historyPanel) renameEntry(e cache.Entry) {
 		Actions: []dialogAction{
 			{Label: "CANCEL", Kind: kindSecondary},
 			{Label: "SAVE", Kind: kindPrimary, OnTap: func() {
-				newName := strings.TrimSpace(entry.Text)
-				if newName == "" || newName == e.SourceName {
+				newStem := strings.TrimSpace(entry.Text)
+				if newStem == "" || newStem == stem {
 					return
 				}
+				newName := newStem + ext
 				newPath := e.SourcePath
 				if e.SourcePath != "" {
-					dir := filepath.Dir(e.SourcePath)
-					ext := filepath.Ext(e.SourcePath)
-					base := newName
-					if filepath.Ext(base) == "" && ext != "" {
-						base += ext
-					}
-					newPath = filepath.Join(dir, base)
+					newPath = filepath.Join(filepath.Dir(e.SourcePath), newName)
 					if newPath != e.SourcePath {
 						if err := os.Rename(e.SourcePath, newPath); err != nil && !os.IsNotExist(err) {
 							showError(h.window, fmt.Errorf("renaming file: %w", err))
@@ -306,6 +310,15 @@ func (h *historyPanel) renameEntry(e cache.Entry) {
 				h.Refresh()
 			}},
 		},
+	})
+
+	fyne.Do(func() {
+		c := h.window.Canvas()
+		if c == nil {
+			return
+		}
+		c.Focus(entry)
+		entry.TypedShortcut(&fyne.ShortcutSelectAll{})
 	})
 }
 
