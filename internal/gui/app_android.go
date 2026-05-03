@@ -254,9 +254,9 @@ func buildTranscodeTabAndroid(tp *transcribe.Panel, settings *settingsPanel) fyn
 	)
 
 	actionRow := container.NewGridWithColumns(3,
-		wrapAction(recBtn),
-		wrapAction(addBtn),
 		wrapAction(cancelBtn),
+		wrapAction(addBtn),
+		wrapAction(recBtn),
 	)
 
 	bottomBar := container.NewVBox(
