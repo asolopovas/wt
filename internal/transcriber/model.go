@@ -21,24 +21,12 @@ type Model struct {
 const modelURLBase = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main"
 
 var ModelFiles = map[string]string{
-	"tiny":             "ggml-tiny.bin",
-	"tiny.en":          "ggml-tiny.en.bin",
-	"base":             "ggml-base.bin",
-	"base.en":          "ggml-base.en.bin",
-	"small":            "ggml-small.bin",
-	"small.en":         "ggml-small.en.bin",
-	"medium":           "ggml-medium.bin",
-	"medium.en":        "ggml-medium.en.bin",
-	"large-v1":         "ggml-large-v1.bin",
-	"large-v2":         "ggml-large-v2.bin",
-	"large-v3":         "ggml-large-v3.bin",
-	"large":            "ggml-large-v3.bin",
-	"distil-small.en":  "ggml-distil-small.en.bin",
-	"distil-medium.en": "ggml-distil-medium.en.bin",
-	"distil-large-v2":  "ggml-distil-large-v2.bin",
-	"distil-large-v3":  "ggml-distil-large-v3.bin",
-	"large-v3-turbo":   "ggml-large-v3-turbo.bin",
-	"turbo":            "ggml-large-v3-turbo.bin",
+	"tiny":           "ggml-tiny.bin",
+	"tiny.en":        "ggml-tiny.en.bin",
+	"small":          "ggml-small.bin",
+	"small.en":       "ggml-small.en.bin",
+	"large-v3-turbo": "ggml-large-v3-turbo.bin",
+	"turbo":          "ggml-large-v3-turbo.bin",
 }
 
 func ValidModelNames() []string {

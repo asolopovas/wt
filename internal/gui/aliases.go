@@ -41,12 +41,9 @@ var (
 )
 
 var whisperSizeToID = map[string]string{
-	"tiny":     "whisper-tiny",
-	"base":     "whisper-turbo",
-	"small":    "whisper-small",
-	"medium":   "whisper-turbo",
-	"large-v3": "whisper-turbo",
-	"turbo":    "whisper-turbo",
+	"tiny":  "whisper-tiny",
+	"small": "whisper-small",
+	"turbo": "whisper-turbo",
 }
 
 func displayNameToWhisperSize(displayName, fallback string) string {
