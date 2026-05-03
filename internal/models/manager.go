@@ -232,6 +232,20 @@ func (m *Manager) Get(ctx context.Context, id string, prog func(Progress)) error
 	if prog != nil {
 		prog(Progress{ID: id, Downloaded: totalAll, Total: totalAll, Done: true})
 	}
+
+	// Auto-select on first install: if the user has nothing active in
+	// this family yet, promote the freshly downloaded model. Mirrors
+	// what most app stores do ("installed apps become available") and
+	// avoids a UX where the user downloads e.g. Qwen3 0.6B for auto-
+	// rename but it stays unselected because they never tapped the row.
+	m.mu.Lock()
+	cur := m.active[e.Family]
+	m.mu.Unlock()
+	if cur == "" {
+		// Best-effort: ignore SetActive errors so a transient save
+		// failure doesn't fail the download as a whole.
+		_ = m.SetActive(id)
+	}
 	return nil
 }
 

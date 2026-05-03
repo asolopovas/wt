@@ -26,6 +26,9 @@ type Config struct {
 	NoDiarize       bool   `yaml:"no_diarize,omitempty"`
 	TDRZ            bool   `yaml:"tdrz,omitempty"`
 	CacheExpiryDays int    `yaml:"cache_expiry_days,omitempty"`
+	// LogRetentionDays controls how long rotated wt.log archives are
+	// kept. 0 = forever; 1 = 24h (default); 7 = week; 30 = month.
+	LogRetentionDays int `yaml:"log_retention_days,omitempty"`
 }
 
 // Engine identifiers.
@@ -74,7 +77,8 @@ func Defaults() Config {
 		Device:          "auto",
 		Engine:          EngineWhisper,
 		Threads:         defaultThreads(),
-		CacheExpiryDays: 30,
+		CacheExpiryDays:  30,
+		LogRetentionDays: 1,
 	}
 }
 

@@ -12,6 +12,8 @@ import (
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/widget"
 
+	"github.com/asolopovas/wt/internal/gui/preview"
+
 	shared "github.com/asolopovas/wt/internal"
 	"github.com/asolopovas/wt/internal/models"
 	"github.com/asolopovas/wt/internal/transcriber/cache"
@@ -34,6 +36,35 @@ var speakerOptions = []string{
 
 var cacheExpiryOptions = []string{"7", "30", "90", "365", "never"}
 
+// Log-retention dropdown values: human label → days. 0 = forever.
+var logRetentionOptions = []string{"24 hours", "7 days", "30 days", "forever"}
+
+func logRetentionLabelToDays(s string) int {
+	switch s {
+	case "24 hours":
+		return 1
+	case "7 days":
+		return 7
+	case "30 days":
+		return 30
+	case "forever":
+		return 0
+	}
+	return 1
+}
+
+func logRetentionDaysToLabel(d int) string {
+	switch d {
+	case 0:
+		return "forever"
+	case 7:
+		return "7 days"
+	case 30:
+		return "30 days"
+	}
+	return "24 hours"
+}
+
 type settingsPanel struct {
 	cfg    shared.Config
 	window fyne.Window
@@ -44,6 +75,7 @@ type settingsPanel struct {
 	threadsSelect  *limitSelect
 	speakersSelect *pointerSelect
 	expirySelect   *pointerSelect
+	logRetainSelect *pointerSelect
 
 	modelMirrors    []*pointerSelect
 	diarizerMirrors []*pointerSelect
@@ -130,6 +162,13 @@ func (p *settingsPanel) build() {
 	p.speakersSelect.Selected = spkSel
 	p.speakersMirrors = append(p.speakersMirrors, p.speakersSelect)
 
+	p.logRetainSelect = newPointerSelect(logRetentionOptions, func(string) {
+		shared.SetLogRetentionDays(logRetentionLabelToDays(p.logRetainSelect.Selected))
+		_ = p.writeConfig()
+	})
+	p.logRetainSelect.Selected = logRetentionDaysToLabel(p.cfg.LogRetentionDays)
+	shared.SetLogRetentionDays(p.cfg.LogRetentionDays)
+
 	p.expirySelect = newPointerSelect(cacheExpiryOptions, persist)
 	if p.cfg.CacheExpiryDays <= 0 {
 		p.expirySelect.Selected = "never"
@@ -147,6 +186,8 @@ func (p *settingsPanel) build() {
 
 	clearCacheBtn := newSecondaryButton("CLEAR CACHE", p.onClearCache)
 	clearTranscriptsBtn := newSecondaryButton("CLEAR TEXT", p.onClearTranscripts)
+	viewLogBtn := newSecondaryButton("VIEW LOG", p.onViewLog)
+	clearLogBtn := newSecondaryButton("CLEAR LOG", p.onClearLog)
 
 	settingsGrid := container.NewGridWithColumns(2,
 		newFormField("MODEL", p.modelSelect),
@@ -155,6 +196,7 @@ func (p *settingsPanel) build() {
 		newFormField("THREADS", p.threadsSelect),
 		newFormField("SPEAKERS", p.speakersSelect),
 		newFormField("CACHE EXPIRY (DAYS)", p.expirySelect),
+		newFormField("LOG RETENTION", p.logRetainSelect),
 	)
 
 	toggleRow := container.NewGridWithColumns(2,
@@ -165,10 +207,16 @@ func (p *settingsPanel) build() {
 		wrapAction(clearCacheBtn),
 		wrapAction(clearTranscriptsBtn),
 	)
+	logRow := container.NewGridWithColumns(2,
+		wrapAction(viewLogBtn),
+		wrapAction(clearLogBtn),
+	)
 	p.actionRow = container.NewVBox(
 		toggleRow,
 		vGap(spaceSM),
 		clearRow,
+		vGap(spaceSM),
+		logRow,
 		vGap(spaceSM),
 		wrapAction(p.saveBtn),
 	)
@@ -221,6 +269,36 @@ func (p *settingsPanel) updateDebugLabel() {
 
 func (p *settingsPanel) Debug() bool {
 	return p.debugState
+}
+
+// onViewLog opens a modal showing the tail of the persistent log file
+// (<MediaDir>/wt.log) using the shared preview.ShowText helper — same
+// chrome and styling as the transcription preview, with a COPY button
+// for sharing snippets in bug reports.
+func (p *settingsPanel) onViewLog() {
+	tail := shared.ReadLogTail(256 * 1024) // last 256 KB
+	if tail == "" {
+		tail = "(log is empty — transcribe something first)\n\nLog path:\n" + shared.LogFilePath()
+	}
+	preview.ShowText(preview.TextViewerOpts{
+		Window: p.window,
+		Title:  "wt.log",
+		Body:   tail,
+	})
+}
+
+// onClearLog truncates the on-disk log + rotated sibling. The on-screen
+// log buffer is left alone (it'll get pruned on next AppendLog).
+func (p *settingsPanel) onClearLog() {
+	showConfirm(p.window, "Clear log",
+		"Erase the persistent log file? In-memory log is unaffected.",
+		func() {
+			if err := shared.ClearLog(); err != nil {
+				showError(p.window, err)
+				return
+			}
+			showDialog(dialogConfig{Parent: p.window, Title: "Log cleared", Body: widget.NewLabel(shared.LogFilePath())})
+		})
 }
 
 func (p *settingsPanel) onClearCache() {
@@ -292,6 +370,7 @@ func (p *settingsPanel) writeConfig() error {
 	cfg.Speakers = p.Speakers()
 	cfg.NoDiarize = p.noDiarizeState
 	cfg.CacheExpiryDays = p.cacheExpiryDays()
+	cfg.LogRetentionDays = logRetentionLabelToDays(p.logRetainSelect.Selected)
 
 	if err := shared.Save(cfg); err != nil {
 		return fmt.Errorf("saving settings: %w", err)

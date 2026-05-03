@@ -28,8 +28,23 @@ var (
 	modelsDirPath string
 )
 
+// MediaDir resolves the canonical Android shared-storage root for the
+// app's recordings, logs, and other user-visible data.
+//
+// Single home: /storage/emulated/0/Documents/WTranscribe
+//   - Visible in any Files app under "Documents → WTranscribe"
+//   - Survives uninstall + Clear Data (MANAGE_EXTERNAL_STORAGE granted)
+//   - Co-located with Models/ subfolder for easy USB backup
+//
+// WT_MEDIA_DIR env overrides for tests / power users. If the public
+// path is unwritable (permission revoked, etc.) we fall back to the
+// app's private CacheDir/imports.
 func MediaDir() string {
 	mediaDirOnce.Do(func() {
+		if v := os.Getenv("WT_MEDIA_DIR"); v != "" {
+			mediaDirPath = v
+			return
+		}
 		public := "/storage/emulated/0/Documents/WTranscribe"
 		if err := os.MkdirAll(public, 0o755); err == nil {
 			probe := filepath.Join(public, ".wt-write-test")

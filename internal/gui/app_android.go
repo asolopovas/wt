@@ -292,6 +292,7 @@ func buildSettingsTab(sp *settingsPanel, deviceInfo, version string) fyne.Canvas
 		inlineField("DEVICE", sp.deviceSelect),
 		inlineField("THREADS", sp.threadsSelect),
 		inlineField("CACHE EXPIRY", sp.expirySelect),
+		inlineField("LOG RETENTION", sp.logRetainSelect),
 	)
 
 	versionLabel := canvas.NewText(version, decor.TextMuted)
@@ -325,10 +326,16 @@ func buildSettingsTab(sp *settingsPanel, deviceInfo, version string) fyne.Canvas
 
 	clearCacheBtn := newSecondaryButton("CLEAR CACHE", sp.onClearCache)
 	clearTranscriptsBtn := newSecondaryButton("CLEAR TRANSCRIPTS", sp.onClearTranscripts)
+	viewLogBtn := newSecondaryButton("VIEW LOG", sp.onViewLog)
+	clearLogBtn := newSecondaryButton("CLEAR LOG", sp.onClearLog)
 
 	clearRow := container.NewGridWithColumns(2,
 		wrapAction(clearCacheBtn),
 		wrapAction(clearTranscriptsBtn),
+	)
+	logRow := container.NewGridWithColumns(2,
+		wrapAction(viewLogBtn),
+		wrapAction(clearLogBtn),
 	)
 	saveRow := wrapAction(sp.saveBtn)
 
@@ -350,6 +357,8 @@ func buildSettingsTab(sp *settingsPanel, deviceInfo, version string) fyne.Canvas
 		toggleRow,
 		vGap(spaceMD),
 		clearRow,
+		vGap(spaceMD),
+		logRow,
 		vGap(spaceMD),
 		saveRow,
 		vGap(spaceLG),
