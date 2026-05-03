@@ -279,128 +279,39 @@ func (j *Job) runWhisper(ctx context.Context, spec JobSpec, samples []float32, a
 		Threads: spec.Threads,
 		TDRZ:    UseTDRZ(spec.TDRZ, false, spec.NoDiarize),
 	})
+	// VAD is still useful within a chunk to skip intra-chunk silence,
+	// but max-speech is bounded by the chunk size we feed in.
 	if ConfigureVAD(wctx) {
 		j.Hooks.log("debug", "VAD: Silero v6.2.0")
 	}
 	SetLanguage(wctx, spec.Language)
 
-	var (
-		resumeSegs []diarizer.TranscriptSegment
-		offsetMs   int64
-	)
-	if rawKey != "" {
-		if part, ok := cache.LoadPartial(rawKey); ok {
-			choice := j.Hooks.resume(ResumePrompt{
-				SourceName: filepath.Base(spec.SourcePath),
-				ResumeAt:   time.Duration(part.LastEndMs) * time.Millisecond,
-				Segments:   len(part.Segments),
-			})
-			switch choice {
-			case ResumeYes:
-				resumeSegs = part.Segments
-				offsetMs = part.LastEndMs
-				wctx.SetOffset(time.Duration(offsetMs) * time.Millisecond)
-				j.Hooks.log("info", fmt.Sprintf("resuming from %s (%d cached segs)",
-					FormatHMS(time.Duration(offsetMs)*time.Millisecond), len(resumeSegs)))
-			case ResumeFresh:
-				cache.DeletePartial(rawKey)
-				j.Hooks.log("info", "discarded partial transcript; starting from beginning")
-			case ResumeAbort:
-				return nil, "", 0, ErrAborted
-			}
-		}
-	}
-
-	j.Hooks.phase(PhaseTranscribing)
-	processStart := time.Now()
+	var detected string
 	abortCb := func() bool { return ctx.Err() == nil }
-	progressCb := func(pct int) {
-		if pct < 0 {
-			pct = 0
-		}
-		if pct > 100 {
-			pct = 100
-		}
-		j.Hooks.progress(PhaseTranscribing, float64(pct))
-	}
 
-	procErr := wctx.Process(samples, abortCb, nil, whisper.ProgressCallback(progressCb))
-
-	newSegs := ExtractSegments(wctx)
-	merged := make([]diarizer.TranscriptSegment, 0, len(resumeSegs)+len(newSegs))
-	merged = append(merged, resumeSegs...)
-	merged = append(merged, newSegs...)
-
-	if procErr != nil {
-		if ctx.Err() != nil {
-			if rawKey != "" {
-				j.savePartialIfUseful(rawKey, merged, audioDurSec)
+	process := func(ctx context.Context, samples []float32, _ float64) ([]diarizer.TranscriptSegment, error) {
+		if err := wctx.Process(samples, abortCb, nil, nil); err != nil {
+			if ctx.Err() != nil {
+				return nil, ErrAborted
 			}
-			return nil, "", 0, ErrAborted
+			return nil, fmt.Errorf("processing audio: %w", err)
 		}
-		return nil, "", 0, fmt.Errorf("processing audio: %w", procErr)
+		if detected == "" {
+			if d := wctx.DetectedLanguage(); d != "" {
+				detected = d
+			}
+		}
+		return ExtractSegments(wctx), nil
 	}
 
-	elapsed := time.Since(processStart).Seconds()
-	rtf := 0.0
-	remainSec := audioDurSec - float64(offsetMs)/1000.0
-	if elapsed > 0 && remainSec > 0 {
-		rtf = remainSec / elapsed
+	segs, rtf, err := runChunked(ctx, "whisper", j.Hooks, samples, audioDurSec, rawKey, process)
+	if err != nil {
+		return nil, "", 0, err
 	}
-	j.Hooks.log("debug", fmt.Sprintf("transcribed in %.0fs RTF=%.2f", elapsed, rtf))
-
-	detected := wctx.DetectedLanguage()
 	if detected == "" {
 		detected = spec.Language
 	}
-
-	deduped := DeduplicateSegments(merged)
-	if dropped := len(merged) - len(deduped); dropped > 0 {
-		j.Hooks.log("debug", fmt.Sprintf("dedup: removed %d repeated segments", dropped))
-	}
-
-	if rawKey != "" {
-		if ok, reason := cache.RawCacheSafe(deduped, audioDurSec, false); ok {
-			if err := cache.SaveRawSegments(rawKey, deduped); err != nil {
-				j.Hooks.log("warn", fmt.Sprintf("could not save raw transcript cache: %v", err))
-			}
-			cache.DeletePartial(rawKey)
-		} else {
-			j.Hooks.log("debug", "skipped raw cache save: "+reason)
-		}
-	}
-
-	return deduped, detected, rtf, nil
-}
-
-func (j *Job) savePartialIfUseful(rawKey string, segs []diarizer.TranscriptSegment, audioDurSec float64) {
-	if len(segs) == 0 {
-		return
-	}
-	lastEnd := time.Duration(0)
-	for _, s := range segs {
-		if s.End > lastEnd {
-			lastEnd = s.End
-		}
-	}
-	if lastEnd <= 0 {
-		return
-	}
-	if audioDurSec > 0 && lastEnd.Seconds()/audioDurSec > 0.95 {
-		return
-	}
-	p := cache.Partial{
-		Segments:   segs,
-		LastEndMs:  lastEnd.Milliseconds(),
-		AudioDurMs: int64(audioDurSec * 1000),
-		SavedAt:    time.Now(),
-	}
-	if err := cache.SavePartial(rawKey, p); err != nil {
-		j.Hooks.log("warn", fmt.Sprintf("could not save partial: %v", err))
-		return
-	}
-	j.Hooks.log("info", fmt.Sprintf("saved partial transcript (%s, %d segs)",
-		FormatHMS(lastEnd), len(segs)))
+	return segs, detected, rtf, nil
 }
 
 func (j *Job) runDiarize(ctx context.Context, absPath string, samples []float32, audioDurSec float64, speakers int) ([]diarizer.Segment, string, bool) {

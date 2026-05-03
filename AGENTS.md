@@ -84,6 +84,10 @@ For backup/transfer between devices, the user can `adb pull /sdcard/Documents/WT
 stdlib `testing` only. Names: `Test<Function>_<Scenario>`, table-driven preferred. Config tests: `t.TempDir()` + `t.Setenv("HOME", ...)`. CI runs `go vet`, `golangci-lint`, full `go test` on Linux. Diarization integration tests: `//go:build integration` (`task test-integration`); `getSherpaSample` lazy-downloads to `samples/diarization/sherpa/` (gitignored). Use `-short` to skip the download. Don't add skip-on-missing-model tests.
 
 
+## Chunked, resumable ASR
+
+All ASR engines (Whisper + sherpa-onnx variants) run through the unified chunked driver in `internal/transcriber/engine_chunk.go`. Default 30 s windows (env `WT_CHUNK_SEC`, range 5–60). Partial cache (`internal/transcriber/cache.Partial`) is persisted **after every chunk**, so a kernel-level OOM / thermal reboot / force-kill loses ≤1 chunk of work; the same partial format is shared across engines so resume is engine-agnostic. Never reintroduce a "process the full sample buffer in one shot" path — long inputs (>5 min) on Android arm64 reliably trigger the kernel OOM killer, which on phones often reboots the entire device with no userland crash log (the persistent `wt.log` will appear "cut off" mid-run because the GUI process is killed before the next `AppendLogLine` flushes). When adding a new ASR engine, write a `chunkProcessor` that takes chunk-local samples and returns chunk-local segments — the driver shifts timestamps onto the absolute timeline, saves partials, handles ctx cancellation, and emits uniform progress.
+
 ## ASR engine selection
 
 Transcription engine is pluggable via `shared.Config.Engine` / `WT_ENGINE` / `JobSpec.Engine`. Values: `whisper` (default), `zipformer` (sherpa transducer, uppercase output), `moonshine` (sherpa, cased+punctuated, ~10× RTF on Exynos 2400 CPU). Dispatch lives in `internal/transcriber/engine.go`'s `Job.runASR`. When adding a new sherpa-backed engine, reuse the helpers in `engine_zipformer.go` (`findSherpaASRBinary`, `writeTempWAV`, `invokeSherpaCLI`, `finalizeSherpaRun`, `coalesceTokens`) and add a case to `runASR` — do **not** branch inside `runWhisper`.

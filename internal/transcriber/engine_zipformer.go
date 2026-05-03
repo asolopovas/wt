@@ -15,7 +15,6 @@ import (
 
 	shared "github.com/asolopovas/wt/internal"
 	"github.com/asolopovas/wt/internal/diarizer"
-	"github.com/asolopovas/wt/internal/transcriber/cache"
 )
 
 // Sherpa-onnx-offline backed engines (Zipformer, Moonshine, ...).
@@ -153,13 +152,11 @@ func writeTempWAV(samples []float32, prefix string) (string, func(), error) {
 	return wavPath, func() { _ = os.RemoveAll(tmpDir) }, nil
 }
 
-// invokeSherpaCLI runs sherpa-onnx-offline with the given args, returning
-// stdout, stderr, elapsed seconds, and error.
-func invokeSherpaCLI(ctx context.Context, bin string, args []string, hooks Hooks, engineName string) (string, string, float64, error) {
-	hooks.phase(PhaseTranscribing)
-	hooks.log("debug", fmt.Sprintf("%s: %s %s", engineName, bin, strings.Join(args, " ")))
-	hooks.progress(PhaseTranscribing, 0)
-
+// runSherpaCmd runs sherpa-onnx-offline once and returns its stdout,
+// stderr, wall time, and error. No phase/progress side-effects — the
+// chunked driver (engine_chunk.go) drives those uniformly across
+// engines.
+func runSherpaCmd(ctx context.Context, bin string, args []string) (string, string, float64, error) {
 	start := time.Now()
 	cmd := exec.CommandContext(ctx, bin, args...)
 	var stdout, stderr bytes.Buffer
@@ -170,10 +167,73 @@ func invokeSherpaCLI(ctx context.Context, bin string, args []string, hooks Hooks
 			return "", "", 0, ErrAborted
 		}
 		return stdout.String(), stderr.String(), 0,
-			fmt.Errorf("%s subprocess: %w (stderr: %s)",
-				engineName, err, strings.TrimSpace(stderr.String()))
+			fmt.Errorf("sherpa subprocess: %w (stderr: %s)",
+				err, strings.TrimSpace(stderr.String()))
 	}
 	return stdout.String(), stderr.String(), time.Since(start).Seconds(), nil
+}
+
+// chunkSegmentsFromSherpa builds segments from one parsed sherpa JSON
+// result, with timestamps relative to the chunk (start at 0). The
+// generic chunked driver shifts them onto the absolute timeline.
+func chunkSegmentsFromSherpa(r sherpaResult, chunkDurSec float64) []diarizer.TranscriptSegment {
+	if len(r.Tokens) > 0 && len(r.Tokens) == len(r.Timestamps) {
+		return coalesceTokens(r.Tokens, r.Timestamps, chunkDurSec)
+	}
+	text := strings.TrimSpace(r.Text)
+	if text == "" {
+		return nil
+	}
+	return []diarizer.TranscriptSegment{{
+		Start: 0,
+		End:   time.Duration(chunkDurSec * float64(time.Second)),
+		Text:  text,
+	}}
+}
+
+// runSherpaEngineChunked is the shared back-half for all sherpa-backed
+// engines. argsForWAV builds the engine-specific argv given a chunk's
+// WAV path. firstResult (if any) is the first non-empty parsed result,
+// used by callers like SenseVoice to extract metadata such as detected
+// language.
+func runSherpaEngineChunked(
+	ctx context.Context,
+	engineName, bin string,
+	argsForWAV func(wavPath string) []string,
+	hooks Hooks,
+	samples []float32,
+	audioDurSec float64,
+	rawKey string,
+) ([]diarizer.TranscriptSegment, sherpaResult, float64, error) {
+	var firstResult sherpaResult
+	tempPrefix := "wt-" + engineName
+
+	process := func(ctx context.Context, chunkSamples []float32, chunkDurSec float64) ([]diarizer.TranscriptSegment, error) {
+		wavPath, cleanup, werr := writeTempWAV(chunkSamples, tempPrefix)
+		if werr != nil {
+			return nil, werr
+		}
+		defer cleanup()
+
+		stdout, stderr, _, runErr := runSherpaCmd(ctx, bin, argsForWAV(wavPath))
+		if runErr != nil {
+			return nil, runErr
+		}
+		parsed, perr := parseSherpaJSON(stdout)
+		if perr != nil {
+			// Pure-silence chunks parse as empty — not an error.
+			hooks.log("debug", fmt.Sprintf("%s: empty chunk (%v); stderr=%s",
+				engineName, perr, truncate(stderr, 120)))
+			return nil, nil
+		}
+		if firstResult.Text == "" && firstResult.Lang == "" {
+			firstResult = parsed
+		}
+		return chunkSegmentsFromSherpa(parsed, chunkDurSec), nil
+	}
+
+	segs, rtf, err := runChunked(ctx, engineName, hooks, samples, audioDurSec, rawKey, process)
+	return segs, firstResult, rtf, err
 }
 
 // sherpaResult mirrors the JSON sherpa-onnx-offline emits per input file.
@@ -224,37 +284,6 @@ func parseSherpaJSON(stdout string) (sherpaResult, error) {
 		return r, nil
 	}
 	return sherpaResult{}, fmt.Errorf("no JSON result line found in subprocess output")
-}
-
-// finalizeSherpaRun parses sherpa output and produces transcript segments.
-// If token-level timestamps are present and aligned, sub-word BPE pieces are
-// coalesced into word-level segments (a leading space marks a word
-// boundary). Otherwise emits a single segment spanning the file.
-func finalizeSherpaRun(stdout, stderr string, elapsed, audioDurSec float64, hooks Hooks, engineName string) ([]diarizer.TranscriptSegment, float64, error) {
-	parsed, perr := parseSherpaJSON(stdout)
-	if perr != nil {
-		return nil, 0, fmt.Errorf("%s: %w (stdout: %q, stderr: %q)",
-			engineName, perr, truncate(stdout, 200), truncate(stderr, 200))
-	}
-	hooks.progress(PhaseTranscribing, 100)
-
-	var segs []diarizer.TranscriptSegment
-	if len(parsed.Tokens) > 0 && len(parsed.Tokens) == len(parsed.Timestamps) {
-		segs = coalesceTokens(parsed.Tokens, parsed.Timestamps, audioDurSec)
-	} else {
-		segs = []diarizer.TranscriptSegment{{
-			Start: 0,
-			End:   time.Duration(audioDurSec * float64(time.Second)),
-			Text:  strings.TrimSpace(parsed.Text),
-		}}
-	}
-
-	rtf := 0.0
-	if elapsed > 0 {
-		rtf = audioDurSec / elapsed
-	}
-	hooks.log("info", fmt.Sprintf("%s transcribed in %.1fs RTF=%.2f", engineName, elapsed, rtf))
-	return segs, rtf, nil
 }
 
 // coalesceTokens merges BPE sub-word pieces into word-level segments. Each
@@ -357,32 +386,21 @@ func RunZipformer(ctx context.Context, spec JobSpec, samples []float32, audioDur
 	if err != nil {
 		return nil, "", 0, fmt.Errorf("zipformer engine: %w", err)
 	}
-	wavPath, cleanup, err := writeTempWAV(samples, "wt-zipformer")
-	if err != nil {
-		return nil, "", 0, fmt.Errorf("zipformer engine: %w", err)
+	argsForWAV := func(wavPath string) []string {
+		return []string{
+			"--tokens=" + models.Tokens,
+			"--encoder=" + models.Encoder,
+			"--decoder=" + models.Decoder,
+			"--joiner=" + models.Joiner,
+			fmt.Sprintf("--num-threads=%d", sherpaThreads(spec)),
+			"--decoding-method=greedy_search",
+			"--provider=" + sherpaProvider(),
+			wavPath,
+		}
 	}
-	defer cleanup()
-
-	args := []string{
-		"--tokens=" + models.Tokens,
-		"--encoder=" + models.Encoder,
-		"--decoder=" + models.Decoder,
-		"--joiner=" + models.Joiner,
-		fmt.Sprintf("--num-threads=%d", sherpaThreads(spec)),
-		"--decoding-method=greedy_search",
-		"--provider=" + sherpaProvider(),
-		wavPath,
-	}
-	stdout, stderr, elapsed, err := invokeSherpaCLI(ctx, bin, args, hooks, "zipformer")
+	segs, _, rtf, err := runSherpaEngineChunked(ctx, "zipformer", bin, argsForWAV, hooks, samples, audioDurSec, rawKey)
 	if err != nil {
 		return nil, "", 0, err
-	}
-	segs, rtf, err := finalizeSherpaRun(stdout, stderr, elapsed, audioDurSec, hooks, "zipformer")
-	if err != nil {
-		return nil, "", 0, err
-	}
-	if rawKey != "" {
-		_ = cache.SaveRawSegments(rawKey, segs)
 	}
 	return segs, "en", rtf, nil
 }
@@ -444,37 +462,26 @@ func RunParakeet(ctx context.Context, spec JobSpec, samples []float32, audioDurS
 	if err != nil {
 		return nil, "", 0, fmt.Errorf("parakeet engine: %w", err)
 	}
-	wavPath, cleanup, err := writeTempWAV(samples, "wt-parakeet")
-	if err != nil {
-		return nil, "", 0, fmt.Errorf("parakeet engine: %w", err)
+	argsForWAV := func(wavPath string) []string {
+		return []string{
+			"--tokens=" + models.Tokens,
+			"--encoder=" + models.Encoder,
+			"--decoder=" + models.Decoder,
+			"--joiner=" + models.Joiner,
+			fmt.Sprintf("--num-threads=%d", sherpaThreads(spec)),
+			"--decoding-method=greedy_search",
+			// Parakeet TDT uses NeMo's transducer variant (Token-and-
+			// Duration Transducer); regular --model-type=transducer fails
+			// on metadata lookup. nemo_transducer routes to offline-
+			// recognizer-transducer-nemo-impl.h which knows about TDT.
+			"--model-type=nemo_transducer",
+			"--provider=" + sherpaProvider(),
+			wavPath,
+		}
 	}
-	defer cleanup()
-
-	args := []string{
-		"--tokens=" + models.Tokens,
-		"--encoder=" + models.Encoder,
-		"--decoder=" + models.Decoder,
-		"--joiner=" + models.Joiner,
-		fmt.Sprintf("--num-threads=%d", sherpaThreads(spec)),
-		"--decoding-method=greedy_search",
-		// Parakeet TDT uses NeMo's transducer variant (Token-and-Duration
-		// Transducer); regular --model-type=transducer fails on metadata
-		// lookup. nemo_transducer routes to offline-recognizer-transducer-
-		// nemo-impl.h which knows about TDT.
-		"--model-type=nemo_transducer",
-		"--provider=" + sherpaProvider(),
-		wavPath,
-	}
-	stdout, stderr, elapsed, err := invokeSherpaCLI(ctx, bin, args, hooks, "parakeet")
+	segs, _, rtf, err := runSherpaEngineChunked(ctx, "parakeet", bin, argsForWAV, hooks, samples, audioDurSec, rawKey)
 	if err != nil {
 		return nil, "", 0, err
-	}
-	segs, rtf, err := finalizeSherpaRun(stdout, stderr, elapsed, audioDurSec, hooks, "parakeet")
-	if err != nil {
-		return nil, "", 0, err
-	}
-	if rawKey != "" {
-		_ = cache.SaveRawSegments(rawKey, segs)
 	}
 	return segs, "en", rtf, nil
 }
@@ -538,12 +545,6 @@ func RunSenseVoice(ctx context.Context, spec JobSpec, samples []float32, audioDu
 	if err != nil {
 		return nil, "", 0, fmt.Errorf("sensevoice engine: %w", err)
 	}
-	wavPath, cleanup, err := writeTempWAV(samples, "wt-sensevoice")
-	if err != nil {
-		return nil, "", 0, fmt.Errorf("sensevoice engine: %w", err)
-	}
-	defer cleanup()
-
 	lang := strings.ToLower(strings.TrimSpace(spec.Language))
 	switch lang {
 	case "", "auto", "zh", "en", "ja", "ko", "yue":
@@ -554,40 +555,30 @@ func RunSenseVoice(ctx context.Context, spec JobSpec, samples []float32, audioDu
 		hooks.log("warn", fmt.Sprintf("sensevoice: unsupported language %q (using auto)", spec.Language))
 		lang = "auto"
 	}
-
-	args := []string{
-		"--tokens=" + models.Tokens,
-		"--sense-voice-model=" + models.Model,
-		"--sense-voice-language=" + lang,
-		"--sense-voice-use-itn=true",
-		fmt.Sprintf("--num-threads=%d", sherpaThreads(spec)),
-		"--provider=" + sherpaProvider(),
-		wavPath,
+	argsForWAV := func(wavPath string) []string {
+		return []string{
+			"--tokens=" + models.Tokens,
+			"--sense-voice-model=" + models.Model,
+			"--sense-voice-language=" + lang,
+			"--sense-voice-use-itn=true",
+			fmt.Sprintf("--num-threads=%d", sherpaThreads(spec)),
+			"--provider=" + sherpaProvider(),
+			wavPath,
+		}
 	}
-	stdout, stderr, elapsed, err := invokeSherpaCLI(ctx, bin, args, hooks, "sensevoice")
+	segs, first, rtf, err := runSherpaEngineChunked(ctx, "sensevoice", bin, argsForWAV, hooks, samples, audioDurSec, rawKey)
 	if err != nil {
 		return nil, "", 0, err
-	}
-	segs, rtf, err := finalizeSherpaRun(stdout, stderr, elapsed, audioDurSec, hooks, "sensevoice")
-	if err != nil {
-		return nil, "", 0, err
-	}
-	if rawKey != "" {
-		_ = cache.SaveRawSegments(rawKey, segs)
 	}
 	detected := lang
 	if detected == "auto" {
 		detected = ""
 	}
-	// Surface SenseVoice's detected language tag if we asked for auto and
-	// the model returned one. Emotion/event tags are parsed but currently
-	// not surfaced in the segment metadata — future enhancement (e.g.
-	// per-utterance emotion overlay in the GUI).
-	if detected == "" {
-		if r, _ := parseSherpaJSON(stdout); r.Lang != "" {
-			if tag := stripSherpaTag(r.Lang); tag != "" {
-				detected = tag
-			}
+	// Surface SenseVoice's detected language tag from the first non-empty
+	// chunk if we asked for auto.
+	if detected == "" && first.Lang != "" {
+		if tag := stripSherpaTag(first.Lang); tag != "" {
+			detected = tag
 		}
 	}
 	return segs, detected, rtf, nil
@@ -654,32 +645,21 @@ func RunMoonshine(ctx context.Context, spec JobSpec, samples []float32, audioDur
 	if err != nil {
 		return nil, "", 0, fmt.Errorf("moonshine engine: %w", err)
 	}
-	wavPath, cleanup, err := writeTempWAV(samples, "wt-moonshine")
-	if err != nil {
-		return nil, "", 0, fmt.Errorf("moonshine engine: %w", err)
+	argsForWAV := func(wavPath string) []string {
+		return []string{
+			"--moonshine-preprocessor=" + models.Preprocessor,
+			"--moonshine-encoder=" + models.Encoder,
+			"--moonshine-uncached-decoder=" + models.UncachedDecoder,
+			"--moonshine-cached-decoder=" + models.CachedDecoder,
+			"--tokens=" + models.Tokens,
+			fmt.Sprintf("--num-threads=%d", sherpaThreads(spec)),
+			"--provider=" + sherpaProvider(),
+			wavPath,
+		}
 	}
-	defer cleanup()
-
-	args := []string{
-		"--moonshine-preprocessor=" + models.Preprocessor,
-		"--moonshine-encoder=" + models.Encoder,
-		"--moonshine-uncached-decoder=" + models.UncachedDecoder,
-		"--moonshine-cached-decoder=" + models.CachedDecoder,
-		"--tokens=" + models.Tokens,
-		fmt.Sprintf("--num-threads=%d", sherpaThreads(spec)),
-		"--provider=" + sherpaProvider(),
-		wavPath,
-	}
-	stdout, stderr, elapsed, err := invokeSherpaCLI(ctx, bin, args, hooks, "moonshine")
+	segs, _, rtf, err := runSherpaEngineChunked(ctx, "moonshine", bin, argsForWAV, hooks, samples, audioDurSec, rawKey)
 	if err != nil {
 		return nil, "", 0, err
-	}
-	segs, rtf, err := finalizeSherpaRun(stdout, stderr, elapsed, audioDurSec, hooks, "moonshine")
-	if err != nil {
-		return nil, "", 0, err
-	}
-	if rawKey != "" {
-		_ = cache.SaveRawSegments(rawKey, segs)
 	}
 	return segs, "en", rtf, nil
 }
