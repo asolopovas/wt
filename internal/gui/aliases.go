@@ -40,12 +40,15 @@ var (
 	downloadIcon      = assets.DownloadIcon
 )
 
+// whisperSizeToID maps a cfg.Model size literal to a catalog ID.
+// Includes legacy sizes (base/medium/large-v3) so existing user configs
+// don't error out — they map to whisper-turbo as the closest replacement.
 var whisperSizeToID = map[string]string{
 	"tiny":     "whisper-tiny",
-	"base":     "whisper-base",
+	"base":     "whisper-turbo", // legacy, dominated
 	"small":    "whisper-small",
-	"medium":   "whisper-medium",
-	"large-v3": "whisper-large-v3",
+	"medium":   "whisper-turbo", // legacy, dominated
+	"large-v3": "whisper-turbo", // legacy, dominated
 	"turbo":    "whisper-turbo",
 }
 
@@ -69,11 +72,7 @@ func displayNameToWhisperSize(displayName, fallback string) string {
 }
 
 func allowedModelSizes() []string {
-	m := []string{"tiny", "base", "small", "medium"}
-	if runtime.GOOS != "android" {
-		m = append(m, "large-v3")
-	}
-	return append(m, "turbo")
+	return []string{"tiny", "small", "turbo"}
 }
 
 func defaultWhisperSize() string {

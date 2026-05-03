@@ -93,47 +93,60 @@ func ByFamily(f Family) []Entry {
 	return out
 }
 
+// whisperEntries: curated to 3 multilingual ASR picks plus the VAD
+// helper. Each row covers a distinct (size, quality) niche; dominated
+// variants are removed.
+//
+//	tiny    78 MB   live-caption / draft
+//	small   488 MB  compact multilingual
+//	turbo   1.6 GB  quality multilingual default (large-v3 distill)
+//	silero  2 MB    VAD (used internally)
+//
+// Removed:
+//   - whisper-base   (147 MB): English dominated by Parakeet at 4× size;
+//                              tiny+turbo bracket every other use.
+//   - whisper-medium (1.5 GB): dominated by whisper-turbo, which is the
+//                              same size with better quality (turbo is
+//                              the official large-v3 distill).
+//   - whisper-large-v3 (3.1 GB): whisper-turbo matches its quality at
+//                              half the disk + RAM footprint.
 var whisperEntries = []Entry{
 	{ID: "whisper-tiny", Family: FamilyWhisper, DisplayName: "Whisper tiny (multilingual)", URL: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.bin", RelPath: "ggml-tiny.bin", SizeBytes: 77_700_000, RAMHintMB: 200, DefaultActive: false},
-	{ID: "whisper-base", Family: FamilyWhisper, DisplayName: "Whisper base (multilingual)", URL: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin", RelPath: "ggml-base.bin", SizeBytes: 147_000_000, RAMHintMB: 300},
 	{ID: "whisper-small", Family: FamilyWhisper, DisplayName: "Whisper small (multilingual)", URL: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.bin", RelPath: "ggml-small.bin", SizeBytes: 488_000_000, RAMHintMB: 700},
-	{ID: "whisper-medium", Family: FamilyWhisper, DisplayName: "Whisper medium (multilingual)", URL: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-medium.bin", RelPath: "ggml-medium.bin", SizeBytes: 1_530_000_000, RAMHintMB: 2200},
-	{ID: "whisper-large-v3", Family: FamilyWhisper, DisplayName: "Whisper large-v3 (multilingual)", URL: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3.bin", RelPath: "ggml-large-v3.bin", SizeBytes: 3_100_000_000, RAMHintMB: 4400},
 	{ID: "whisper-turbo", Family: FamilyWhisper, DisplayName: "Whisper large-v3-turbo", URL: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo.bin", RelPath: "ggml-large-v3-turbo.bin", SizeBytes: 1_620_000_000, RAMHintMB: 2400, DefaultActive: true},
 	{ID: "whisper-vad-silero", Family: FamilyWhisper, DisplayName: "Silero VAD v6.2.0", URL: "https://huggingface.co/ggml-org/whisper-vad/resolve/main/ggml-silero-v6.2.0.bin", RelPath: "ggml-silero-v6.2.0.bin", SizeBytes: 2_300_000, RAMHintMB: 50},
 }
 
 // Diarizer presets: each entry pairs a pyannote-style segmentation model
-// with a speaker embedding model. Multiple entries may share the same
-// segmentation or embedding file on disk; manager.Delete preserves shared
-// files (don't orphan another installed entry).
+// with a speaker embedding model. The catalog is curated to 2 entries
+// covering distinct language niches — every other combination we tested
+// either matched or underperformed the default.
 //
-// Curated to 3 entries covering distinct niches:
-//   - English default (pyannote-3.0 + TitaNet-Large)
-//   - English quality-first (Reverb-v2 + TitaNet-Large) for conversational/
-//     telephone audio where pyannote-3.0 mis-segments speaker boundaries
-//   - Multilingual zh+en (pyannote-3.0 + CAM++)
+//   - diar-titanet-large : English default (pyannote-3.0 + TitaNet-Large)
+//   - diar-multilingual  : zh+en (pyannote-3.0 + CAM++ advanced)
 //
-// Removed:
-//   - diar-mobile-light: shared the pyannote-3.0 segmenter with the default
-//     (= identical boundary errors); only the embedding model differed and was
-//     statistically tied with TitaNet-Large. Not a real niche on Android.
-//   - diar-3dspeaker-v2: untested speculative pairing.
+// Removed (with empirical reasoning):
+//   - diar-mobile-light  : same segmenter as default → same boundary
+//                          errors; embedding statistically tied
+//                          (DER 0.191 vs 0.190).
+//   - diar-3dspeaker-v2  : own description: untested speculative pairing.
+//   - diar-reverb-v2     : on-device test (Exynos 2400, SenseVoice ASR,
+//                          1-min interview clip, --speakers=2):
+//                            pyannote-3.0  16.4 s  12 segs  2 speakers ✓
+//                            reverb-v2     91.7 s   1 seg   1 speaker  ✗
+//                          Reverb-v2 collapsed both interviewer + child
+//                          into a single cluster despite 392 MB segmenter
+//                          (5.6× slower than pyannote-3.0). Fails the
+//                          "best-in-class for its niche" rule.
 //
-// Embedding rankings from scripts/diar_sweep_results.csv (3 fixtures,
-// 72 configs each):
+// Embedding rankings from scripts/diar_sweep_results.csv:
 //
-//	titanet_large    DER 0.190  (winner)
-//	titanet_small    DER 0.191  (statistical tie at 1/2.5 the size)
-//	eres2net_en      DER 0.211
-//	campplus_zh_en   DER 0.222  (multilingual leader)
+//	titanet_large    DER 0.190  (English winner)
+//	campplus_zh_en   DER 0.222  (multilingual winner)
 //
 var (
 	diarSegPyannote30URL = "https://huggingface.co/csukuangfj/sherpa-onnx-pyannote-segmentation-3-0/resolve/main/model.onnx"
 	diarSegPyannote30Rel = "sherpa-onnx-pyannote-segmentation-3-0/model.onnx"
-
-	diarSegReverbV2URL = "https://huggingface.co/csukuangfj/sherpa-onnx-reverb-diarization-v2/resolve/main/model.onnx"
-	diarSegReverbV2Rel = "sherpa-onnx-reverb-diarization-v2/model.onnx"
 
 	diarEmbBase = "https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-recongition-models/"
 )
@@ -155,22 +168,7 @@ var diarizerEntries = []Entry{
 			{URL: diarEmbBase + "nemo_en_titanet_large.onnx", RelPath: "titanet_large.onnx", SizeBytes: 101_405_493},
 		},
 	},
-	// 2. Quality-first — Rev.ai's 2024 release, conversational/telephone SOTA.
-	{
-		ID:            "diar-reverb-v2",
-		Family:        FamilyDiarizer,
-		DisplayName:   "High-quality (Reverb-v2 + TitaNet-Large)",
-		Description:   "Rev.ai 2024 release. Best quality on conversational/telephone audio. Heavier (~494 MB).",
-		SizeBytes:     494_000_000,
-		RAMHintMB:     900,
-		DiarSegRelPath: diarSegReverbV2Rel,
-		DiarEmbRelPath: "titanet_large.onnx",
-		Files: []FileSpec{
-			{URL: diarSegReverbV2URL, RelPath: diarSegReverbV2Rel, SizeBytes: 392_921_403},
-			{URL: diarEmbBase + "nemo_en_titanet_large.onnx", RelPath: "titanet_large.onnx", SizeBytes: 101_405_493},
-		},
-	},
-	// 3. Multilingual — zh+en, very compact.
+	// 2. Multilingual — zh+en, very compact.
 	{
 		ID:            "diar-multilingual",
 		Family:        FamilyDiarizer,
@@ -204,7 +202,8 @@ var legacyDiarizerIDs = map[string]string{
 	"sherpa-titanet-large":             "diar-titanet-large",
 	"sherpa-diarizer":                  "diar-titanet-large",
 	"diar-mobile-light":                "diar-titanet-large",
-	"diar-3dspeaker-v2":                "diar-reverb-v2",
+	"diar-3dspeaker-v2":                "diar-titanet-large",
+	"diar-reverb-v2":                   "diar-titanet-large",
 }
 
 // Top-tier ASR models (sherpa-onnx). Curated rather than exhaustive: each
