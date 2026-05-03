@@ -7,8 +7,6 @@ import (
 	"time"
 
 	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/canvas"
-	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/asolopovas/wt/internal/gui/platsvc"
@@ -69,62 +67,6 @@ func (p *Panel) stopRunTimer() {
 			p.TimerText.Refresh()
 		})
 	}
-}
-
-func renderStatsRow(segs []statSegment, verbose bool) []fyne.CanvasObject {
-	objs := make([]fyne.CanvasObject, 0, len(segs)*3)
-	for i, s := range segs {
-		if i > 0 {
-			sep := canvas.NewText(" | ", colMuted)
-			sep.TextSize = textBody
-			sep.TextStyle = fyne.TextStyle{Monospace: true}
-			objs = append(objs, container.NewCenter(sep))
-		}
-		if s.icon != nil {
-			ic := canvas.NewImageFromResource(s.icon)
-			ic.FillMode = canvas.ImageFillContain
-			ic.SetMinSize(fyne.NewSize(textBody+spaceSM, textBody+spaceSM))
-			objs = append(objs, container.NewCenter(ic))
-		}
-		text := s.compact
-		if verbose {
-			text = s.verbose
-		}
-		t := canvas.NewText(text, colMuted)
-		t.TextSize = textBody
-		t.TextStyle = fyne.TextStyle{Monospace: true}
-		objs = append(objs, container.NewCenter(t))
-	}
-	return objs
-}
-
-func (p *Panel) setStats(segs []statSegment) {
-	key := statsKey(segs)
-	if key == p.lastStatsKey {
-		return
-	}
-	p.lastStatsKey = key
-	fyne.Do(func() {
-		if p.StatsLine != nil {
-			p.StatsLine.Objects = renderStatsRow(segs, false)
-			p.StatsLine.Refresh()
-		}
-		if p.StatsFooter != nil {
-			p.StatsFooter.Objects = renderStatsRow(segs, true)
-			p.StatsFooter.Refresh()
-		}
-	})
-}
-
-func statsKey(segs []statSegment) string {
-	var b strings.Builder
-	for _, s := range segs {
-		b.WriteString(s.compact)
-		b.WriteByte('|')
-		b.WriteString(s.verbose)
-		b.WriteByte(';')
-	}
-	return b.String()
 }
 
 func (p *Panel) setRunning(running bool) {

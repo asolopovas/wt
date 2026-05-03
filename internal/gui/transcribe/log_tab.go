@@ -20,6 +20,5 @@ func BuildLogTab(tp *Panel) fyne.CanvasObject {
 		shareBtn.Importance = widget.LowImportance
 		panel = buildLogPanel(tp.LogEntry, nil, tp.CopyLogBtn, tp.ClearLogBtn, tp.AutoBtn, shareBtn)
 	}
-	footer := container.NewPadded(container.NewCenter(tp.StatsFooter))
-	return container.NewBorder(nil, container.NewVBox(footer, decor.VGap(spaceLG)), nil, nil, panel)
+	return container.NewBorder(nil, decor.VGap(spaceLG), nil, nil, panel)
 }

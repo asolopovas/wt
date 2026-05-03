@@ -27,8 +27,7 @@ type Config struct {
 	TDRZ            bool   `yaml:"tdrz,omitempty"`
 	CacheExpiryDays int    `yaml:"cache_expiry_days,omitempty"`
 
-	LogRetentionDays int  `yaml:"log_retention_days,omitempty"`
-	HideStats        bool `yaml:"hide_stats,omitempty"`
+	LogRetentionDays int `yaml:"log_retention_days,omitempty"`
 }
 
 const (

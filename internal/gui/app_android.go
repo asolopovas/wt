@@ -41,12 +41,6 @@ func Run(version, buildDate string) error {
 	tp.History = history
 	attachLibrary(tp, history)
 	if history.headerRight != nil {
-		sep := canvas.NewText(" | ", colMuted)
-		sep.TextSize = textBody
-		sep.TextStyle = fyne.TextStyle{Monospace: true}
-		sepWrap := container.NewCenter(sep)
-		sepWrap.Hide()
-		tp.TimerSep = sepWrap
 		tp.TimerText.Hide()
 		history.headerRight.Objects = []fyne.CanvasObject{container.NewCenter(tp.StatusText)}
 		history.headerRight.Refresh()
@@ -66,7 +60,7 @@ func Run(version, buildDate string) error {
 	deviceInfo := detectDevice()
 
 	transcodeTab := buildTranscodeTabAndroid(tp, settings)
-	settingsTab := buildSettingsTab(settings, tp, deviceInfo, versionLabel(version, buildDate))
+	settingsTab := buildSettingsTab(settings, deviceInfo, versionLabel(version, buildDate))
 
 	if missing := platsvc.MissingPermissions(); len(missing) > 0 {
 		go func(p []string) {
@@ -288,14 +282,7 @@ func inlineField(label string, w fyne.CanvasObject) fyne.CanvasObject {
 	return container.NewBorder(nil, nil, left, nil, w)
 }
 
-func compactStatsLine(text string) fyne.CanvasObject {
-	t := canvas.NewText(text, decor.TextSecondary)
-	t.TextSize = textCaption
-	t.TextStyle = fyne.TextStyle{Monospace: true}
-	return t
-}
-
-func buildSettingsTab(sp *settingsPanel, tp *transcribe.Panel, deviceInfo, version string) fyne.CanvasObject {
+func buildSettingsTab(sp *settingsPanel, deviceInfo, version string) fyne.CanvasObject {
 	settingsGrid := container.NewVBox(
 		inlineField("DEVICE", sp.deviceSelect),
 		inlineField("THREADS", sp.threadsSelect),
@@ -306,8 +293,7 @@ func buildSettingsTab(sp *settingsPanel, tp *transcribe.Panel, deviceInfo, versi
 	versionLabel := canvas.NewText(version, decor.TextMuted)
 	versionLabel.TextSize = textCaption
 	versionLabel.TextStyle = decor.MonoBoldStyle
-	headerRight := container.NewHBox(tp.StatsLine, decor.HGap(spaceMD), versionLabel)
-	header := decor.NewPanelHeader(newCaptionText("SETTINGS"), headerRight)
+	header := decor.NewPanelHeader(newCaptionText("SETTINGS"), versionLabel)
 
 	_ = deviceInfo
 
@@ -323,7 +309,6 @@ func buildSettingsTab(sp *settingsPanel, tp *transcribe.Panel, deviceInfo, versi
 		wrapGhost(sp.noDiarizeBtn),
 		wrapGhost(sp.debugBtn),
 	)
-	statsToggleRow := wrapGhost(sp.statsBtn)
 
 	clearCacheBtn := newSecondaryButton("CLEAR CACHE", sp.onClearCache)
 	clearTranscriptsBtn := newSecondaryButton("CLEAR TRANSCRIPTS", sp.onClearTranscripts)
@@ -354,8 +339,6 @@ func buildSettingsTab(sp *settingsPanel, tp *transcribe.Panel, deviceInfo, versi
 		newSectionDivider(),
 		vGap(spaceMD),
 		toggleRow,
-		vGap(spaceMD),
-		statsToggleRow,
 		vGap(spaceMD),
 		clearRow,
 		vGap(spaceMD),

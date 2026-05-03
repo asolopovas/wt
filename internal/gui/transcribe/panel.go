@@ -23,7 +23,6 @@ type Settings interface {
 	NoDiarize() bool
 	Device() string
 	Debug() bool
-	ShowStats() bool
 }
 
 type History interface {
@@ -50,13 +49,10 @@ type Panel struct {
 
 	speakerRenames map[string]string
 
-	Progress     *thinProgress
-	StatusText   *canvas.Text
-	TimerText    *canvas.Text
-	TimerSep     fyne.CanvasObject
-	StatsLine    *fyne.Container
-	StatsFooter  *fyne.Container
-	lastStatsKey string
+	Progress   *thinProgress
+	StatusText *canvas.Text
+	TimerText  *canvas.Text
+	TimerSep   fyne.CanvasObject
 
 	runStart    time.Time
 	timerStop   chan struct{}
@@ -215,7 +211,7 @@ func New(window fyne.Window, settings Settings) *Panel {
 	p.startLogFlusher()
 	p.setupDragDrop()
 	p.restorePendingFiles()
-	p.startStats()
+
 	return p
 }
 
