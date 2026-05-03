@@ -134,40 +134,63 @@ func (p *Panel) runTranscription(files []string) {
 	speakers := p.Settings.Speakers()
 	noDiarize := p.Settings.NoDiarize()
 
-	p.setStatus("Loading model...")
-	p.debugLog(fmt.Sprintf("model=%s device=%s threads=%d language=%q speakers=%d noDiarize=%v", modelSize, device, threads, language, speakers, noDiarize))
-
-	model, err := p.loadModel(modelSize)
-	if err != nil {
-		p.AppendLog(fmt.Sprintf("Error: %v", err))
-		p.setStatus("Model loading failed")
-		p.debugLog(fmt.Sprintf("run done: outcome=failed phase=load-model elapsed=%.1fs reason=%v", time.Since(runStart).Seconds(), err))
-		return
-	}
-	defer func() {
-		_ = model.Close()
-	}()
-
-	gpuFound := false
-	devices := whisper.BackendDevices()
-	for _, dev := range devices {
-		if dev.Type == "GPU" || dev.Type == "iGPU" {
-			gpuFound = true
-			suffix := ""
-			if runtime.GOOS == "android" {
-				suffix = ", shared mem"
-			}
-			p.AppendLog(fmt.Sprintf("Model: %s · %s%s", modelSize, dev.Description, suffix))
-			if runtime.GOOS != "android" {
-				usedMB := dev.TotalMB - dev.FreeMB
-				p.debugLog(fmt.Sprintf("VRAM: %d/%d MB", usedMB, dev.TotalMB))
-			}
-			p.debugLog(fmt.Sprintf("GPU: %s (free=%dMB total=%dMB)", dev.Description, dev.FreeMB, dev.TotalMB))
+	// Resolve the active engine BEFORE loading whisper. Loading the
+	// 1.6 GB whisper-turbo model alongside a 660 MB sherpa engine on
+	// Android pushes total RSS+swap past the lmkd PSI thrashing
+	// threshold and the foreground app gets SIGKILLed (see logcat:
+	// "reason: device is low on swap and thrashing (300%)"). When the
+	// user picked a non-whisper ASR engine, skip the whisper load
+	// entirely — j.Model stays nil and Job.Run already tolerates that.
+	activeEngine := shared.EngineWhisper
+	if mgr := models.NewManager(); mgr != nil {
+		if eng, _ := models.EngineForActiveASR(mgr.Active(models.FamilyASR)); eng != "" {
+			activeEngine = eng
 		}
 	}
-	if !gpuFound {
-		p.AppendLog(fmt.Sprintf("Model: %s · CPU", modelSize))
-		p.debugLog("no GPU detected, using CPU")
+
+	var model whisper.Model
+	if activeEngine == shared.EngineWhisper {
+		p.setStatus("Loading model...")
+		p.debugLog(fmt.Sprintf("model=%s device=%s threads=%d language=%q speakers=%d noDiarize=%v", modelSize, device, threads, language, speakers, noDiarize))
+		var err error
+		model, err = p.loadModel(modelSize)
+		if err != nil {
+			p.AppendLog(fmt.Sprintf("Error: %v", err))
+			p.setStatus("Model loading failed")
+			p.debugLog(fmt.Sprintf("run done: outcome=failed phase=load-model elapsed=%.1fs reason=%v", time.Since(runStart).Seconds(), err))
+			return
+		}
+		defer func() {
+			_ = model.Close()
+		}()
+	} else {
+		p.debugLog(fmt.Sprintf("engine=%s threads=%d language=%q speakers=%d noDiarize=%v (skip whisper load)", activeEngine, threads, language, speakers, noDiarize))
+	}
+
+	gpuFound := false
+	if activeEngine == shared.EngineWhisper {
+		devices := whisper.BackendDevices()
+		for _, dev := range devices {
+			if dev.Type == "GPU" || dev.Type == "iGPU" {
+				gpuFound = true
+				suffix := ""
+				if runtime.GOOS == "android" {
+					suffix = ", shared mem"
+				}
+				p.AppendLog(fmt.Sprintf("Model: %s · %s%s", modelSize, dev.Description, suffix))
+				if runtime.GOOS != "android" {
+					usedMB := dev.TotalMB - dev.FreeMB
+					p.debugLog(fmt.Sprintf("VRAM: %d/%d MB", usedMB, dev.TotalMB))
+				}
+				p.debugLog(fmt.Sprintf("GPU: %s (free=%dMB total=%dMB)", dev.Description, dev.FreeMB, dev.TotalMB))
+			}
+		}
+		if !gpuFound {
+			p.AppendLog(fmt.Sprintf("Model: %s · CPU", modelSize))
+			p.debugLog("no GPU detected, using CPU")
+		}
+	} else {
+		p.AppendLog(fmt.Sprintf("Engine: %s (sherpa-onnx)", activeEngine))
 	}
 	if used, total := sysstats.MemUsageMB(); total > 0 {
 		p.debugLog(fmt.Sprintf("RAM: %d/%d MB", used, total))
@@ -445,9 +468,8 @@ func (p *Panel) transcribeFile(model whisper.Model, path, modelSize, deviceLabel
 		},
 	}
 
-	// Engine selection: if the user picked a Settings→Models entry from
-	// FamilyASR (Parakeet/SenseVoice/etc.), route to that engine via
-	// JobSpec.Engine. Whisper is the default when no ASR pick is active.
+	// Re-resolve here for transcribeFile-only callers; runTranscription
+	// already resolved this up-front to skip the whisper load.
 	engine := shared.EngineWhisper
 	if mgr := models.NewManager(); mgr != nil {
 		if eng, _ := models.EngineForActiveASR(mgr.Active(models.FamilyASR)); eng != "" {
