@@ -7,8 +7,8 @@ import (
 
 func TestSmoother_DefaultsClampedPositive(t *testing.T) {
 	s := NewSmoother(0, 0)
-	if s.audioDurSec <= 0 || s.rtf <= 0 {
-		t.Fatalf("expected positive defaults, got dur=%v rtf=%v", s.audioDurSec, s.rtf)
+	if s.audioDurSec <= 0 || s.rtf <= 0 || s.priorRTF <= 0 {
+		t.Fatalf("expected positive defaults, got dur=%v rtf=%v prior=%v", s.audioDurSec, s.rtf, s.priorRTF)
 	}
 }
 
@@ -69,5 +69,18 @@ func TestSmoother_ETANonNegative(t *testing.T) {
 	_, eta := s.Snapshot()
 	if eta < 0 {
 		t.Errorf("eta negative: %v", eta)
+	}
+}
+
+func TestSmoother_FastChunkDoesNotCrashETA(t *testing.T) {
+	s := NewSmoother(600, 0.5)
+	time.Sleep(50 * time.Millisecond)
+	s.Report(20)
+	_, etaFast := s.Snapshot()
+	time.Sleep(800 * time.Millisecond)
+	s.Report(25)
+	_, etaSlow := s.Snapshot()
+	if etaSlow < etaFast/4 {
+		t.Fatalf("ETA collapsed after one anomalously-fast chunk: fast=%.1f slow=%.1f", etaFast, etaSlow)
 	}
 }

@@ -40,7 +40,14 @@ func formatETA(secs float64) string {
 	h := total / 3600
 	m := (total % 3600) / 60
 	s := total % 60
-	return fmt.Sprintf("%02d:%02d:%02d", h, m, s)
+	if h > 0 {
+		return fmt.Sprintf("%d:%02d:%02d", h, m, s)
+	}
+	return fmt.Sprintf("%d:%02d", m, s)
+}
+
+func formatProgressTime(elapsedSec, etaSec float64) string {
+	return fmt.Sprintf("%s/%s", formatETA(elapsedSec), formatETA(etaSec))
 }
 
 func (p *Panel) onTranscribe() {
@@ -404,9 +411,11 @@ func (p *Panel) transcribeFile(model whisper.Model, path, modelSize, deviceLabel
 					disp = 99.5
 				}
 				p.setLocalProgress(0.10 + disp/100.0*0.70)
-				status := fmt.Sprintf("Transcribing... %.1f%%  ETA: %s", disp, formatETA(etaSec))
+				elapsed := smoother.Elapsed().Seconds()
+				timeStr := formatProgressTime(elapsed, etaSec)
+				status := fmt.Sprintf("%.1f%% · %s", disp, timeStr)
 				p.setStatus(status)
-				platsvc.UpdateProgress(int(disp+0.5), fmt.Sprintf("%.1f%% • ETA %s", disp, formatETA(etaSec)))
+				platsvc.UpdateProgress(int(disp+0.5), fmt.Sprintf("%.1f%% · %s", disp, timeStr))
 			}
 			render()
 			for {

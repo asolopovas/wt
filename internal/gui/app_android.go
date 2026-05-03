@@ -47,7 +47,8 @@ func Run(version, buildDate string) error {
 		sepWrap := container.NewCenter(sep)
 		sepWrap.Hide()
 		tp.TimerSep = sepWrap
-		history.headerRight.Objects = []fyne.CanvasObject{container.NewCenter(tp.StatusText), sepWrap, tp.TimerText}
+		tp.TimerText.Hide()
+		history.headerRight.Objects = []fyne.CanvasObject{container.NewCenter(tp.StatusText)}
 		history.headerRight.Refresh()
 	}
 	settings.onCacheCleared = history.Refresh
