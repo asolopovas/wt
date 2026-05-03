@@ -340,6 +340,12 @@ tasks:
           for f in dist/bin/lib*.so*; do
             [ -e "$f" ] && sudo cp -Pf "$f" "$dest/"
           done
+          # Refresh bundled llama-cli (auto-rename / future LLM features).
+          if [ -d dist/bin/llama ]; then
+            sudo mkdir -p "$dest/llama"
+            sudo cp -Pf dist/bin/llama/* "$dest/llama/" 2>/dev/null || true
+            [ -f "$dest/llama/llama-cli" ] && sudo chmod +x "$dest/llama/llama-cli"
+          fi
           {{.BINARY}} --version
         if: '[ -n "{{.IS_LINUX}}" ] && [ -n "{{.QUICK}}" ]'
       # Linux full install: dpkg -i the freshly built .deb.

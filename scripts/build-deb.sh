@@ -25,6 +25,14 @@ cp dist/deps/uv-linux "$root/opt/wt/uv"
 cp scripts/setup-linux-user.sh "$root/opt/wt/wt-setup"
 chmod +x "$root/opt/wt/uv" "$root/opt/wt/wt-setup" "$root/opt/wt/$BINARY" "$root/opt/wt/$BINARY-gui"
 
+if [ -d dist/bin/llama ]; then
+  mkdir -p "$root/opt/wt/llama"
+  cp -P dist/bin/llama/* "$root/opt/wt/llama/" 2>/dev/null || true
+  [ -f "$root/opt/wt/llama/llama-cli" ] && chmod +x "$root/opt/wt/llama/llama-cli"
+else
+  echo "  WARN: dist/bin/llama missing (run 'task llama-cli-host')"
+fi
+
 # Bundled models (whisper turbo + Silero VAD)
 src_models="${XDG_CONFIG_HOME:-$HOME/.config}/wt/models"
 for f in ggml-large-v3-turbo.bin ggml-silero-v6.2.0.bin; do
