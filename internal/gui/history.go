@@ -269,6 +269,9 @@ func (h *historyPanel) renameEntry(e cache.Entry) {
 	entry := widget.NewEntry()
 	entry.SetText(stem)
 
+	entryThemed := container.NewThemeOverride(entry, &renameEntryTheme{parent: fyne.CurrentApp().Settings().Theme()})
+	entrySized := container.New(&fixedHeightLayout{height: 56}, entryThemed)
+
 	caption := newCaptionText("NAME")
 	var hint fyne.CanvasObject = layout.NewSpacer()
 	if ext != "" {
@@ -277,7 +280,7 @@ func (h *historyPanel) renameEntry(e cache.Entry) {
 		hint = hintText
 	}
 
-	form := container.New(&tightVBox{gap: spaceSM}, caption, entry, hint)
+	form := container.New(&tightVBox{gap: spaceSM}, caption, entrySized, hint)
 
 	showDialog(dialogConfig{
 		Parent:    h.window,
