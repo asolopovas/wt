@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	whisper "github.com/ggerganov/whisper.cpp/bindings/go/pkg/whisper"
 )
 
 var models = []string{"tiny", "base", "small", "medium", "turbo"}
@@ -199,5 +201,84 @@ func TestGroupWordsIntoUtterances_NoSpeakerLabels(t *testing.T) {
 	utts := groupWordsIntoUtterances(words)
 	if len(utts) != 2 {
 		t.Fatalf("want 2 utterances, got %d", len(utts))
+	}
+}
+
+func TestCoalesceWhisperTokens_BPEContractionsAndSplits(t *testing.T) {
+	// Real whisper.cpp BPE output observed in the wild for the phrase:
+	//   "Hello, Mr O'Donnell. I'm Andrew. Fulham."
+	// Word-initial tokens carry a leading space; continuation pieces do not.
+	ms := func(n int) time.Duration { return time.Duration(n) * time.Millisecond }
+	tok := func(text string, start, end int) whisper.Token {
+		return whisper.Token{Text: text, Start: ms(start), End: ms(end)}
+	}
+	in := []whisper.Token{
+		tok(" Hello", 0, 400),
+		tok(",", 400, 410),
+		tok(" Mr", 500, 700),
+		tok(" O", 700, 800),
+		tok("'D", 800, 900),
+		tok("on", 900, 1000),
+		tok("nell", 1000, 1200),
+		tok(".", 1200, 1210),
+		tok(" I", 1300, 1400),
+		tok("'m", 1400, 1500),
+		tok(" Andrew", 1500, 1900),
+		tok(".", 1900, 1910),
+		tok(" F", 2000, 2100),
+		tok("ul", 2100, 2200),
+		tok("ham", 2200, 2400),
+		tok(".", 2400, 2410),
+	}
+	got := coalesceWhisperTokens(in)
+
+	wantTexts := []string{
+		"Hello,", "Mr", "O'Donnell.", "I'm", "Andrew.", "Fulham.",
+	}
+	if len(got) != len(wantTexts) {
+		t.Fatalf("got %d tokens, want %d: %+v", len(got), len(wantTexts), got)
+	}
+	for i, w := range wantTexts {
+		if got[i].Text != w {
+			t.Errorf("tok[%d].Text = %q, want %q", i, got[i].Text, w)
+		}
+	}
+
+	// End of "O'Donnell." must extend through the trailing "." piece
+	// (1200ms tok.End for "nell" is overwritten by 1210 from ".").
+	endCheck := func(n int) time.Duration { return time.Duration(n) * time.Millisecond }
+	if got[2].End != endCheck(1210) {
+		t.Errorf("O'Donnell. end = %v, want 1.21s", got[2].End)
+	}
+	if got[2].Start != endCheck(700) {
+		t.Errorf("O'Donnell. start = %v, want 0.7s", got[2].Start)
+	}
+
+	// Joining the coalesced words with a single space must match what
+	// the user reads in the final transcript — no double spaces, no
+	// split contractions / split multi-piece words.
+	joined := joinWords(func() []string {
+		out := make([]string, len(got))
+		for i, t := range got {
+			out[i] = t.Text
+		}
+		return out
+	}())
+	const want = "Hello, Mr O'Donnell. I'm Andrew. Fulham."
+	if joined != want {
+		t.Errorf("joined = %q, want %q", joined, want)
+	}
+}
+
+func TestCoalesceWhisperTokens_EmptyAndAllContinuation(t *testing.T) {
+	if got := coalesceWhisperTokens(nil); got != nil {
+		t.Errorf("nil input: got %+v, want nil", got)
+	}
+	// First token has no leading space — should still start a word
+	// (otherwise the very first word of every utterance would be lost).
+	in := []whisper.Token{{Text: "Hello", End: 500 * time.Millisecond}}
+	got := coalesceWhisperTokens(in)
+	if len(got) != 1 || got[0].Text != "Hello" {
+		t.Fatalf("got %+v, want one word \"Hello\"", got)
 	}
 }

@@ -50,6 +50,50 @@ func msFromDuration(d time.Duration) int64 {
 	return d.Milliseconds()
 }
 
+// coalesceWhisperTokens merges whisper.cpp BPE sub-word pieces into
+// word-level TokenData. Whisper's tokenizer marks word boundaries by
+// prefixing the first piece of each word with a space (e.g.
+//   " Good", " morning", " I", "'m", " O", "'D", "on", "nell",
+//   " F", "ul", "ham")
+// Continuation pieces (no leading space) are glued onto the previous
+// word, extending its End. Without this, downstream joinWords inserts
+// spaces inside words and contractions, producing output like
+// "O 'D on nell" / "I 'm" / "F ul ham" / double-spaced word gaps.
+// Mirrors coalesceTokens in engine_zipformer.go.
+func coalesceWhisperTokens(toks []whisper.Token) []diarizer.TokenData {
+	if len(toks) == 0 {
+		return nil
+	}
+	out := make([]diarizer.TokenData, 0, len(toks))
+	for _, tok := range toks {
+		piece := tok.Text
+		if piece == "" {
+			continue
+		}
+		isBoundary := len(out) == 0 || strings.HasPrefix(piece, " ")
+		piece = strings.TrimPrefix(piece, " ")
+		if piece == "" {
+			continue
+		}
+		if isBoundary {
+			out = append(out, diarizer.TokenData{
+				Text:  piece,
+				Start: tok.Start,
+				End:   tok.End,
+				P:     tok.P,
+			})
+			continue
+		}
+		last := &out[len(out)-1]
+		last.Text += piece
+		last.End = tok.End
+		if tok.P > 0 && (last.P == 0 || tok.P < last.P) {
+			last.P = tok.P
+		}
+	}
+	return out
+}
+
 func ExtractSegments(ctx whisper.Context) []diarizer.TranscriptSegment {
 	var segs []diarizer.TranscriptSegment
 	for {
@@ -61,18 +105,14 @@ func ExtractSegments(ctx whisper.Context) []diarizer.TranscriptSegment {
 			break
 		}
 
-		var tokens []diarizer.TokenData
+		textToks := make([]whisper.Token, 0, len(segment.Tokens))
 		for _, tok := range segment.Tokens {
 			if !ctx.IsText(tok) {
 				continue
 			}
-			tokens = append(tokens, diarizer.TokenData{
-				Text:  tok.Text,
-				Start: tok.Start,
-				End:   tok.End,
-				P:     tok.P,
-			})
+			textToks = append(textToks, tok)
 		}
+		tokens := coalesceWhisperTokens(textToks)
 
 		segs = append(segs, diarizer.TranscriptSegment{
 			Start:           segment.Start,
