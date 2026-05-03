@@ -3,6 +3,8 @@ package gui
 import (
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"fyne.io/fyne/v2"
@@ -82,9 +84,7 @@ func formatDurationCompact(ms int64) string {
 }
 
 func (h *historyPanel) buildRow(e cache.Entry) fyne.CanvasObject {
-	nameText := canvas.NewText(e.SourceName, colForeground)
-	nameText.TextSize = textRow
-	nameText.TextStyle = fyne.TextStyle{Bold: true}
+	nameText := newTruncText(e.SourceName, colForeground, textRow, fyne.TextStyle{Bold: true})
 
 	recorded := cache.RecordedAtOrFallback(e)
 	metaText := canvas.NewText(
@@ -223,6 +223,9 @@ func (h *historyPanel) showRowMenu(e cache.Entry, recorded time.Time, anchor fyn
 	}
 
 	items = append(items,
+		fyne.NewMenuItem("Rename", func() {
+			h.renameEntry(e)
+		}),
 		fyne.NewMenuItem("Edit timestamp", func() {
 			h.editRecordedAt(e.Key, recorded)
 		}),
@@ -256,6 +259,54 @@ func (h *historyPanel) showRowMenu(e cache.Entry, recorded time.Time, anchor fyn
 	pos := fyne.CurrentApp().Driver().AbsolutePositionForObject(anchor)
 	pos = pos.Add(fyne.NewPos(anchor.Size().Width-pop.MinSize().Width, anchor.Size().Height))
 	pop.ShowAtPosition(pos)
+}
+
+func (h *historyPanel) renameEntry(e cache.Entry) {
+	entry := widget.NewEntry()
+	entry.SetText(e.SourceName)
+
+	form := container.New(&tightVBox{gap: spaceSM},
+		newCaptionText("NAME"),
+		entry,
+	)
+
+	showDialog(dialogConfig{
+		Parent:    h.window,
+		Title:     "RENAME",
+		Body:      form,
+		AnchorTop: true,
+		Actions: []dialogAction{
+			{Label: "CANCEL", Kind: kindSecondary},
+			{Label: "SAVE", Kind: kindPrimary, OnTap: func() {
+				newName := strings.TrimSpace(entry.Text)
+				if newName == "" || newName == e.SourceName {
+					return
+				}
+				newPath := e.SourcePath
+				if e.SourcePath != "" {
+					dir := filepath.Dir(e.SourcePath)
+					ext := filepath.Ext(e.SourcePath)
+					base := newName
+					if filepath.Ext(base) == "" && ext != "" {
+						base += ext
+					}
+					newPath = filepath.Join(dir, base)
+					if newPath != e.SourcePath {
+						if err := os.Rename(e.SourcePath, newPath); err != nil && !os.IsNotExist(err) {
+							showError(h.window, fmt.Errorf("renaming file: %w", err))
+							return
+						}
+					}
+					newName = filepath.Base(newPath)
+				}
+				if err := cache.SetSource(e.Key, newPath, newName); err != nil {
+					showError(h.window, fmt.Errorf("updating cache: %w", err))
+					return
+				}
+				h.Refresh()
+			}},
+		},
+	})
 }
 
 func (h *historyPanel) editRecordedAt(key string, current time.Time) {
