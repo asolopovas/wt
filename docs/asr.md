@@ -1,73 +1,45 @@
 # ASR engines & transcription
 
-## Chunked, resumable driver
+## Chunked driver — `internal/transcriber/engine_chunk.go`
 
-All ASR engines (Whisper + sherpa-onnx variants) run through unified chunked driver in `internal/transcriber/engine_chunk.go`. Default 30s windows (env `WT_CHUNK_SEC`, range 5–60). Partial cache (`internal/transcriber/cache.Partial`) persisted **after every chunk**, engine-agnostic format → resume works across engines, ≤1 chunk lost on OOM/reboot/kill.
-
-Never reintroduce a "process full sample buffer in one shot" path — long inputs (>5min) on Android arm64 reliably trigger kernel OOM killer, often reboots the device with no userland crash log (persistent `wt.log` appears cut off because GUI is killed before next `AppendLogLine` flushes).
-
-When adding a new ASR engine: write a `chunkProcessor` taking chunk-local samples → returning chunk-local segments. Driver shifts timestamps onto absolute timeline, saves partials, handles ctx cancellation, emits uniform progress.
+- **Never** add a "process full buffer in one shot" path. Long inputs OOM-kill on Android arm64 (often reboots the device, no crash log).
+- New engine: implement a `chunkProcessor(chunkSamples) → chunkSegments`. Driver handles timeline shift, partials, ctx cancel, progress.
+- Chunk size override: env `WT_CHUNK_SEC` (5–60).
 
 ## Engine selection
 
-Pluggable via `shared.Config.Engine` / `WT_ENGINE` / `JobSpec.Engine`. Values:
+Dispatched in `internal/transcriber/engine.go:Job.runASR` — **never** branch inside `runWhisper`. Values: `whisper` (default), `zipformer`, `moonshine`, `parakeet`, `sensevoice`. Set via `shared.Config.Engine` / env `WT_ENGINE` / `JobSpec.Engine`.
 
-- `whisper` (default) — 99-lang fallback
-- `zipformer` — sherpa transducer, uppercase output
-- `moonshine` — sherpa, cased+punctuated, ~10× RTF on Exynos 2400 CPU
-- `parakeet` — sherpa NeMo TDT, English, ~9× RTF, native cased+punct
-- `sensevoice` — sherpa, multilingual zh/en/ja/ko/yue, ~16× RTF
-
-Dispatch in `internal/transcriber/engine.go` `Job.runASR`. New sherpa-backed engine: reuse helpers in `engine_zipformer.go` (`findSherpaASRBinary`, `writeTempWAV`, `runSherpaCmd`, `parseSherpaJSON`, `runSherpaEngineChunked`, `coalesceTokens`) and add a case to `runASR` — do **not** branch inside `runWhisper`.
-
-GUI must set `spec.Engine = models.EngineForActiveASR(mgr.Active(models.FamilyASR))` (or fall back to whisper). Catalog entries need `Family: FamilyASR` and `Engine: shared.EngineX`.
+New sherpa engine: reuse helpers in `engine_zipformer.go` (`findSherpaASRBinary`, `writeTempWAV`, `runSherpaCmd`, `parseSherpaJSON`, `runSherpaEngineChunked`, `coalesceTokens`). GUI must call `models.EngineForActiveASR(mgr.Active(models.FamilyASR))` to set `spec.Engine`. Catalog entries need `Family: FamilyASR` and `Engine: shared.EngineX`.
 
 ## Engine quirks
 
-- Moonshine: ~12–15s minimum effective input; shorter inputs may produce empty `text`. Pad-and-trim or fall back to Zipformer for <15s.
-- Vanilla Zipformer transducer: accepts arbitrarily short inputs.
-- Parakeet TDT: requires `--model-type=nemo_transducer` (NOT `transducer`). Plain transducer path looks for `vocab_size` metadata TDT models don't populate.
-- SenseVoice: `--sense-voice-model=` (single-file), NOT encoder/decoder/joiner triplet.
+- **Moonshine** — empty `text` for <12–15s input; pad-and-trim or fall back to zipformer.
+- **Parakeet TDT** — needs `--model-type=nemo_transducer` (plain `transducer` reads `vocab_size` metadata TDT lacks).
+- **SenseVoice** — single-file flag `--sense-voice-model=`, not encoder/decoder/joiner triplet.
 
 ## Token coalescing
 
-Whisper.cpp emits BPE sub-word tokens (`Segment.Tokens`), not words. Word boundaries = tokens whose `Text` starts with space (e.g. `" Good"`, `"'s"`). Continuation pieces have no leading space. Any code path consuming per-token output for word-level speaker mapping MUST coalesce continuation pieces onto previous word before downstream `joinWords` runs `strings.Join(parts, " ")` — otherwise contractions split (`"I 'm"`), multi-piece words split (`"F ul ham"`), every word gap doubles. Use `coalesceWhisperTokens` in `internal/transcriber/output.go`.
+Both whisper.cpp `Segment.Tokens` and `sherpa-onnx-offline` JSON emit BPE sub-word tokens. Word boundary = leading-space token; continuations have no leading space. **Always coalesce continuations onto the previous word before any `strings.Join(parts, " ")`** — otherwise contractions split (`I 'm`), multi-piece words split (`F ul ham`), gaps double.
 
-`sherpa-onnx-offline` emits one JSON line per WAV: `{"text", "tokens", "timestamps"}`. Tokens are BPE sub-word; word boundaries are space-leading tokens. Same coalesce: glue non-space-leading tokens onto previous before emitting word-level segments. Mirror in `engine_zipformer.go:coalesceTokens`.
+- whisper: `coalesceWhisperTokens` in `internal/transcriber/output.go`
+- sherpa: `coalesceTokens` in `internal/transcriber/engine_zipformer.go`
 
-## Catalog policy (`internal/models/catalog.go`)
+## Catalog policy — `internal/models/catalog.go`
 
-Curated, not exhaustive. Each entry must be best-in-class for its niche or be removed. Never add on theoretical/paper-SOTA grounds — validate on real device with real audio fixture first.
+- **Never add on paper-SOTA grounds.** Validate first: `wt-test -engine=<asr> -diarize -speakers=2 <audio>`. If reported `unique speakers` < expected, model fails regardless of benchmarks.
+- Use `csukuangfj/*` HF mirrors for individual ONNX files; avoid `sherpa-onnx/releases/*.tar.bz2` (no tar/bz2 extraction in `FileSpec` downloader).
 
-Right test for diarization: `wt-test -engine=<asr> -diarize -speakers=2 <audio>` then check `Diarized in Xs, N raw segments, M unique speakers`. If M < expected speakers, model failed regardless of paper benchmarks.
+### Don't add
 
-Current top-tier picks:
+- **Picovoice Falcon** — closed-source.
+- **Whisper Vulkan on Xclipse 940** — see `android.md`.
+- **Distil-Whisper Large V3** — whisper-turbo already is the official multilingual distillation.
+- **Reverb-v2** — failed (1 cluster) on a clip pyannote-3.0 handled (12 segs, 2 speakers).
+- **Sortformer v2 / Qwen3-ASR** — wait for `csukuangfj/*` ONNX + benchmark first. Sortformer must beat pyannote-3.0 raw segment count on a 1–2min `--speakers=2` clip.
 
-- **Parakeet TDT 0.6B v2 int8** — English-only, ~9× RTF, native cased+punct
-- **SenseVoice int8** — multilingual zh/en/ja/ko/yue, ~16× RTF, native cased+punct, word timestamps
-- **Whisper-turbo** — 99-lang fallback
-- **Qwen3 0.6B Q4_K_M** — auto-rename namer default; 1.7B kept as quality option
+## LLM auto-rename — `internal/llm/runner.go`
 
-Use `csukuangfj/*` HF mirrors for individual ONNX files instead of `sherpa-onnx/releases/*.tar.bz2` archives so existing FileSpec downloader works without tar/bz2 extraction.
-
-### Watch list
-
-Wait for `csukuangfj/*` or k2-fsa to publish ONNX + sherpa-onnx integration, benchmark on real fixture before adding:
-
-- **Sortformer v2** (NVIDIA NeMo) — potential pyannote-3.0 replacement; test against `diar-titanet-large` on 1–2min conversational clip with `--speakers=2`; reject if fewer raw segments than pyannote-3.0 (Reverb-v2 lesson).
-- **Qwen3-ASR 0.6B** — potential SOTA multilingual (52 langs, Apache 2.0); no Android port yet. Would slot alongside Parakeet (English) and SenseVoice (Asian).
-
-### Reject list
-
-- **Picovoice Falcon** — closed-source commercial; incompatible with on-device privacy positioning even on free tier.
-- **Whisper Vulkan on Xclipse 940** — dead end (see android.md).
-- **Distil-Whisper Large V3** — redundant; whisper-turbo IS official OpenAI distillation of large-v3 (multilingual; distil-large-v3 is English-only).
-- **Moonshine in catalog** — 12–15s min input unfit for voice notes/live captions. Code remains for env-bundle benchmarking only.
-- **Reverb-v2** — Rev.ai 2024 "conversational SOTA" failed catastrophically on 1-min conversational interview (1 cluster, 1 speaker, 91.7s) where pyannote-3.0 succeeded (12 segs, 2 speakers, 16.4s).
-- **Moonshine/Zipformer/Paraformer/CT-Transformer in catalog** — engines remain available via env-var bundles for benchmarking but dominated by curated picks for end users.
-
-## LLM auto-rename
-
-`llama-cli` subprocess; mobile CPUs slow. Per-invocation timeout: `llmTimeout()` in `internal/llm/runner.go` (10min Android, 2min desktop, override `WT_LLM_TIMEOUT` seconds). Always update live status (`p.setStatus`) and foreground notification (`platsvc.UpdateProgress`) for any post-transcription phase that can run >1s — UI looks frozen on previous phase's message otherwise.
-
-GBNF grammars: never write `(rule)? (rule)? …` chains — each `?` doubles state space, llama.cpp's sampler degrades to effectively single-threaded grammar evaluation. 55-`?` chain made auto-rename hang 4+ min on phone (single 100% CPU thread despite `-t 6`). Use `{n,m}` repetition (e.g. `slugChar{5,60}`); same expressiveness, ~100× faster. Verify with `time llama-cli ... --grammar-file g.gbnf` before merging grammar changes.
+- Any post-transcription phase >1s **must** update both `p.setStatus(...)` and `platsvc.UpdateProgress(...)`. Otherwise UI looks frozen on the previous phase's message.
+- GBNF grammars: **never** write `(rule)? (rule)? …` chains — each `?` doubles state space and llama.cpp's grammar sampler is single-threaded. Use `{n,m}` repetition (e.g. `slugChar{5,60}`). Verify with `time llama-cli ... --grammar-file g.gbnf` before merging.
+- Per-call timeout: `llmTimeout()` (override `WT_LLM_TIMEOUT` seconds).
