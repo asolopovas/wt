@@ -273,18 +273,19 @@ func (h *historyPanel) renameEntry(e cache.Entry) {
 	entrySized := container.New(&fixedHeightLayout{height: 56}, entryThemed)
 
 	clipboard := fyne.CurrentApp().Clipboard()
-	cutBtn := newSecondaryButton("CUT", func() {
+	cutBtn := newPointerButtonWithIcon("", theme.ContentCutIcon(), func() {
 		entry.TypedShortcut(&fyne.ShortcutCut{Clipboard: clipboard})
 	})
-	copyBtn := newSecondaryButton("COPY", func() {
+	cutBtn.Importance = widget.LowImportance
+	copyBtn := newPointerButtonWithIcon("", theme.ContentCopyIcon(), func() {
 		entry.TypedShortcut(&fyne.ShortcutCopy{Clipboard: clipboard})
 	})
-	pasteBtn := newSecondaryButton("PASTE", func() {
+	copyBtn.Importance = widget.LowImportance
+	pasteBtn := newPointerButtonWithIcon("", theme.ContentPasteIcon(), func() {
 		entry.TypedShortcut(&fyne.ShortcutPaste{Clipboard: clipboard})
 	})
-	toolbar := container.NewGridWithColumns(3,
-		wrapAction(cutBtn), wrapAction(copyBtn), wrapAction(pasteBtn),
-	)
+	pasteBtn.Importance = widget.LowImportance
+	toolbar := container.NewHBox(layout.NewSpacer(), cutBtn, copyBtn, pasteBtn)
 
 	caption := newCaptionText("NAME")
 	var hint fyne.CanvasObject = layout.NewSpacer()
@@ -301,6 +302,7 @@ func (h *historyPanel) renameEntry(e cache.Entry) {
 		Title:     "RENAME",
 		Body:      form,
 		AnchorTop: true,
+		WidthFrac: 0.85,
 		Actions: []dialogAction{
 			{Label: "CANCEL", Kind: kindSecondary},
 			{Label: "SAVE", Kind: kindPrimary, OnTap: func() {
