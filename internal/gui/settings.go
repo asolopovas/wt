@@ -478,8 +478,17 @@ func (p *settingsPanel) refreshModelOptions() {
 }
 
 func (p *settingsPanel) newLangSelectMirror() *limitSelect {
-	s := newLimitSelect(languages, 300, p.onLangChanged)
+	// Construct with the already-filtered options from the master so the
+	// mirror matches the active engine's whitelist on first display.
+	// (Important when the transcode tab mirror is created AFTER the
+	// settings panel's defer p.refreshLanguageOptions() has already run
+	// against the master — otherwise the mirror would expose the full
+	// 99-lang list even when Parakeet is the active engine.)
+	s := newLimitSelect(p.langSelect.Inner.Options, 300, p.onLangChanged)
 	s.Inner.Selected = p.langSelect.Inner.Selected
+	if p.langSelect.Inner.Disabled() {
+		s.Inner.Disable()
+	}
 	p.langMirrors = append(p.langMirrors, s)
 	return s
 }

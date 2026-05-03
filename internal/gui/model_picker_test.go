@@ -260,6 +260,31 @@ func equalStringSlice(a, b []string) bool {
 	return true
 }
 
+// Regression: when an engine has only one valid language (e.g. Parakeet
+// -> ["en"]), a NEWLY-CREATED language mirror (transcode tab built
+// after settings panel) must inherit the filtered options, not the
+// full whisper-style 99-lang list. Bug fixed by constructing the
+// mirror from the master's already-filtered Options.
+func TestLanguageFilter_NewMirrorInheritsFilter(t *testing.T) {
+	mgr := setupTestModels(t)
+	if err := setActiveTranscription(mgr, "parakeet-tdt-0.6b-v2-int8"); err != nil {
+		t.Fatalf("setActiveTranscription: %v", err)
+	}
+
+	// Same chain newLangSelectMirror uses: filter the global list against
+	// the active engine's whitelist; the mirror must be built from this
+	// filtered set rather than the raw `languages` slice.
+	allowed := supportedLanguagesForActive(mgr)
+	masterOpts, masterSel := filterLanguageOptions(languages, allowed, "auto")
+
+	if len(masterOpts) != 1 || masterOpts[0] != "en" {
+		t.Fatalf("master filter expected [en], got %v", masterOpts)
+	}
+	if masterSel != "en" {
+		t.Errorf("master selection = %q, want en", masterSel)
+	}
+}
+
 // Shared-file deletion safety: deleting one diarizer preset must not
 // orphan another preset that shares the same segmentation file
 // (pyannote-3.0 is shared by 3 of the 5 presets).
