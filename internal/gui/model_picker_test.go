@@ -161,7 +161,7 @@ func TestSync_Diarizer_RoundTrip(t *testing.T) {
 	mgr := setupTestModels(t)
 
 	// Materialise a second diarizer's files so we can switch.
-	for _, id := range []string{"diar-mobile-light"} {
+	for _, id := range []string{"diar-multilingual"} {
 		e, _ := models.ByID(id)
 		for _, p := range models.PathsFor(e) {
 			_ = os.MkdirAll(filepath.Dir(p), 0o755)
@@ -169,12 +169,12 @@ func TestSync_Diarizer_RoundTrip(t *testing.T) {
 		}
 	}
 
-	if err := mgr.SetActive("diar-mobile-light"); err != nil {
-		t.Fatalf("SetActive diar-mobile-light: %v", err)
+	if err := mgr.SetActive("diar-multilingual"); err != nil {
+		t.Fatalf("SetActive diar-multilingual: %v", err)
 	}
 	opts := diarizerPickerOptions(mgr)
-	if got := activeDiarizerDisplayName(opts, mgr); got != "Mobile-light (pyannote-3.0 + TitaNet-Small)" {
-		t.Errorf("active diarizer display = %q, want Mobile-light", got)
+	if got := activeDiarizerDisplayName(opts, mgr); got != "Multilingual (pyannote-3.0 + CAM++ zh+en)" {
+		t.Errorf("active diarizer display = %q, want Multilingual", got)
 	}
 
 	// Switch via the dropdown lookup chain.
@@ -335,21 +335,21 @@ func TestLanguageFilter_NewMirrorInheritsFilter(t *testing.T) {
 func TestSharedFile_DeleteDoesNotOrphanOthers(t *testing.T) {
 	mgr := setupTestModels(t)
 
-	// Install diar-mobile-light too (shares pyannote-3.0 with default).
-	other, _ := models.ByID("diar-mobile-light")
+	// Install diar-multilingual too (shares pyannote-3.0 with default).
+	other, _ := models.ByID("diar-multilingual")
 	for _, p := range models.PathsFor(other) {
 		_ = os.MkdirAll(filepath.Dir(p), 0o755)
 		_ = os.WriteFile(p, []byte("stub"), 0o644)
 	}
-	if mgr.Status("diar-mobile-light") != models.StatusInstalled {
-		t.Fatalf("setup: diar-mobile-light should be installed")
+	if mgr.Status("diar-multilingual") != models.StatusInstalled {
+		t.Fatalf("setup: diar-multilingual should be installed")
 	}
 
 	// Delete the default. Mobile-light must remain fully installed.
 	if err := mgr.Delete("diar-titanet-large"); err != nil {
 		t.Fatalf("Delete: %v", err)
 	}
-	if mgr.Status("diar-mobile-light") != models.StatusInstalled {
-		t.Errorf("after deleting diar-titanet-large, diar-mobile-light should still be installed (shares pyannote-3.0)")
+	if mgr.Status("diar-multilingual") != models.StatusInstalled {
+		t.Errorf("after deleting diar-titanet-large, diar-multilingual should still be installed (shares pyannote-3.0)")
 	}
 }

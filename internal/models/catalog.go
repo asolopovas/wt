@@ -108,20 +108,29 @@ var whisperEntries = []Entry{
 // segmentation or embedding file on disk; manager.Delete preserves shared
 // files (don't orphan another installed entry).
 //
-// Embedding rankings come from scripts/diar_sweep_results.csv (3 fixtures,
+// Curated to 3 entries covering distinct niches:
+//   - English default (pyannote-3.0 + TitaNet-Large)
+//   - English quality-first (Reverb-v2 + TitaNet-Large) for conversational/
+//     telephone audio where pyannote-3.0 mis-segments speaker boundaries
+//   - Multilingual zh+en (pyannote-3.0 + CAM++)
+//
+// Removed:
+//   - diar-mobile-light: shared the pyannote-3.0 segmenter with the default
+//     (= identical boundary errors); only the embedding model differed and was
+//     statistically tied with TitaNet-Large. Not a real niche on Android.
+//   - diar-3dspeaker-v2: untested speculative pairing.
+//
+// Embedding rankings from scripts/diar_sweep_results.csv (3 fixtures,
 // 72 configs each):
 //
 //	titanet_large    DER 0.190  (winner)
-//	titanet_small    DER 0.191  (statistical tie at 1/2.5 the size!)
+//	titanet_small    DER 0.191  (statistical tie at 1/2.5 the size)
 //	eres2net_en      DER 0.211
 //	campplus_zh_en   DER 0.222  (multilingual leader)
 //
 var (
 	diarSegPyannote30URL = "https://huggingface.co/csukuangfj/sherpa-onnx-pyannote-segmentation-3-0/resolve/main/model.onnx"
 	diarSegPyannote30Rel = "sherpa-onnx-pyannote-segmentation-3-0/model.onnx"
-
-	diarSegReverbV1URL = "https://huggingface.co/csukuangfj/sherpa-onnx-reverb-diarization-v1/resolve/main/model.onnx"
-	diarSegReverbV1Rel = "sherpa-onnx-reverb-diarization-v1/model.onnx"
 
 	diarSegReverbV2URL = "https://huggingface.co/csukuangfj/sherpa-onnx-reverb-diarization-v2/resolve/main/model.onnx"
 	diarSegReverbV2Rel = "sherpa-onnx-reverb-diarization-v2/model.onnx"
@@ -176,36 +185,6 @@ var diarizerEntries = []Entry{
 			{URL: diarEmbBase + "3dspeaker_speech_campplus_sv_zh_en_16k-common_advanced.onnx", RelPath: "3dspeaker_campplus_zh_en_advanced.onnx", SizeBytes: 28_281_164},
 		},
 	},
-	// 4. Mobile-light — TitaNet-Small ties Large in our sweep at 1/2.5 the size.
-	{
-		ID:            "diar-mobile-light",
-		Family:        FamilyDiarizer,
-		DisplayName:   "Mobile-light (pyannote-3.0 + TitaNet-Small)",
-		Description:   "TitaNet-Small. Sweep DER 0.191 (statistically tied with Large) at 1/2.5 the size. ~46 MB total.",
-		SizeBytes:     46_000_000,
-		RAMHintMB:     200,
-		DiarSegRelPath: diarSegPyannote30Rel,
-		DiarEmbRelPath: "titanet_small.onnx",
-		Files: []FileSpec{
-			{URL: diarSegPyannote30URL, RelPath: diarSegPyannote30Rel, SizeBytes: 5_992_913},
-			{URL: diarEmbBase + "nemo_en_titanet_small.onnx", RelPath: "titanet_small.onnx", SizeBytes: 40_257_283},
-		},
-	},
-	// 5. Newest architecture — ERes2NetV2 (3D-Speaker 2024) + Reverb-v1 segmenter.
-	{
-		ID:            "diar-3dspeaker-v2",
-		Family:        FamilyDiarizer,
-		DisplayName:   "3D-Speaker SOTA (Reverb-v1 + ERes2NetV2)",
-		Description:   "Newest 2024 architectures on both ends. Untested in our sweep but theoretically strongest. ~81 MB.",
-		SizeBytes:     81_000_000,
-		RAMHintMB:     400,
-		DiarSegRelPath: diarSegReverbV1Rel,
-		DiarEmbRelPath: "3dspeaker_eres2netv2.onnx",
-		Files: []FileSpec{
-			{URL: diarSegReverbV1URL, RelPath: diarSegReverbV1Rel, SizeBytes: 9_512_223},
-			{URL: diarEmbBase + "3dspeaker_speech_eres2netv2_sv_zh-cn_16k-common.onnx", RelPath: "3dspeaker_eres2netv2.onnx", SizeBytes: 71_441_526},
-		},
-	},
 }
 
 // EngineForActiveASR returns (engineID, modelID) for the currently selected
@@ -224,6 +203,8 @@ var legacyDiarizerIDs = map[string]string{
 	"sherpa-pyannote-segmentation-3.0": "diar-titanet-large",
 	"sherpa-titanet-large":             "diar-titanet-large",
 	"sherpa-diarizer":                  "diar-titanet-large",
+	"diar-mobile-light":                "diar-titanet-large",
+	"diar-3dspeaker-v2":                "diar-reverb-v2",
 }
 
 // Top-tier ASR models (sherpa-onnx). Curated rather than exhaustive: each
