@@ -66,6 +66,7 @@ No raw pixel literals, hex colors, or `widget.NewButton` + manual styling.
 - **Notifications**: `showNotice` / `showError` / `showConfirm`. Never `dialog.ShowError/Information/Confirm` directly (file pickers `NewFileOpen/Save/FolderOpen` are the only exception).
 - **Aliases** (`aliases.go`): single file for `decor`/`assets` re-exports, `validModels`, `attachLibrary`.
 - **Widget reuse**: a Fyne widget can only have one parent. To show the same control in two tabs, add a mirror factory on the owning panel (see `settingsPanel.newModelSelectMirror`).
+- **Mirror initialisation order**: panel-level state mutations (e.g. `refreshLanguageOptions` filtering the master select's `Options` based on active engine) run during `settingsPanel.build()` via `defer`. Mirror factories like `newLangSelectMirror`/`newModelSelectMirror` are called *later* by `app.go`/`app_android.go` when the transcode tab is constructed. Always seed a new mirror from the master widget's already-filtered `Options` (and copy `Disabled()` state) — not the raw global slice. Otherwise the mirror surfaces stale unfiltered options at tap time (LimitSelect.Tapped reads Inner.Options on each tap).
 
 ## Testing
 
