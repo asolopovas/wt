@@ -26,8 +26,8 @@ func DialogBordered(content fyne.CanvasObject) fyne.CanvasObject {
 	frame.StrokeWidth = 1
 
 	inner := container.NewBorder(
-		VGap(SpaceXL), VGap(SpaceXL),
-		HGap(SpaceXL), HGap(SpaceXL),
+		VGap(SpaceXXL), VGap(SpaceXXL),
+		HGap(SpaceXXL), HGap(SpaceXXL),
 		content,
 	)
 	return container.NewStack(frame, inner)

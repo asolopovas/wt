@@ -12,6 +12,7 @@ import (
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/widget"
 
+	"github.com/asolopovas/wt/internal/gui/decor"
 	"github.com/asolopovas/wt/internal/gui/preview"
 
 	shared "github.com/asolopovas/wt/internal"
@@ -273,7 +274,7 @@ func (p *settingsPanel) onClearLog() {
 				showError(p.window, err)
 				return
 			}
-			showDialog(dialogConfig{Parent: p.window, Title: "Log cleared", Body: widget.NewLabel(shared.LogFilePath())})
+			decor.ShowNotice(p.window, decor.NotifyInfo, "Log cleared", shared.LogFilePath())
 		})
 }
 
