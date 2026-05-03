@@ -152,6 +152,9 @@ func (p *Panel) setRunning(running bool) {
 			p.TranscribeBtn.Importance = widget.DangerImportance
 			p.clearBtn.Disable()
 			p.clearCacheBtn.Disable()
+			if p.CancelBtn != nil {
+				p.CancelBtn.Enable()
+			}
 			p.Progress.Show()
 			p.Progress.SetValue(0)
 		} else {
@@ -159,6 +162,9 @@ func (p *Panel) setRunning(running bool) {
 			p.TranscribeBtn.Importance = widget.HighImportance
 			p.clearBtn.Enable()
 			p.clearCacheBtn.Enable()
+			if p.CancelBtn != nil {
+				p.CancelBtn.Disable()
+			}
 		}
 	})
 }

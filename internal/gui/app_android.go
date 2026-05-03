@@ -239,10 +239,12 @@ func buildTranscodeTabAndroid(tp *transcribe.Panel, settings *settingsPanel) fyn
 
 	addBtn := newSecondaryButton("ADD FILES", tp.OnBrowse)
 	cancelBtn := decor.NewDangerButton("CANCEL", tp.OnCancel)
+	cancelBtn.Disable()
+	tp.CancelBtn = cancelBtn
 
 	var recBtn *pointerButton
 	recBtn = newPointerButtonWithIcon("RECORD", assets.MicIcon, func() { tp.OnToggleRecord(recBtn) })
-	recBtn.Importance = widget.HighImportance
+	recBtn.Importance = widget.DangerImportance
 
 	settingsRow := container.NewGridWithColumns(2,
 		newFormField("MODEL", settings.newModelSelectMirror()),

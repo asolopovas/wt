@@ -20,7 +20,7 @@ var (
 	colDialogBorder = color.NRGBA{R: 168, G: 178, B: 188, A: 200}
 	colHover        = color.NRGBA{R: 143, G: 205, B: 255, A: 20}
 	colSuccess      = color.NRGBA{R: 187, G: 250, B: 195, A: 255}
-	colError        = color.NRGBA{R: 255, G: 180, B: 171, A: 255}
+	colError        = color.NRGBA{R: 239, G: 83, B: 80, A: 255}
 	transparent     = color.NRGBA{}
 )
 

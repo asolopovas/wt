@@ -20,7 +20,7 @@ func (p *Panel) OnToggleRecord(btn *pointerButton) {
 		path, err := stopRecording()
 		btn.SetIcon(assets.MicIcon)
 		btn.SetText("RECORD")
-		btn.Importance = widget.HighImportance
+		btn.Importance = widget.DangerImportance
 		btn.Refresh()
 		if err != nil {
 			p.AppendLog("Recording stop failed: " + err.Error())
