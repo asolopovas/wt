@@ -143,10 +143,27 @@ func run(lang, modelSize, modelPath string, threads, speakers int, tdrz, noDiari
 		return fmt.Errorf("no valid audio files found")
 	}
 
+	runStart := time.Now()
+	shared.LogProcessStart(fmt.Sprintf("transcription (%d file(s))", len(paths)))
+	shared.LogInfo(fmt.Sprintf("log: %s", shared.LogFilePath()))
+	shared.LogInfo(fmt.Sprintf("args: model-size=%s model=%q lang=%q threads=%d speakers=%d tdrz=%v no-diarize=%v no-rename=%v verbose=%v",
+		modelSize, modelPath, lang, threads, speakers, tdrz, noDiarize, noRename, ui.Verbose))
+	for i, p := range paths {
+		shared.LogInfo(fmt.Sprintf("input[%d/%d]: %s", i+1, len(paths), p))
+	}
+
 	ui.Banner(appinfo.DisplayVersion(Version, BuildDate), modelSize)
+
+	resolvedModel, mErr := transcriber.ResolveModelPathLocal(modelSize, modelPath)
+	if mErr == nil {
+		shared.LogInfo("model file: " + resolvedModel)
+	} else {
+		shared.LogDebug("model not yet resolved locally: " + mErr.Error())
+	}
 
 	model, err := transcriber.LoadModel(modelSize, modelPath, threads)
 	if err != nil {
+		shared.LogProcessEnd("transcription", "failed", "loading model: "+err.Error())
 		return fmt.Errorf("loading model: %w", err)
 	}
 	defer func() {
@@ -159,19 +176,31 @@ func run(lang, modelSize, modelPath string, threads, speakers int, tdrz, noDiari
 	for i, path := range paths {
 		filename := filepath.Base(path)
 		ui.FileHeader(i+1, len(paths), filename)
+		jobStart := time.Now()
 		absPath, jsonPath, err := runJob(model.Model, path, modelSize, lang, threads, speakers, tdrz, noDiarize)
 		if err != nil {
+			shared.LogError(fmt.Sprintf("file failed: %s — %v (after %.1fs)", filename, err, time.Since(jobStart).Seconds()))
 			ui.Errorf("%v", err)
 			errCount++
 			continue
 		}
+		shared.LogInfo(fmt.Sprintf("file ok: src=%s out=%s (%.1fs)", absPath, jsonPath, time.Since(jobStart).Seconds()))
 		if !noRename {
 			autoRename(absPath, jsonPath)
 		}
 	}
 
+	outcome := "ok"
 	if errCount > 0 {
-		pterm.Warning.Printf("\n  Done: %d/%d transcribed, %d failed.\n", len(paths)-errCount, len(paths), errCount)
+		outcome = "failed"
+	}
+	shared.LogProcessEnd("transcription", outcome,
+		fmt.Sprintf("%d/%d ok, %d failed in %.1fs", len(paths)-errCount, len(paths), errCount, time.Since(runStart).Seconds()))
+
+	if errCount > 0 {
+		msg := fmt.Sprintf("Done: %d/%d transcribed, %d failed.", len(paths)-errCount, len(paths), errCount)
+		pterm.Warning.Println("\n  " + msg)
+		shared.LogWarn(msg)
 	} else if len(paths) > 1 {
 		ui.Done(fmt.Sprintf("All %d files transcribed.", len(paths)))
 	}
@@ -190,7 +219,7 @@ func expandFiles(patterns []string) ([]string, error) {
 		} else if info, err := os.Stat(pattern); err == nil && !info.IsDir() {
 			paths = append(paths, pattern)
 		} else {
-			pterm.Warning.Printf("'%s' not found, skipping.\n", pattern)
+			ui.Warn(fmt.Sprintf("'%s' not found, skipping.", pattern))
 		}
 	}
 

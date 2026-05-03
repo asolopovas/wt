@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/pterm/pterm"
+
+	shared "github.com/asolopovas/wt/internal"
 )
 
 var Verbose bool
@@ -24,6 +26,7 @@ var (
 
 func Tick(msg string) {
 	pterm.Printf("  %s %s\n", tickPrefix, msg)
+	shared.LogInfo(msg)
 }
 
 func Tickf(format string, args ...any) {
@@ -32,6 +35,7 @@ func Tickf(format string, args ...any) {
 
 func Cross(msg string) {
 	pterm.Printf("  %s %s\n", crossPrefix, msg)
+	shared.LogError(msg)
 }
 
 func Crossf(format string, args ...any) {
@@ -67,7 +71,9 @@ func Banner(version, model string) {
 	if ram != "" {
 		parts = append(parts, ram)
 	}
-	pterm.Println(strings.Join(parts, " · "))
+	line := strings.Join(parts, " · ")
+	pterm.Println(line)
+	shared.LogInfo("startup: " + line)
 }
 
 func gpuName() string {
@@ -115,7 +121,18 @@ func totalRAM() string {
 }
 
 func Debug(key, value string) {
+	var line string
+	if key == "" {
+		line = value
+	} else {
+		line = key + ": " + value
+	}
+	shared.LogDebug(line)
 	if !Verbose {
+		return
+	}
+	if key == "" {
+		pterm.Printf("  %s\n", dimStyle.Sprint(value))
 		return
 	}
 	pterm.Printf("  %s %s\n", dimStyle.Sprint(key+":"), dimStyle.Sprint(value))
@@ -125,14 +142,18 @@ func FileHeader(index, total int, filename string) {
 	pterm.Printf("\n  %s %s\n",
 		pterm.LightMagenta(fmt.Sprintf("[%d/%d]", index, total)),
 		boldStyle.Sprint(filename))
+	shared.LogInfo(fmt.Sprintf("[%d/%d] %s", index, total, filename))
 }
 
 func Warn(msg string) {
 	pterm.Warning.Println(msg)
+	shared.LogWarn(msg)
 }
 
 func Errorf(format string, args ...any) {
-	fmt.Fprintf(os.Stderr, pterm.Red("  Error: ")+format+"\n", args...)
+	s := fmt.Sprintf(format, args...)
+	fmt.Fprintf(os.Stderr, pterm.Red("  Error: ")+"%s\n", s)
+	shared.LogError(s)
 }
 
 func Done(msg string) {
@@ -142,6 +163,7 @@ func Done(msg string) {
 func Stage(msg string) {
 	pterm.Println()
 	pterm.Printf("  %s\n", boldStyle.Sprint(msg))
+	shared.LogInfo("== " + msg)
 }
 
 func formatETA(elapsedSec, pct float64) string {

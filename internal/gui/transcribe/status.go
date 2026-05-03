@@ -9,6 +9,7 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/widget"
 
+	shared "github.com/asolopovas/wt/internal"
 	"github.com/asolopovas/wt/internal/gui/platsvc"
 	"github.com/asolopovas/wt/internal/transcriber"
 )
@@ -144,10 +145,6 @@ func (p *Panel) toggleAutoScroll() {
 }
 
 func (p *Panel) debugLog(msg string) {
-	if !p.Settings.Debug() {
-		return
-	}
-
 	if _, file, line, ok := runtime.Caller(1); ok {
 		short := file
 		if idx := strings.LastIndexByte(file, '/'); idx >= 0 {
@@ -159,5 +156,5 @@ func (p *Panel) debugLog(msg string) {
 		}
 		msg = fmt.Sprintf("[%s:%d] %s", short, line, msg)
 	}
-	p.AppendLog(msg)
+	shared.LogDebug(msg)
 }

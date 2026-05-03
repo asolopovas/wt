@@ -22,7 +22,6 @@ type Settings interface {
 	Threads() int
 	NoDiarize() bool
 	Device() string
-	Debug() bool
 }
 
 type History interface {

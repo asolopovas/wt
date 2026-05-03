@@ -305,10 +305,7 @@ func buildSettingsTab(sp *settingsPanel, deviceInfo, version string) fyne.Canvas
 		sp.models = newModelsSection(sp.window)
 	}
 
-	toggleRow := container.NewGridWithColumns(2,
-		wrapGhost(sp.noDiarizeBtn),
-		wrapGhost(sp.debugBtn),
-	)
+	toggleRow := wrapGhost(sp.noDiarizeBtn)
 
 	clearCacheBtn := newSecondaryButton("CLEAR CACHE", sp.onClearCache)
 	clearTranscriptsBtn := newSecondaryButton("CLEAR TRANSCRIPTS", sp.onClearTranscripts)

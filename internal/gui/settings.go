@@ -75,8 +75,6 @@ type settingsPanel struct {
 	speakersMirrors []*pointerSelect
 	noDiarizeBtn    *pointerButton
 	noDiarizeState  bool
-	debugBtn        *pointerButton
-	debugState      bool
 	saveBtn         *pointerButton
 
 	models       *modelsSection
@@ -162,9 +160,6 @@ func (p *settingsPanel) build() {
 	p.noDiarizeBtn = newPointerButton("", p.onToggleDiarize)
 	p.updateDiarizeLabel()
 
-	p.debugBtn = newPointerButton("", p.onToggleDebug)
-	p.updateDebugLabel()
-
 	p.saveBtn = newPrimaryButton("SAVE", p.onSave)
 
 	clearCacheBtn := newSecondaryButton("CLEAR CACHE", p.onClearCache)
@@ -182,10 +177,7 @@ func (p *settingsPanel) build() {
 		newFormField("LOG RETENTION", p.logRetainSelect),
 	)
 
-	toggleRow := container.NewGridWithColumns(2,
-		wrapGhost(p.noDiarizeBtn),
-		wrapGhost(p.debugBtn),
-	)
+	toggleRow := wrapGhost(p.noDiarizeBtn)
 	clearRow := container.NewGridWithColumns(2,
 		wrapAction(clearCacheBtn),
 		wrapAction(clearTranscriptsBtn),
@@ -233,25 +225,6 @@ func (p *settingsPanel) updateDiarizeLabel() {
 		p.noDiarizeBtn.SetText("DIARIZE ON")
 		p.noDiarizeBtn.Importance = widget.SuccessImportance
 	}
-}
-
-func (p *settingsPanel) onToggleDebug() {
-	p.debugState = !p.debugState
-	p.updateDebugLabel()
-}
-
-func (p *settingsPanel) updateDebugLabel() {
-	if p.debugState {
-		p.debugBtn.SetText("DEBUG ON")
-		p.debugBtn.Importance = widget.WarningImportance
-	} else {
-		p.debugBtn.SetText("DEBUG OFF")
-		p.debugBtn.Importance = widget.LowImportance
-	}
-}
-
-func (p *settingsPanel) Debug() bool {
-	return p.debugState
 }
 
 func (p *settingsPanel) onViewLog() {

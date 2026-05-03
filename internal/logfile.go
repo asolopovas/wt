@@ -92,10 +92,22 @@ func rotator() *lumberjack.Logger {
 }
 
 func AppendLogLine(msg string) {
+	writeLogLine("INFO ", msg)
+}
+
+func LogInfo(msg string) { writeLogLine("INFO ", msg) }
+
+func LogWarn(msg string) { writeLogLine("WARN ", msg) }
+
+func LogError(msg string) { writeLogLine("ERROR", msg) }
+
+func LogDebug(msg string) { writeLogLine("DEBUG", msg) }
+
+func writeLogLine(level, msg string) {
 	logMu.Lock()
 	defer logMu.Unlock()
 	stamp := time.Now().Format("15:04:05")
-	_, _ = fmt.Fprintf(rotator(), "%s %s\n", stamp, msg)
+	_, _ = fmt.Fprintf(rotator(), "%s %s %s\n", stamp, level, msg)
 	pruneOldArchives()
 }
 
