@@ -13,6 +13,7 @@ import (
 	"github.com/urfave/cli/v3"
 
 	shared "github.com/asolopovas/wt/internal"
+	"github.com/asolopovas/wt/internal/appinfo"
 	"github.com/asolopovas/wt/internal/models"
 	"github.com/asolopovas/wt/internal/transcriber"
 	"github.com/asolopovas/wt/internal/transcriber/cache"
@@ -20,7 +21,10 @@ import (
 	whisper "github.com/ggerganov/whisper.cpp/bindings/go/pkg/whisper"
 )
 
-var Version = "dev"
+var (
+	Version   = "dev"
+	BuildDate = ""
+)
 
 func main() {
 	cfg, err := shared.Load()
@@ -34,7 +38,7 @@ func main() {
 	app := &cli.Command{
 		Name:      "wt",
 		Usage:     "Transcribe audio files using whisper.cpp",
-		Version:   Version,
+		Version:   appinfo.DisplayVersion(Version, BuildDate),
 		ArgsUsage: "<audio files...>",
 		Description: fmt.Sprintf(
 			"Config: %s\nSupported models: %s",
@@ -139,7 +143,7 @@ func run(lang, modelSize, modelPath string, threads, speakers int, tdrz, noDiari
 		return fmt.Errorf("no valid audio files found")
 	}
 
-	ui.Banner(Version, modelSize)
+	ui.Banner(appinfo.DisplayVersion(Version, BuildDate), modelSize)
 
 	model, err := transcriber.LoadModel(modelSize, modelPath, threads)
 	if err != nil {

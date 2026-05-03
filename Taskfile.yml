@@ -37,8 +37,10 @@ vars:
 
   CUDA_ARCH: "61;75;80;86;89"
 
+  # Empty when HEAD is exactly on a release tag (so the binary shows just the version).
+  # Otherwise the latest commit date in YYYY-MM-DD form, used in place of VERSION for from-source builds.
   GIT_DATE:
-    sh: 'if git describe --tags --exact-match HEAD >/dev/null 2>&1; then echo ""; else git log -1 --format=%cd --date=format:%y%m%d%H%M%S 2>/dev/null || echo ""; fi'
+    sh: 'if git describe --tags --exact-match HEAD >/dev/null 2>&1; then echo ""; else git log -1 --format=%cd --date=format:%Y-%m-%d 2>/dev/null || echo ""; fi'
 
   GCC_PATH:
     sh: |
@@ -97,11 +99,13 @@ tasks:
         if: '[ "{{.ONLY}}" != "android" ]'
 
   install:
-    desc: "Build + replace local install. TARGET=android pushes APK to device and launches."
+    desc: "Build + replace local install. TARGET=android pushes APK to device and launches. QUICK=1 skips heavy packaging (.deb/installer) and only redeploys the Go binaries — fast dev loop on both Linux and Windows."
     cmds:
       - task: _install-android
         if: '[ "{{.TARGET}}" = "android" ]'
       - task: _install-host
+        vars:
+          QUICK: "{{.QUICK}}"
         if: '[ "{{.TARGET}}" != "android" ]'
 
   test:
@@ -209,7 +213,7 @@ tasks:
       - dist/bin/diarize.py
     cmds:
       - mkdir -p dist/bin
-      - cmd: '{{.GO_ENV}} && go build -ldflags "-X main.Version={{.VERSION}}" -o dist/bin/{{.BINARY}}.exe ./cmd/wt'
+      - cmd: '{{.GO_ENV}} && go build -ldflags "-X main.Version={{.VERSION}} -X main.BuildDate={{.GIT_DATE}}" -o dist/bin/{{.BINARY}}.exe ./cmd/wt'
         if: '[ -z "{{.IS_LINUX}}" ] && [ "{{.ONLY}}" != "gui" ]'
       - cmd: '{{.GO_ENV}} && go build -ldflags "-X main.Version={{.VERSION}} -X main.BuildDate={{.GIT_DATE}} -H windowsgui" -o dist/bin/{{.BINARY}}-gui.exe ./cmd/wt-gui'
         if: '[ -z "{{.IS_LINUX}}" ] && [ "{{.ONLY}}" != "cli" ]'
@@ -224,7 +228,7 @@ tasks:
             [ -f "$f" ] && cp "$f" "$dest/"
           done
         if: '[ -z "{{.IS_LINUX}}" ] && [ -n "{{.CUDA_DIR}}" ]'
-      - cmd: 'go build -ldflags "-X main.Version={{.VERSION}}" -o dist/bin/{{.BINARY}} ./cmd/wt'
+      - cmd: 'go build -ldflags "-X main.Version={{.VERSION}} -X main.BuildDate={{.GIT_DATE}}" -o dist/bin/{{.BINARY}} ./cmd/wt'
         if: '[ -n "{{.IS_LINUX}}" ] && [ "{{.ONLY}}" != "gui" ]'
       - cmd: 'go build -ldflags "-X main.Version={{.VERSION}} -X main.BuildDate={{.GIT_DATE}}" -o dist/bin/{{.BINARY}}-gui ./cmd/wt-gui'
         if: '[ -n "{{.IS_LINUX}}" ] && [ "{{.ONLY}}" != "cli" ]'
@@ -270,13 +274,19 @@ tasks:
         sh: awk -F"\x27" '/^  VERSION:/{print $2; exit}' Taskfile.yml
     cmds:
       # Windows: build cli+gui only (skip installer-exe — install copies binaries directly).
+      # Already fast; QUICK has no effect because the Windows install path never built the installer anyway.
       - task: _build-host
         vars:
           ONLY: host
         if: '[ -z "{{.IS_LINUX}}" ]'
-      # Linux: full build incl. .deb (used by dpkg -i below).
+      # Linux QUICK: build cli+gui only, skip the heavy .deb step.
+      - task: _build-host
+        vars:
+          ONLY: host
+        if: '[ -n "{{.IS_LINUX}}" ] && [ -n "{{.QUICK}}" ]'
+      # Linux full: build .deb (used by dpkg -i below).
       - task: build
-        if: '[ -n "{{.IS_LINUX}}" ]'
+        if: '[ -n "{{.IS_LINUX}}" ] && [ -z "{{.QUICK}}" ]'
       - cmd: |
           dest="$LOCALAPPDATA/{{.BINARY}}"
           if [ ! -d "$dest" ]; then
@@ -311,6 +321,28 @@ tasks:
           echo "Updated $dest"
           "$dest/{{.BINARY}}.exe" --version
         if: '[ -z "{{.IS_LINUX}}" ]'
+      # Linux QUICK install: drop fresh wt + wt-gui (and any rebuilt whisper/ggml shared libs) directly into
+      # /opt/wt where the .deb installs them. Requires the .deb to have been installed once already so that
+      # /opt/wt, the /usr/bin symlinks, and the per-user setup exist.
+      - cmd: |
+          set -e
+          dest=/opt/wt
+          if [ ! -d "$dest" ]; then
+            echo "ERROR: $dest not found. Run 'task install' once (without QUICK=1) to install the .deb first."
+            exit 1
+          fi
+          pkill -x {{.BINARY}}-gui 2>/dev/null || true
+          pkill -x {{.BINARY}} 2>/dev/null || true
+          sleep 0.3
+          sudo install -m 0755 dist/bin/{{.BINARY}} "$dest/{{.BINARY}}"
+          sudo install -m 0755 dist/bin/{{.BINARY}}-gui "$dest/{{.BINARY}}-gui"
+          # Refresh native shared libs too, preserving symlinks (libwhisper.so -> libwhisper.so.1 -> .so.1.x.y).
+          for f in dist/bin/lib*.so*; do
+            [ -e "$f" ] && sudo cp -Pf "$f" "$dest/"
+          done
+          {{.BINARY}} --version
+        if: '[ -n "{{.IS_LINUX}}" ] && [ -n "{{.QUICK}}" ]'
+      # Linux full install: dpkg -i the freshly built .deb.
       - cmd: |
           set -e
           deb="dist/wt_{{.VERSION}}_amd64.deb"
@@ -322,7 +354,7 @@ tasks:
           sleep 0.3
           sudo dpkg -i "$deb"
           {{.BINARY}} --version
-        if: '[ -n "{{.IS_LINUX}}" ]'
+        if: '[ -n "{{.IS_LINUX}}" ] && [ -z "{{.QUICK}}" ]'
 
   _install-android:
     internal: true
