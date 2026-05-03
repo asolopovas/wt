@@ -3,7 +3,7 @@ version: "3"
 vars:
   BINARY: wt
   APP_NAME: WTranscribe
-  VERSION: "0.0.7"
+  VERSION: '0.0.7'
   WHISPER_ROOT: "{{.ROOT_DIR | toSlash}}/third_party/whisper.cpp"
   WHISPER_BUILD: "{{.WHISPER_ROOT}}/build"
   LLAMA_ROOT: "{{.ROOT_DIR | toSlash}}/third_party/llama.cpp"
@@ -198,7 +198,7 @@ tasks:
     # see the OLD value. The local sh: var resolves at task-start, post-bump.
     vars:
       VERSION:
-        sh: awk -F"\x27" '/^  VERSION:/{print $2; exit}' Taskfile.yml
+        sh: awk -F'[\047\042]' '/^  VERSION:/{print $2; exit}' Taskfile.yml
     sources:
       - cmd/**/*.go
       - internal/**/*.go
@@ -271,7 +271,7 @@ tasks:
     internal: true
     vars:
       VERSION:
-        sh: awk -F"\x27" '/^  VERSION:/{print $2; exit}' Taskfile.yml
+        sh: awk -F'[\047\042]' '/^  VERSION:/{print $2; exit}' Taskfile.yml
     cmds:
       # Windows: build cli+gui only (skip installer-exe — install copies binaries directly).
       # Already fast; QUICK has no effect because the Windows install path never built the installer anyway.
@@ -361,7 +361,7 @@ tasks:
     deps: [android-apk]
     vars:
       VERSION:
-        sh: awk -F"\x27" '/^  VERSION:/{print $2; exit}' Taskfile.yml
+        sh: awk -F'[\047\042]' '/^  VERSION:/{print $2; exit}' Taskfile.yml
     cmds:
       - cmd: |
           export MSYS_NO_PATHCONV=1
@@ -475,7 +475,7 @@ tasks:
       - task: android-apk
         if: '[ -z "{{.IS_LINUX}}" ]'
       - |
-        ver=$(awk -F"\x27" '/^  VERSION:/{print $2; exit}' Taskfile.yml)
+        ver=$(awk -F'[\047\042]' '/^  VERSION:/{print $2; exit}' Taskfile.yml)
         C:/msys64/usr/bin/bash.exe scripts/release-publish.sh "$ver"
 
   _release-rolling:
@@ -626,7 +626,7 @@ tasks:
           done
           echo ""
       VERSION:
-        sh: awk -F"\x27" '/^  VERSION:/{print $2; exit}' Taskfile.yml
+        sh: awk -F'[\047\042]' '/^  VERSION:/{print $2; exit}' Taskfile.yml
     sources:
       - dist/bin/**/*
       - scripts/installer.iss
@@ -646,7 +646,7 @@ tasks:
     deps: [fetch-deps]
     vars:
       VERSION:
-        sh: awk -F"\x27" '/^  VERSION:/{print $2; exit}' Taskfile.yml
+        sh: awk -F'[\047\042]' '/^  VERSION:/{print $2; exit}' Taskfile.yml
     cmds:
       - cmd: bash scripts/build-deb.sh "{{.VERSION}}" "{{.BINARY}}" "{{.ROOT_DIR | toSlash}}"
         if: '[ -n "{{.IS_LINUX}}" ]'
@@ -941,7 +941,7 @@ tasks:
       ]
     vars:
       VERSION:
-        sh: awk -F"\x27" '/^  VERSION:/{print $2; exit}' Taskfile.yml
+        sh: awk -F'[\047\042]' '/^  VERSION:/{print $2; exit}' Taskfile.yml
     cmds:
       - python scripts/android-manifest.py "{{.VERSION}}" "{{.APP_NAME}}"
       - defer: rm -f cmd/wt-gui/AndroidManifest.xml
