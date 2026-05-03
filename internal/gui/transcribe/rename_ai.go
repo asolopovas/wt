@@ -60,8 +60,7 @@ func (p *Panel) promptRename(originalName, suggested string) renameDecision {
 				}},
 			},
 			WidthFrac: 0.6,
-			// Pin to top so the soft keyboard on Android doesn't cover the
-			// editable filename. Harmless on desktop (just renders near top).
+
 			AnchorTop: true,
 		})
 	})
@@ -94,8 +93,7 @@ func (p *Panel) autoRenameAfterTranscribe(cacheKey, jsonPath, sourcePath, source
 	p.setStatus("Auto-naming...")
 	platsvc.UpdateProgress(-1, "Auto-naming…")
 	renameStart := time.Now()
-	// Outer ctx is generous; the actual per-invocation timeout lives in
-	// llm.runOnce so the error reports llama-cli stderr cleanly.
+
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 	defer cancel()
 
@@ -123,7 +121,7 @@ func (p *Panel) autoRenameAfterTranscribe(cacheKey, jsonPath, sourcePath, source
 		p.AppendLog("  Auto-name: empty name, kept original")
 		return sourcePath, sourceName
 	}
-	// Re-attach extension if user stripped it.
+
 	if ext != "" && filepath.Ext(finalName) == "" {
 		finalName += ext
 	}

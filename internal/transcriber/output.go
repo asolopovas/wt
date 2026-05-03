@@ -50,16 +50,6 @@ func msFromDuration(d time.Duration) int64 {
 	return d.Milliseconds()
 }
 
-// coalesceWhisperTokens merges whisper.cpp BPE sub-word pieces into
-// word-level TokenData. Whisper's tokenizer marks word boundaries by
-// prefixing the first piece of each word with a space (e.g.
-//   " Good", " morning", " I", "'m", " O", "'D", "on", "nell",
-//   " F", "ul", "ham")
-// Continuation pieces (no leading space) are glued onto the previous
-// word, extending its End. Without this, downstream joinWords inserts
-// spaces inside words and contractions, producing output like
-// "O 'D on nell" / "I 'm" / "F ul ham" / double-spaced word gaps.
-// Mirrors coalesceTokens in engine_zipformer.go.
 func coalesceWhisperTokens(toks []whisper.Token) []diarizer.TokenData {
 	if len(toks) == 0 {
 		return nil
@@ -159,13 +149,6 @@ func BuildTranscript(segs []diarizer.TranscriptSegment, diarSegs []diarizer.Segm
 		return l
 	}
 
-	// Collect every word across every segment. If a segment has no
-	// tokens, treat the whole segment as a single "word" with its full
-	// text (this is the Whisper case — sentence-level segments).
-	//
-	// Speaker assignment uses a continuity hint (previous word's
-	// speaker) so per-word flicker on close ties is suppressed. This is
-	// the standard pyannote/whisperX trick.
 	var rawWords []rawWord
 	hint := -1
 	lookup := func(start, end time.Duration) (int, bool) {
@@ -206,12 +189,6 @@ func BuildTranscript(segs []diarizer.TranscriptSegment, diarSegs []diarizer.Segm
 		speakers[lbl] = struct{}{}
 	}
 
-	// Group consecutive same-speaker words into utterances. This is
-	// what avoids per-word speaker flicker when the underlying ASR
-	// produces word-level segments (sherpa engines): a single contiguous
-	// run of "SPEAKER_01" words becomes one utterance instead of N.
-	// Whisper inputs have one word per sentence-level segment so this
-	// degenerates to the previous one-utterance-per-segment behaviour.
 	utterances := groupWordsIntoUtterances(words)
 
 	return &Transcript{
@@ -226,9 +203,6 @@ func BuildTranscript(segs []diarizer.TranscriptSegment, diarSegs []diarizer.Segm
 	}
 }
 
-// Sentence-final punctuation marks. A word is treated as a sentence
-// boundary when stripped of trailing close-quotes/brackets it ends with
-// one of these.
 const sentenceEndingPunct = ".?!"
 
 func isSentenceEnd(text string) bool {
@@ -239,54 +213,30 @@ func isSentenceEnd(text string) bool {
 	return strings.ContainsRune(sentenceEndingPunct, rune(t[len(t)-1]))
 }
 
-// smoothIsolatedFlickers cleans single-word speaker flickers — a word
-// labelled X sandwiched between two words both labelled Y gets
-// relabelled Y. This is the most conservative form of speaker smoothing
-// and is what we use instead of the upstream punctuation-based
-// majority-vote algorithm (MahmoudAshraf97/whisper-diarization). The
-// majority-vote variant works well with Whisper's sentence-level
-// punctuation but is too aggressive with sherpa-onnx engines
-// (SenseVoice/Parakeet) which often emit long un-punctuated runs: a
-// single sentence can span 26+ words including a full speaker turn,
-// causing the minority speaker to be folded into the dominant one.
-//
-// Two-word flickers (X X surrounded by Y Y) are also smoothed because
-// pyannote occasionally produces a brief 2-frame artefact at speaker
-// boundaries. Three-or-more-word runs are left alone — we trust those.
 func smoothIsolatedFlickers(words []Word) {
 	n := len(words)
 	if n < 3 {
 		return
 	}
-	// Single-word flicker: w[i-1] == w[i+1] != w[i]
+
 	for i := 1; i < n-1; i++ {
 		if words[i].Speaker != words[i-1].Speaker &&
 			words[i-1].Speaker == words[i+1].Speaker {
 			words[i].Speaker = words[i-1].Speaker
 		}
 	}
-	// Two-word flicker: w[i-1] == w[i+2] != w[i] == w[i+1]
+
 	for i := 1; i < n-2; i++ {
 		if words[i].Speaker != words[i-1].Speaker &&
 			words[i].Speaker == words[i+1].Speaker &&
 			words[i-1].Speaker == words[i+2].Speaker {
 			words[i].Speaker = words[i-1].Speaker
 			words[i+1].Speaker = words[i-1].Speaker
-			i++ // skip the partner we just relabelled
+			i++
 		}
 	}
 }
 
-// groupWordsIntoUtterances merges consecutive same-speaker words into
-// utterance-level segments. After punctuation-based realignment, a new
-// utterance starts when:
-//   • the speaker label changes, OR
-//   • the previous word ended a sentence (`.?!`).
-//
-// This is the Go equivalent of whisper-diarization's
-// get_sentences_speaker_mapping (without the NLTK Punkt tokenizer — we
-// rely on the punctuation that ASR engines like Whisper / SenseVoice /
-// Parakeet emit natively).
 func groupWordsIntoUtterances(words []Word) []Utterance {
 	if len(words) == 0 {
 		return nil
@@ -325,8 +275,6 @@ func groupWordsIntoUtterances(words []Word) []Utterance {
 	return utts
 }
 
-// joinWords concatenates a list of word tokens with single spaces, then
-// tightens spacing around common punctuation so output reads naturally.
 func joinWords(parts []string) string {
 	if len(parts) == 0 {
 		return ""

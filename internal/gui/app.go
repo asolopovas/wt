@@ -48,9 +48,6 @@ func Run(version, buildDate string) error {
 	transcodeTab := buildTranscodeTab(tp, settings)
 	settingsTab := buildSettingsTab(settings, deviceInfo, versionLabel(version, buildDate))
 
-	// LOG tab / workspace column was removed — the live log now lives
-	// solely on disk (<MediaDir>/wt.log) and is reachable via Settings
-	// → VIEW LOG. Two top-level tabs are enough.
 	tabs := container.NewAppTabs(
 		container.NewTabItemWithIcon("TRANSCODE", theme.MediaRecordIcon(), transcodeTab),
 		container.NewTabItemWithIcon("SETTINGS", theme.SettingsIcon(), settingsTab),

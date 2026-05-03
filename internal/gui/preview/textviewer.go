@@ -25,20 +25,14 @@ import (
 	"github.com/asolopovas/wt/internal/gui/decor"
 )
 
-// TextViewerOpts configures a ShowText call. Only Window and Body are
-// required; other fields default sensibly.
 type TextViewerOpts struct {
 	Window  fyne.Window
-	Title   string // header caption (e.g. "wt.log"); empty = no header
-	Body    string // content to display, displayed verbatim
-	Mono    bool   // monospace font (default true via zero-value flip)
+	Title   string
+	Body    string
+	Mono    bool
 	OnClose func()
 }
 
-// ShowText pops a modal text viewer. Returns a hide() callback. The
-// modal includes a COPY button that puts Body on the system clipboard
-// with a tick-icon confirmation, and a CLOSE button. Selection / scroll
-// inside the body work the same as the transcription preview.
 func ShowText(opts TextViewerOpts) func() {
 	if opts.Window == nil {
 		return func() {}
@@ -47,11 +41,6 @@ func ShowText(opts TextViewerOpts) func() {
 		opts.Body = "(empty)"
 	}
 
-	// High-contrast text rendering: split into lines and use canvas.Text
-	// with decor.TextPrimary so the result reads exactly like the
-	// transcription preview. widget.MultiLineEntry().Disable() renders
-	// pale-gray on dark which is illegible \u2014 avoid that path.
-	// Default: monospace. Mono field reserved for opt-out future use.
 	style := fyne.TextStyle{Monospace: true}
 	_ = opts.Mono
 	rows := make([]fyne.CanvasObject, 0, strings.Count(opts.Body, "\n")+1)
@@ -67,8 +56,6 @@ func ShowText(opts TextViewerOpts) func() {
 	bg := canvas.NewRectangle(decor.SurfaceRaised)
 	scrollPanel := container.NewStack(bg, scroll)
 
-	// COPY button: tick-confirmation pattern matching the transcription
-	// preview. Imports stayed identical to keep the visual familiar.
 	copyBtn := decor.NewPointerButtonWithIcon("", theme.ContentCopyIcon(), nil)
 	copyBtn.Importance = widget.LowImportance
 	copyBtn.OnTapped = func() {

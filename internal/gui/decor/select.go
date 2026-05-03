@@ -10,16 +10,8 @@ import (
 	"fyne.io/fyne/v2/widget"
 )
 
-// LimitSelectRowHeight is the per-row content height applied via
-// widget.List.SetItemHeight. The actual row stride is this value plus
-// theme.SizeNamePadding (compactPopupTheme reduces the padding too,
-// so the resulting row is ~30 px tall on Android instead of ~80 px).
 const LimitSelectRowHeight float32 = 22
 
-// compactPopupTheme delegates everything to the parent theme except
-// SizeNamePadding / SizeNameInnerPadding which are clamped low. Used
-// inside container.NewThemeOverride wrapping a list popup so dropdown
-// rows aren't padded out to 80 px on high-DPI Android.
 type compactPopupTheme struct {
 	parent fyne.Theme
 }
@@ -27,7 +19,7 @@ type compactPopupTheme struct {
 func (t compactPopupTheme) Color(n fyne.ThemeColorName, v fyne.ThemeVariant) color.Color {
 	return t.parent.Color(n, v)
 }
-func (t compactPopupTheme) Font(s fyne.TextStyle) fyne.Resource { return t.parent.Font(s) }
+func (t compactPopupTheme) Font(s fyne.TextStyle) fyne.Resource     { return t.parent.Font(s) }
 func (t compactPopupTheme) Icon(n fyne.ThemeIconName) fyne.Resource { return t.parent.Icon(n) }
 func (t compactPopupTheme) Size(n fyne.ThemeSizeName) float32 {
 	switch n {
@@ -74,10 +66,6 @@ func (s *LimitSelect) Tapped(_ *fyne.PointEvent) {
 		return
 	}
 
-	// Use widget.List instead of widget.PopUpMenu so we control per-row
-	// height. PopUpMenu's row height is theme-padding-driven (~80 px on
-	// Android high-DPI) which makes long lists like the 99-language
-	// picker waste screen space and require excessive scrolling.
 	options := s.Inner.Options
 	var pop *widget.PopUp
 	list := widget.NewList(
@@ -108,10 +96,6 @@ func (s *LimitSelect) Tapped(_ *fyne.PointEvent) {
 		}
 	}
 
-	// Wrap in ThemeOverride so theme.SizeNamePadding shrinks just for
-	// this popup. Without this the list adds ~30 px between every row
-	// on high-DPI Android (see widget/list.go:412 paddedItemHeight =
-	// itemHeight + padding).
 	themed := container.NewThemeOverride(list, compactPopupTheme{parent: fyne.CurrentApp().Settings().Theme()})
 
 	c := fyne.CurrentApp().Driver().CanvasForObject(s)
@@ -120,9 +104,7 @@ func (s *LimitSelect) Tapped(_ *fyne.PointEvent) {
 	buttonPos := fyne.CurrentApp().Driver().AbsolutePositionForObject(s)
 	pos := buttonPos.Add(fyne.NewPos(0, s.Size().Height))
 
-	// Sized: row height × visible rows, capped at maxHeight. This keeps
-	// short lists (e.g. SenseVoice's 6 entries) from showing empty space.
-	desired := LimitSelectRowHeight*float32(len(options)) + 8 // +scrollbar+padding
+	desired := LimitSelectRowHeight*float32(len(options)) + 8
 	if desired > s.maxHeight {
 		desired = s.maxHeight
 	}

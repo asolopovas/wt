@@ -306,15 +306,10 @@ import (
 	"fyne.io/fyne/v2/driver"
 )
 
-// ErrShareUnsupported keeps API parity with the desktop stub.
 var ErrShareUnsupported = errors.New("native share unavailable")
 
-// ShareSupported always returns true on Android (the actual call may still
-// fail if the activity is not foreground).
 func ShareSupported() bool { return true }
 
-// ShareText opens the system share sheet with plain-text content. WhatsApp
-// and most messengers render this directly in the message body.
 func ShareText(text, subject string) error {
 	if strings.TrimSpace(text) == "" {
 		return errors.New("share: empty text")
@@ -342,10 +337,6 @@ func ShareText(text, subject string) error {
 	return nil
 }
 
-// ShareFiles opens the system share sheet with multiple file attachments. Each
-// file is copied into the FileProvider's share directory and exposed via a
-// content:// URI. Uses ACTION_SEND_MULTIPLE with a single MIME type (use
-// "*/*" when files are heterogeneous).
 func ShareFiles(srcPaths []string, mime, subject string) error {
 	if len(srcPaths) == 0 {
 		return errors.New("share: no files")
@@ -404,7 +395,6 @@ func ShareFiles(srcPaths []string, mime, subject string) error {
 		names = append(names, name)
 	}
 
-	// Marshal []string to **C.char
 	cNames := make([]*C.char, len(names))
 	for i, n := range names {
 		cNames[i] = C.CString(n)
@@ -438,10 +428,6 @@ func ShareFiles(srcPaths []string, mime, subject string) error {
 	return nil
 }
 
-// ShareFile opens the system share sheet for the file at srcPath. The file is
-// copied into the FileProvider's cache/share directory and exposed via a
-// content:// URI so other apps (WhatsApp, Gmail, Drive, etc.) can read it.
-// mime should be the file's MIME type (e.g. "text/csv"); subject is optional.
 func ShareFile(srcPath, mime, subject string) error {
 	if srcPath == "" {
 		return errors.New("share: empty path")
@@ -515,5 +501,3 @@ func ShareFile(srcPath, mime, subject string) error {
 	}
 	return nil
 }
-
-

@@ -13,10 +13,6 @@ import (
 	"github.com/asolopovas/wt/internal/transcriber"
 )
 
-// exportBundleFolder writes the .txt and audio into the public
-// Documents/WTranscribe directory (or cache fallback when the public dir is
-// not writable). No folder picker is shown because Fyne's SAF tree URIs do
-// not support storage.Child / storage.Writer.
 func (p *Panel) exportBundleFolder(tr *transcriber.Transcript, item ExportItem, start time.Time) {
 	dir := shared.MediaDir()
 	if err := os.MkdirAll(dir, 0o755); err != nil {

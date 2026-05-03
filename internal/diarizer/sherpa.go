@@ -50,12 +50,8 @@ func newSherpaDiarizer() (Backend, error) {
 	return &sherpaDiarizer{binPath: bin, segModel: seg, embModel: emb}, nil
 }
 
-// activeDiarizerPaths returns (segURL, segRel, embURL, embRel) for the
-// currently active FamilyDiarizer entry. Falls back to pyannote-3.0 +
-// TitaNet-Large if no entry is active or the active entry doesn't
-// declare a diarizer pair.
 func activeDiarizerPaths() (segURL, segRel, embURL, embRel string) {
-	// Defaults match the historical hardcoded values for backward compat.
+
 	segURL = "https://huggingface.co/csukuangfj/sherpa-onnx-pyannote-segmentation-3-0/resolve/main/model.onnx"
 	segRel = "sherpa-onnx-pyannote-segmentation-3-0/model.onnx"
 	embURL = "https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-recongition-models/nemo_en_titanet_large.onnx"
@@ -70,7 +66,7 @@ func activeDiarizerPaths() (segURL, segRel, embURL, embRel string) {
 	if !ok || e.DiarSegRelPath == "" || e.DiarEmbRelPath == "" {
 		return
 	}
-	// Resolve URLs by matching RelPath inside the entry's Files.
+
 	for _, f := range e.FileSpecs() {
 		switch f.RelPath {
 		case e.DiarSegRelPath:

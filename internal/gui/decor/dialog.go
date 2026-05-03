@@ -33,10 +33,7 @@ type DialogConfig struct {
 	Size        *fyne.Size
 	TopInset    float32
 	BottomInset float32
-	// AnchorTop pins the dialog to the top of the canvas's InteractiveArea
-	// instead of centering it. Required for dialogs containing text inputs
-	// on Android — the centered modal popup ignores soft-keyboard insets and
-	// gets clipped behind the keyboard.
+
 	AnchorTop bool
 }
 
@@ -104,10 +101,6 @@ func ShowDialog(cfg DialogConfig) func() {
 	return hide
 }
 
-// showAnchoredDialog renders the dialog as a non-modal PopUp pinned to the
-// top of the canvas's InteractiveArea, with a hand-rolled dim underlay. This
-// keeps the dialog visible above the Android soft keyboard (which the
-// centered ModalPopUp layout otherwise ignores).
 func showAnchoredDialog(cfg DialogConfig, bodyContainer fyne.CanvasObject) func() {
 	c := cfg.Parent.Canvas()
 
@@ -146,7 +139,6 @@ func showAnchoredDialog(cfg DialogConfig, bodyContainer fyne.CanvasObject) func(
 	}
 	pop.Resize(fyne.NewSize(w, h))
 
-	// Pin to top of the interactive area with a small breathing margin.
 	topMargin := float32(SpaceXL)
 	x := areaPos.X + (areaSize.Width-w)/2
 	if x < 0 {

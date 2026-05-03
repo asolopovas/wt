@@ -78,6 +78,42 @@ fail:
 	return 0;
 }
 
+static int wt_rec_pause(uintptr_t envPtr) {
+	JNIEnv* env = (JNIEnv*)envPtr;
+	if (!env || !g_recorder) return 0;
+	jclass cMR = (*env)->GetObjectClass(env, g_recorder);
+	jmethodID m = (*env)->GetMethodID(env, cMR, "pause", "()V");
+	int ok = 1;
+	if (m) {
+		(*env)->CallVoidMethod(env, g_recorder, m);
+		if ((*env)->ExceptionCheck(env)) { (*env)->ExceptionClear(env); ok = 0; }
+	} else {
+		(*env)->ExceptionClear(env);
+		ok = 0;
+	}
+	(*env)->DeleteLocalRef(env, cMR);
+	WR_LOGI("recording paused (ok=%d)", ok);
+	return ok;
+}
+
+static int wt_rec_resume(uintptr_t envPtr) {
+	JNIEnv* env = (JNIEnv*)envPtr;
+	if (!env || !g_recorder) return 0;
+	jclass cMR = (*env)->GetObjectClass(env, g_recorder);
+	jmethodID m = (*env)->GetMethodID(env, cMR, "resume", "()V");
+	int ok = 1;
+	if (m) {
+		(*env)->CallVoidMethod(env, g_recorder, m);
+		if ((*env)->ExceptionCheck(env)) { (*env)->ExceptionClear(env); ok = 0; }
+	} else {
+		(*env)->ExceptionClear(env);
+		ok = 0;
+	}
+	(*env)->DeleteLocalRef(env, cMR);
+	WR_LOGI("recording resumed (ok=%d)", ok);
+	return ok;
+}
+
 static int wt_rec_stop(uintptr_t envPtr) {
 	JNIEnv* env = (JNIEnv*)envPtr;
 	if (!env || !g_recorder) return 0;
@@ -305,6 +341,7 @@ import (
 var (
 	recMu      sync.Mutex
 	recCurrent string
+	recPaused  bool
 )
 
 func recordingsDir() string {
@@ -319,6 +356,7 @@ func startRecording() (string, error) {
 	if recCurrent != "" {
 		return "", fmt.Errorf("already recording")
 	}
+	recPaused = false
 	name := fmt.Sprintf("rec_%s.m4a", time.Now().Format("20060102_150405"))
 	out := filepath.Join(recordingsDir(), name)
 	cOut := C.CString(out)
@@ -357,8 +395,65 @@ func stopRecording() (string, error) {
 	})
 	recMu.Lock()
 	recCurrent = ""
+	recPaused = false
 	recMu.Unlock()
 	return path, nil
+}
+
+func pauseRecording() error {
+	recMu.Lock()
+	if recCurrent == "" || recPaused {
+		recMu.Unlock()
+		return fmt.Errorf("not actively recording")
+	}
+	recMu.Unlock()
+	ok := false
+	_ = driver.RunNative(func(ctx any) error {
+		ac, valid := ctx.(*driver.AndroidContext)
+		if !valid || ac == nil || ac.Env == 0 {
+			return nil
+		}
+		ok = C.wt_rec_pause(C.uintptr_t(ac.Env)) == 1
+		return nil
+	})
+	if !ok {
+		return fmt.Errorf("MediaRecorder.pause() failed")
+	}
+	recMu.Lock()
+	recPaused = true
+	recMu.Unlock()
+	return nil
+}
+
+func resumeRecording() error {
+	recMu.Lock()
+	if recCurrent == "" || !recPaused {
+		recMu.Unlock()
+		return fmt.Errorf("not paused")
+	}
+	recMu.Unlock()
+	ok := false
+	_ = driver.RunNative(func(ctx any) error {
+		ac, valid := ctx.(*driver.AndroidContext)
+		if !valid || ac == nil || ac.Env == 0 {
+			return nil
+		}
+		ok = C.wt_rec_resume(C.uintptr_t(ac.Env)) == 1
+		return nil
+	})
+	if !ok {
+		return fmt.Errorf("MediaRecorder.resume() failed")
+	}
+	recMu.Lock()
+	recPaused = false
+	recMu.Unlock()
+	return nil
+}
+
+func isPaused() bool {
+	recMu.Lock()
+	defer recMu.Unlock()
+	return recPaused
 }
 
 func publishRecordingToDocuments(srcPath string) error {

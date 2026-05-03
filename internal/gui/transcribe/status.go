@@ -1,6 +1,8 @@
 package transcribe
 
 import (
+	"fmt"
+	"runtime"
 	"strings"
 	"time"
 
@@ -202,6 +204,18 @@ func (p *Panel) toggleAutoScroll() {
 func (p *Panel) debugLog(msg string) {
 	if !p.Settings.Debug() {
 		return
+	}
+
+	if _, file, line, ok := runtime.Caller(1); ok {
+		short := file
+		if idx := strings.LastIndexByte(file, '/'); idx >= 0 {
+			if idx2 := strings.LastIndexByte(file[:idx], '/'); idx2 >= 0 {
+				short = file[idx2+1:]
+			} else {
+				short = file[idx+1:]
+			}
+		}
+		msg = fmt.Sprintf("[%s:%d] %s", short, line, msg)
 	}
 	p.AppendLog(msg)
 }

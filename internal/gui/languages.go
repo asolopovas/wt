@@ -5,14 +5,6 @@ import (
 	"strings"
 )
 
-// languageNames maps whisper.cpp language codes (ISO-639-1, with a few
-// special cases like "yue" for Cantonese and "haw" for Hawaiian) to the
-// English display name shown in the LANGUAGE dropdown.
-//
-// Coverage: every language whisper.cpp officially supports (99 entries
-// from whisper.cpp/src/whisper.cpp:g_lang). Sherpa-onnx engines
-// (Parakeet/SenseVoice/Moonshine/Zipformer) restrict via the
-// Entry.Languages whitelist in the catalog.
 var languageNames = map[string]string{
 	"auto": "Auto-detect",
 	"en":   "English",
@@ -117,9 +109,6 @@ var languageNames = map[string]string{
 	"yue":  "Cantonese",
 }
 
-// languageDisplayName returns the human-readable name for a code. Falls
-// back to the code itself if not in the registry (so we don't silently
-// drop unknown codes that engines might emit).
 func languageDisplayName(code string) string {
 	if code == "" {
 		return languageNames["auto"]
@@ -130,9 +119,6 @@ func languageDisplayName(code string) string {
 	return code
 }
 
-// languageCodeFromName resolves a display name back to its code. Returns
-// "" for "Auto-detect" / unknown names (the existing convention for
-// "no language constraint" in shared.Config).
 func languageCodeFromName(name string) string {
 	if name == "" || name == languageNames["auto"] {
 		return ""
@@ -145,16 +131,13 @@ func languageCodeFromName(name string) string {
 			return code
 		}
 	}
-	// Unknown name — could be a raw code passed through. Try as code.
+
 	if _, ok := languageNames[name]; ok {
 		return name
 	}
 	return name
 }
 
-// allLanguageCodes returns every supported code, sorted with "auto" first
-// then alphabetically by display name. Used to build the canonical
-// dropdown option list.
 func allLanguageCodes() []string {
 	codes := make([]string, 0, len(languageNames))
 	for code := range languageNames {
@@ -170,8 +153,6 @@ func allLanguageCodes() []string {
 	return append([]string{"auto"}, codes...)
 }
 
-// allLanguageNames returns the dropdown option labels (display names)
-// matching allLanguageCodes order.
 func allLanguageNames() []string {
 	codes := allLanguageCodes()
 	names := make([]string, len(codes))
@@ -181,9 +162,6 @@ func allLanguageNames() []string {
 	return names
 }
 
-// codesToNames maps a slice of codes (e.g. an engine's Languages
-// whitelist) into display names, preserving order. Useful when filtering
-// the dropdown to a subset.
 func codesToNames(codes []string) []string {
 	out := make([]string, len(codes))
 	for i, c := range codes {

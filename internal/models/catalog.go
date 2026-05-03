@@ -10,13 +10,13 @@ const (
 	FamilyWhisper  Family = "whisper"
 	FamilyDiarizer Family = "diarizer"
 	FamilyLLM      Family = "llm"
-	FamilyASR      Family = "asr" // sherpa-onnx-backed ASR engines (Parakeet, etc.)
+	FamilyASR      Family = "asr"
 )
 
 type Entry struct {
 	ID            string
 	Family        Family
-	Engine        string // populated for FamilyASR entries (parakeet/moonshine/...)
+	Engine        string
 	DisplayName   string
 	URL           string
 	RelPath       string
@@ -25,24 +25,14 @@ type Entry struct {
 	RAMHintMB     int
 	DefaultActive bool
 	Files         []FileSpec
-	Description   string // one-line marketing/quality blurb
+	Description   string
 
-	// Diarizer-only: which file inside Files is the segmentation model
-	// (pyannote-style ONNX) and which is the speaker embedding model.
-	// internal/diarizer/sherpa.go uses these to build the CLI args.
 	DiarSegRelPath string
 	DiarEmbRelPath string
 
-	// Languages the model can transcribe. Empty == "all / multilingual"
-	// (whisper-style). Drives the LANGUAGE dropdown filtering on the
-	// Transcode tab — picking Parakeet (en-only) collapses the dropdown
-	// to ["en"]; picking Whisper restores the full 99-lang list.
 	Languages []string
 }
 
-// LanguagesFor returns the language whitelist for the given model entry
-// ID. Empty result means "unrestricted / multilingual" (whisper) and the
-// caller should show the full languages list.
 func LanguagesFor(id string) []string {
 	e, ok := ByID(id)
 	if !ok {
@@ -93,23 +83,6 @@ func ByFamily(f Family) []Entry {
 	return out
 }
 
-// whisperEntries: curated to 3 multilingual ASR picks plus the VAD
-// helper. Each row covers a distinct (size, quality) niche; dominated
-// variants are removed.
-//
-//	tiny    78 MB   live-caption / draft
-//	small   488 MB  compact multilingual
-//	turbo   1.6 GB  quality multilingual default (large-v3 distill)
-//	silero  2 MB    VAD (used internally)
-//
-// Removed:
-//   - whisper-base   (147 MB): English dominated by Parakeet at 4× size;
-//                              tiny+turbo bracket every other use.
-//   - whisper-medium (1.5 GB): dominated by whisper-turbo, which is the
-//                              same size with better quality (turbo is
-//                              the official large-v3 distill).
-//   - whisper-large-v3 (3.1 GB): whisper-turbo matches its quality at
-//                              half the disk + RAM footprint.
 var whisperEntries = []Entry{
 	{ID: "whisper-tiny", Family: FamilyWhisper, DisplayName: "Whisper tiny (multilingual)", URL: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.bin", RelPath: "ggml-tiny.bin", SizeBytes: 77_700_000, RAMHintMB: 200, DefaultActive: false},
 	{ID: "whisper-small", Family: FamilyWhisper, DisplayName: "Whisper small (multilingual)", URL: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.bin", RelPath: "ggml-small.bin", SizeBytes: 488_000_000, RAMHintMB: 700},
@@ -117,33 +90,6 @@ var whisperEntries = []Entry{
 	{ID: "whisper-vad-silero", Family: FamilyWhisper, DisplayName: "Silero VAD v6.2.0", URL: "https://huggingface.co/ggml-org/whisper-vad/resolve/main/ggml-silero-v6.2.0.bin", RelPath: "ggml-silero-v6.2.0.bin", SizeBytes: 2_300_000, RAMHintMB: 50},
 }
 
-// Diarizer presets: each entry pairs a pyannote-style segmentation model
-// with a speaker embedding model. The catalog is curated to 2 entries
-// covering distinct language niches — every other combination we tested
-// either matched or underperformed the default.
-//
-//   - diar-titanet-large : English default (pyannote-3.0 + TitaNet-Large)
-//   - diar-multilingual  : zh+en (pyannote-3.0 + CAM++ advanced)
-//
-// Removed (with empirical reasoning):
-//   - diar-mobile-light  : same segmenter as default → same boundary
-//                          errors; embedding statistically tied
-//                          (DER 0.191 vs 0.190).
-//   - diar-3dspeaker-v2  : own description: untested speculative pairing.
-//   - diar-reverb-v2     : on-device test (Exynos 2400, SenseVoice ASR,
-//                          1-min interview clip, --speakers=2):
-//                            pyannote-3.0  16.4 s  12 segs  2 speakers ✓
-//                            reverb-v2     91.7 s   1 seg   1 speaker  ✗
-//                          Reverb-v2 collapsed both interviewer + child
-//                          into a single cluster despite 392 MB segmenter
-//                          (5.6× slower than pyannote-3.0). Fails the
-//                          "best-in-class for its niche" rule.
-//
-// Embedding rankings from scripts/diar_sweep_results.csv:
-//
-//	titanet_large    DER 0.190  (English winner)
-//	campplus_zh_en   DER 0.222  (multilingual winner)
-//
 var (
 	diarSegPyannote30URL = "https://huggingface.co/csukuangfj/sherpa-onnx-pyannote-segmentation-3-0/resolve/main/model.onnx"
 	diarSegPyannote30Rel = "sherpa-onnx-pyannote-segmentation-3-0/model.onnx"
@@ -152,15 +98,15 @@ var (
 )
 
 var diarizerEntries = []Entry{
-	// 1. Default — best DER in the sweep, English-tuned.
+
 	{
-		ID:            "diar-titanet-large",
-		Family:        FamilyDiarizer,
-		DisplayName:   "Standard (pyannote-3.0 + TitaNet-Large)",
-		Description:   "Best DER in our sweep (0.190). Recommended default for English. ~107 MB.",
-		SizeBytes:     107_000_000,
-		RAMHintMB:     350,
-		DefaultActive: true,
+		ID:             "diar-titanet-large",
+		Family:         FamilyDiarizer,
+		DisplayName:    "Standard (pyannote-3.0 + TitaNet-Large)",
+		Description:    "Best DER in our sweep (0.190). Recommended default for English. ~107 MB.",
+		SizeBytes:      107_000_000,
+		RAMHintMB:      350,
+		DefaultActive:  true,
 		DiarSegRelPath: diarSegPyannote30Rel,
 		DiarEmbRelPath: "titanet_large.onnx",
 		Files: []FileSpec{
@@ -168,14 +114,14 @@ var diarizerEntries = []Entry{
 			{URL: diarEmbBase + "nemo_en_titanet_large.onnx", RelPath: "titanet_large.onnx", SizeBytes: 101_405_493},
 		},
 	},
-	// 2. Multilingual — zh+en, very compact.
+
 	{
-		ID:            "diar-multilingual",
-		Family:        FamilyDiarizer,
-		DisplayName:   "Multilingual (pyannote-3.0 + CAM++ zh+en)",
-		Description:   "3D-Speaker CAM++ zh+en advanced. Sweep DER 0.222. Best multilingual + small (~34 MB).",
-		SizeBytes:     34_000_000,
-		RAMHintMB:     200,
+		ID:             "diar-multilingual",
+		Family:         FamilyDiarizer,
+		DisplayName:    "Multilingual (pyannote-3.0 + CAM++ zh+en)",
+		Description:    "3D-Speaker CAM++ zh+en advanced. Sweep DER 0.222. Best multilingual + small (~34 MB).",
+		SizeBytes:      34_000_000,
+		RAMHintMB:      200,
 		DiarSegRelPath: diarSegPyannote30Rel,
 		DiarEmbRelPath: "3dspeaker_campplus_zh_en_advanced.onnx",
 		Files: []FileSpec{
@@ -185,9 +131,6 @@ var diarizerEntries = []Entry{
 	},
 }
 
-// EngineForActiveASR returns (engineID, modelID) for the currently selected
-// transcription engine, picking the first installed entry from FamilyASR
-// if any, else falling back to whisper.
 func EngineForActiveASR(activeASR string) (engine, modelID string) {
 	if activeASR != "" {
 		if e, ok := ByID(activeASR); ok && e.Family == FamilyASR && e.Engine != "" {
@@ -206,15 +149,6 @@ var legacyDiarizerIDs = map[string]string{
 	"diar-reverb-v2":                   "diar-titanet-large",
 }
 
-// Top-tier ASR models (sherpa-onnx). Curated rather than exhaustive: each
-// listed model is best-in-class for its niche. We deliberately do not ship
-// Moonshine, SenseVoice, Paraformer, or LibriSpeech-trained Zipformer
-// variants — Parakeet outperforms them on quality, and Whisper-turbo
-// covers multilingual.
-//
-// Files for each entry come from csukuangfj/* HF mirrors (the same files
-// that ship inside k2-fsa's sherpa-onnx-*.tar.bz2 release archives, but
-// downloadable individually so we don't need tar/bz2 extraction).
 var asrEntries = []Entry{
 	{
 		ID:          "parakeet-tdt-0.6b-v2-int8",
@@ -248,9 +182,6 @@ var asrEntries = []Entry{
 	},
 }
 
-// LLMs for the auto-rename namer. Curated for naming-task fitness, not
-// general capability. Qwen3-0.6B is fast enough for live-feel rename on
-// phone CPU; 1.7B kept as quality option.
 var llmEntries = []Entry{
 	{
 		ID: "qwen3-0.6b-q4km", Family: FamilyLLM,

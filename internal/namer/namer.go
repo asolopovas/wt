@@ -15,11 +15,6 @@ import (
 	"github.com/asolopovas/wt/internal/llm"
 )
 
-// filenameGrammar uses GBNF's {n,m} repetition. The naive expansion of
-// 55 (slugChar)? alternations produced ~2^55 grammar states and made
-// llama.cpp's sampler effectively single-threaded — a 30-segment transcript
-// took 4+ minutes on a phone CPU and timed out. {5,60} compiles to a tight
-// state machine and runs in ~2s for the same prompt on the same device.
 const filenameGrammar = `root ::= "{" ws "\"topic\":" ws "\"" topic "\"" ws "}"
 topic ::= slugChar{5,60}
 slugChar ::= [a-z0-9-]
@@ -109,10 +104,6 @@ func extractJSON(data []byte) (string, error) {
 	return b.String(), nil
 }
 
-// excerptLimit returns the max prompt length (chars) we feed the LLM.
-// Phone CPUs spend most of the budget on prefill (~5–10 tok/s), so the
-// android default is much smaller than desktop. envOverride parses an
-// optional explicit override (chars, must be > minExcerpt).
 func excerptLimit(goos, envOverride string) int {
 	const (
 		defaultDesktop = 6000

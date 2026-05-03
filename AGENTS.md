@@ -139,6 +139,8 @@ Exynos 2400 (s5e9945, S24/S24+ EU) exposes its NPU via NNAPI HALs 1.0–1.3 + Sa
 
 Never write screenshots, logs, or other ad-hoc binary debug files (`*.png`, `*.jpg`, capture dumps, etc.) into the repo root or any tracked directory. Use the system tempdir (`/tmp/...` on msys, `$TMPDIR`) or a `_tmp/` subdir at the repo root (gitignored) when a tool can't read outside the project. Read tool can't access `C:\tmp` directly — copy/move into `_tmp/` then read. Clean up afterwards.
 
+Always run `go run ./scripts/clean-comments ./cmd ./internal ./bindings && gofmt -w ./cmd/ ./internal/` before every commit. The repo style is comment-free Go — no inline narration, no rule-shaped explanations in source. Rules belong in AGENTS.md, not in `.go` files. The clean-comments script is the canonical stripper; don't hand-curate comments hoping they survive.
+
 ## Self-improvement
 
 When you discover a non-obvious gotcha, footgun, or workflow rule that future sessions would benefit from, you **MUST** propose an AGENTS.md edit before ending the turn. Triggers: user corrects an approach ("don't do X"); a build/test/tooling failure has a non-obvious fix not documented here; you re-derive a project fact you've derived before; a command in this file is wrong. Keep additions terse and rule-shaped (Always / Ask / Never), not narrative. Don't add training-data-level advice. Don't commit the change unless instructed.

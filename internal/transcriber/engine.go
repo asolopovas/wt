@@ -8,16 +8,6 @@ import (
 	"github.com/asolopovas/wt/internal/diarizer"
 )
 
-// runASR dispatches to the configured ASR engine.
-//
-// Engine selection precedence:
-//  1. JobSpec.Engine (when set)
-//  2. shared.Config.Engine (loaded from config / env WT_ENGINE)
-//  3. EngineWhisper (default)
-//
-// All engines must return segments with timestamps relative to the start of
-// the input audio (not chunk-relative), the detected language ("" if unknown),
-// and observed RTF (audio_seconds / wall_seconds, 0 if not measured).
 func (j *Job) runASR(
 	ctx context.Context,
 	spec JobSpec,
@@ -42,7 +32,6 @@ func (j *Job) runASR(
 	}
 }
 
-// resolveEngine normalises an engine identifier, falling back to whisper.
 func resolveEngine(name string) string {
 	switch name {
 	case "":

@@ -293,8 +293,7 @@ func (p *Panel) AppendLog(msg string) {
 	case p.logFlushCh <- struct{}{}:
 	default:
 	}
-	// Persistent on-disk log so users can review history after the
-	// process exits / OS-kills the app. Best-effort; never blocks UI.
+
 	shared.AppendLogLine(msg)
 }
 

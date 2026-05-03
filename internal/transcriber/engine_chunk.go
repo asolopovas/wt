@@ -12,32 +12,6 @@ import (
 	"github.com/asolopovas/wt/internal/transcriber/cache"
 )
 
-// ---------------------------------------------------------------------------
-// Generic chunked, resumable ASR driver.
-// ---------------------------------------------------------------------------
-//
-// All ASR engines (Whisper + sherpa-onnx variants) run through this driver.
-// The audio is split into fixed ≤30 s windows; each engine implements a
-// per-chunk processor that returns chunk-local segments. The driver:
-//
-//   • shifts segment timestamps onto the absolute audio timeline;
-//   • persists a partial transcript after every chunk so an OS-level
-//     crash, force-kill, or thermal reboot loses at most one chunk's
-//     worth of work (the existing transcriber/cache.Partial format is
-//     reused unchanged, so resume is interchangeable across engines);
-//   • emits per-chunk progress / log lines uniformly;
-//   • handles ctx cancellation cleanly between chunks.
-//
-// Why this matters: sherpa-onnx-offline loads its entire input WAV at
-// once and a 22-minute file on Android-arm64 reliably triggers the kernel
-// OOM killer (which can reboot the whole device). Whisper.cpp has its
-// own internal windowing and is less prone to OOM, but without explicit
-// chunking its resume granularity was "all-or-nothing on cancel". With
-// the unified driver, every engine resumes at chunk-boundary granularity.
-//
-// Window size is tuned via WT_CHUNK_SEC (default 30 s; clamped to
-// [5, 60]). The legacy WT_SHERPA_CHUNK_SEC name is honored too.
-
 const (
 	defaultChunkSec = 30.0
 	minChunkSec     = 5.0
@@ -55,8 +29,6 @@ func chunkSec() float64 {
 	return defaultChunkSec
 }
 
-// audioChunk is one contiguous slice of the input on the absolute audio
-// timeline. Samples is a sub-slice of the full input — no copy.
 type audioChunk struct {
 	StartSec float64
 	EndSec   float64
@@ -86,20 +58,8 @@ func splitChunks(samples []float32, sec float64) []audioChunk {
 	return out
 }
 
-// chunkProcessor runs a single chunk through an ASR engine and returns
-// segments whose timestamps are CHUNK-LOCAL (start at 0). The driver
-// handles shifting onto the absolute timeline and progress reporting.
-//
-// chunkDurSec is provided as a convenience so processors can set a
-// fall-back end-time when no token timestamps are available.
 type chunkProcessor func(ctx context.Context, samples []float32, chunkDurSec float64) ([]diarizer.TranscriptSegment, error)
 
-// runChunked is the universal ASR driver. engineName is used purely for
-// log lines. process is invoked once per chunk. The function returns
-// merged + deduplicated segments and the observed RTF (audio_seconds /
-// wall_seconds, computed across only the chunks actually executed in
-// this invocation — i.e. excluding any prefix loaded from the resume
-// cache).
 func runChunked(
 	ctx context.Context,
 	engineName string,
@@ -114,7 +74,6 @@ func runChunked(
 		return nil, 0, fmt.Errorf("%s: empty input audio", engineName)
 	}
 
-	// --- Resume support --------------------------------------------------
 	var (
 		resumeSegs  []diarizer.TranscriptSegment
 		resumeAtSec float64
@@ -149,7 +108,7 @@ func runChunked(
 	totalAudio := 0.0
 
 	for i, ch := range chunks {
-		// Resume grace window absorbs floating-point boundary jitter.
+
 		if ch.EndSec <= resumeAtSec+0.05 {
 			continue
 		}
@@ -175,11 +134,6 @@ func runChunked(
 			return nil, 0, fmt.Errorf("%s chunk %d/%d: %w", engineName, i+1, len(chunks), perr)
 		}
 
-		// Shift chunk-local timestamps onto the absolute audio timeline.
-		// Both segment-level and per-token (word) timestamps must be
-		// shifted — BuildTranscript reads token times for word-level
-		// speaker assignment, and stale chunk-local times would map every
-		// word in chunk N onto the diarizer track at time 0..chunkSec.
 		off := time.Duration(ch.StartSec * float64(time.Second))
 		chunkEnd := time.Duration(ch.EndSec * float64(time.Second))
 		for j := range chunkSegs {
@@ -207,8 +161,6 @@ func runChunked(
 		totalElapsed += elapsed
 		totalAudio += chunkDur
 
-		// Persist partial after every chunk so a crash/reboot loses at
-		// most one chunk's worth of progress.
 		savePartialChunked(rawKey, merged, audioDurSec, hooks, engineName)
 
 		pct := 100.0 * ch.EndSec / audioDurSec

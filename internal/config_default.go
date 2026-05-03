@@ -38,9 +38,8 @@ func MediaDir() string {
 	return filepath.Join(CacheDir(), "imports")
 }
 
-// platformModelsDirOverride is the no-op default for desktop platforms.
-// Android's variant returns /storage/emulated/0/Documents/WTranscribe/Models
-// when writable so models survive uninstall.
+func platformConfigFileOverride() string { return "" }
+
 func platformModelsDirOverride() string { return "" }
 
 func defaultThreads() int {

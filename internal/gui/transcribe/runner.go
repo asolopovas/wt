@@ -13,6 +13,7 @@ import (
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/widget"
 
+	shared "github.com/asolopovas/wt/internal"
 	"github.com/asolopovas/wt/internal/appinfo"
 	"github.com/asolopovas/wt/internal/diarizer"
 	"github.com/asolopovas/wt/internal/gui/platsvc"
@@ -20,7 +21,6 @@ import (
 	"github.com/asolopovas/wt/internal/models"
 	"github.com/asolopovas/wt/internal/progress"
 	"github.com/asolopovas/wt/internal/transcriber"
-	shared "github.com/asolopovas/wt/internal"
 	whisper "github.com/ggerganov/whisper.cpp/bindings/go/pkg/whisper"
 )
 
@@ -135,13 +135,6 @@ func (p *Panel) runTranscription(files []string) {
 	speakers := p.Settings.Speakers()
 	noDiarize := p.Settings.NoDiarize()
 
-	// Resolve the active engine BEFORE loading whisper. Loading the
-	// 1.6 GB whisper-turbo model alongside a 660 MB sherpa engine on
-	// Android pushes total RSS+swap past the lmkd PSI thrashing
-	// threshold and the foreground app gets SIGKILLed (see logcat:
-	// "reason: device is low on swap and thrashing (300%)"). When the
-	// user picked a non-whisper ASR engine, skip the whisper load
-	// entirely — j.Model stays nil and Job.Run already tolerates that.
 	activeEngine := shared.EngineWhisper
 	if mgr := models.NewManager(); mgr != nil {
 		if eng, _ := models.EngineForActiveASR(mgr.Active(models.FamilyASR)); eng != "" {
@@ -168,6 +161,7 @@ func (p *Panel) runTranscription(files []string) {
 		p.debugLog(fmt.Sprintf("engine=%s threads=%d language=%q speakers=%d noDiarize=%v (skip whisper load)", activeEngine, threads, language, speakers, noDiarize))
 	}
 
+	deviceLabelLog := "CPU"
 	gpuFound := false
 	if activeEngine == shared.EngineWhisper {
 		devices := whisper.BackendDevices()
@@ -178,7 +172,7 @@ func (p *Panel) runTranscription(files []string) {
 				if runtime.GOOS == "android" {
 					suffix = ", shared mem"
 				}
-				p.AppendLog(fmt.Sprintf("Model: %s · %s%s", modelSize, dev.Description, suffix))
+				deviceLabelLog = dev.Description + suffix
 				if runtime.GOOS != "android" {
 					usedMB := dev.TotalMB - dev.FreeMB
 					p.debugLog(fmt.Sprintf("VRAM: %d/%d MB", usedMB, dev.TotalMB))
@@ -187,11 +181,41 @@ func (p *Panel) runTranscription(files []string) {
 			}
 		}
 		if !gpuFound {
-			p.AppendLog(fmt.Sprintf("Model: %s · CPU", modelSize))
 			p.debugLog("no GPU detected, using CPU")
 		}
+	}
+
+	if activeEngine == shared.EngineWhisper {
+		p.AppendLog(fmt.Sprintf("Model: %s · %s", modelSize, deviceLabelLog))
 	} else {
-		p.AppendLog(fmt.Sprintf("Engine: %s (sherpa-onnx)", activeEngine))
+		p.AppendLog(fmt.Sprintf("Engine: %s (sherpa-onnx) · %s", activeEngine, deviceLabelLog))
+	}
+
+	p.debugLog("Settings:")
+	p.debugLog(fmt.Sprintf("  Engine    : %s", activeEngine))
+	switch activeEngine {
+	case shared.EngineWhisper:
+		modelFile := transcriber.ModelFiles[modelSize]
+		if modelFile == "" {
+			modelFile = modelSize
+		}
+		if resolved, err := transcriber.ResolveModelPathLocal(modelSize, ""); err == nil {
+			p.debugLog(fmt.Sprintf("  Model     : %s (%s)", modelSize, resolved))
+		} else {
+			p.debugLog(fmt.Sprintf("  Model     : %s (%s)", modelSize, modelFile))
+		}
+	default:
+		p.debugLog(fmt.Sprintf("  ASR model : %s (sherpa-onnx)", modelSize))
+	}
+	p.debugLog(fmt.Sprintf("  Device    : %s", deviceLabelLog))
+	p.debugLog(fmt.Sprintf("  Language  : %s", language))
+	p.debugLog(fmt.Sprintf("  Threads   : %d", threads))
+	if noDiarize {
+		p.debugLog("  Diarizer  : off")
+	} else if !diarizer.SupportsExternalBackend() {
+		p.debugLog("  Diarizer  : unavailable on this platform")
+	} else {
+		p.debugLog(fmt.Sprintf("  Speakers  : %d (0 = auto)", speakers))
 	}
 	if used, total := sysstats.MemUsageMB(); total > 0 {
 		p.debugLog(fmt.Sprintf("RAM: %d/%d MB", used, total))
@@ -406,9 +430,19 @@ func (p *Panel) transcribeFile(model whisper.Model, path, modelSize, deviceLabel
 	defer stopTicker()
 
 	phaseStart := map[transcriber.Phase]time.Time{}
+	phaseLabels := map[transcriber.Phase]string{
+		transcriber.PhaseCacheCheck:   "cache check",
+		transcriber.PhaseLoadingAudio: "loading audio",
+		transcriber.PhaseTranscribing: "transcribing",
+		transcriber.PhaseDiarizing:    "diarizing",
+		transcriber.PhaseWriting:      "writing transcript",
+	}
 	hooks := transcriber.Hooks{
 		OnPhase: func(phase transcriber.Phase) {
 			phaseStart[phase] = time.Now()
+			if label, ok := phaseLabels[phase]; ok {
+				p.debugLog("phase: " + label)
+			}
 			switch phase {
 			case transcriber.PhaseCacheCheck:
 				p.setStatus("Checking cache...")
@@ -471,8 +505,6 @@ func (p *Panel) transcribeFile(model whisper.Model, path, modelSize, deviceLabel
 		},
 	}
 
-	// Re-resolve here for transcribeFile-only callers; runTranscription
-	// already resolved this up-front to skip the whisper load.
 	engine := shared.EngineWhisper
 	if mgr := models.NewManager(); mgr != nil {
 		if eng, _ := models.EngineForActiveASR(mgr.Active(models.FamilyASR)); eng != "" {

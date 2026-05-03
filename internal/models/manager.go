@@ -79,18 +79,14 @@ func (m *Manager) Status(id string) Status {
 func (m *Manager) Active(f Family) string {
 	m.mu.Lock()
 	if id, ok := m.active[f]; ok {
-		// Empty string is the explicit "none" marker (set via ClearActive).
-		// Important for FamilyASR: when the user picks a whisper entry from
-		// the unified dropdown we clear FamilyASR so the engine resolver
-		// stops preferring the previously-picked ASR engine. The auto-pick
-		// fallbacks below would otherwise resurrect it.
+
 		m.mu.Unlock()
 		return id
 	}
 	m.mu.Unlock()
 
 	entries := ByFamily(f)
-	// Prefer the catalog default if it is actually installed.
+
 	for _, e := range entries {
 		if !e.DefaultActive {
 			continue
@@ -106,7 +102,7 @@ func (m *Manager) Active(f Family) string {
 			return e.ID
 		}
 	}
-	// Otherwise auto-pick the first installed entry in the family.
+
 	for _, e := range entries {
 		installed := true
 		for _, p := range PathsFor(e) {
@@ -119,7 +115,7 @@ func (m *Manager) Active(f Family) string {
 			return e.ID
 		}
 	}
-	// Fall back to the catalog default ID (may not be installed).
+
 	for _, e := range entries {
 		if e.DefaultActive {
 			return e.ID
@@ -144,10 +140,6 @@ func (m *Manager) SetActive(id string) error {
 	return m.saveActive()
 }
 
-// ClearActive marks the family as explicitly having NO active selection.
-// This is distinct from "unset" (which falls back to defaults / first
-// installed). Used by the unified transcription dropdown to drop a
-// previously-picked ASR engine when the user switches to whisper.
 func (m *Manager) ClearActive(f Family) error {
 	m.mu.Lock()
 	if id, ok := m.active[f]; ok && id == "" {
@@ -233,17 +225,11 @@ func (m *Manager) Get(ctx context.Context, id string, prog func(Progress)) error
 		prog(Progress{ID: id, Downloaded: totalAll, Total: totalAll, Done: true})
 	}
 
-	// Auto-select on first install: if the user has nothing active in
-	// this family yet, promote the freshly downloaded model. Mirrors
-	// what most app stores do ("installed apps become available") and
-	// avoids a UX where the user downloads e.g. Qwen3 0.6B for auto-
-	// rename but it stays unselected because they never tapped the row.
 	m.mu.Lock()
 	cur := m.active[e.Family]
 	m.mu.Unlock()
 	if cur == "" {
-		// Best-effort: ignore SetActive errors so a transient save
-		// failure doesn't fail the download as a whole.
+
 		_ = m.SetActive(id)
 	}
 	return nil
@@ -263,9 +249,7 @@ func (m *Manager) Delete(id string) error {
 	if !ok {
 		return fmt.Errorf("unknown model: %s", id)
 	}
-	// Build set of paths shared with other catalog entries (e.g. pyannote-3.0
-	// segmentation is shared by 3 of the 5 diarizer presets). Skip removal
-	// for shared files so deleting one preset doesn't break the others.
+
 	shared := map[string]bool{}
 	for _, other := range Catalog() {
 		if other.ID == e.ID {
@@ -282,7 +266,7 @@ func (m *Manager) Delete(id string) error {
 		}
 		any = true
 		if shared[p] {
-			continue // keep — referenced by another entry
+			continue
 		}
 		if err := os.Remove(p); err != nil {
 			return err

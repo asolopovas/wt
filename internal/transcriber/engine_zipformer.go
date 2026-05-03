@@ -17,21 +17,6 @@ import (
 	"github.com/asolopovas/wt/internal/diarizer"
 )
 
-// Sherpa-onnx-offline backed engines (Zipformer, Moonshine, ...).
-//
-// These engines all shell out to the same `sherpa-onnx-offline` CLI, which
-// the existing android-sherpa-bin Taskfile target already produces. They
-// differ only in the model files passed via flags. Shared infrastructure
-// (binary discovery, WAV write, JSON parsing, sub-word coalescing) lives in
-// this file.
-
-// ---------------------------------------------------------------------------
-// Shared infrastructure
-// ---------------------------------------------------------------------------
-
-// sherpaBinaryName is the on-disk name of sherpa-onnx-offline per platform.
-// On Android we ship it as a `lib*.so` so the Android packager installs it
-// under /data/app/<pkg>/lib/arm64/. Same convention as libsherpa-diar.so.
 func sherpaBinaryName() string {
 	switch runtime.GOOS {
 	case "windows":
@@ -43,8 +28,6 @@ func sherpaBinaryName() string {
 	}
 }
 
-// findSherpaASRBinary looks up the sherpa-onnx-offline binary using the same
-// strategy as the diarizer's findSherpaBinary.
 func findSherpaASRBinary() (string, error) {
 	name := sherpaBinaryName()
 
@@ -78,12 +61,6 @@ func fileExists(p string) bool {
 	return err == nil && !st.IsDir()
 }
 
-// androidNativeLibDirs mirrors internal/diarizer.androidNativeLibDirs.
-// On Android the app user can't read /data/app/, so filepath.Glob over
-// that tree returns nothing. Instead, read /proc/self/maps which lists
-// every .so currently mapped into the process — the dirs containing
-// those are the real nativeLibraryDir paths Android resolved at load
-// time. This works even with randomised UUID-style /data/app/ subdirs.
 func androidNativeLibDirs() []string {
 	var dirs []string
 	if v := os.Getenv("ANDROID_NATIVE_LIBS_DIR"); v != "" {
@@ -117,12 +94,6 @@ func androidNativeLibDirs() []string {
 	return dirs
 }
 
-// sherpaProvider returns the ONNX Runtime provider. WT_ZIPFORMER_PROVIDER is
-// the (legacy) env name; applies to all sherpa-backed engines.
-//
-// The static onnxruntime prebuilt used by our existing android-sherpa-bin
-// task only supports {cpu, cuda, coreml}. NNAPI requires a different build
-// (BUILD_SHARED_LIBS=ON / AAR-style onnxruntime). Until then, default = cpu.
 func sherpaProvider() string {
 	if v := os.Getenv("WT_ZIPFORMER_PROVIDER"); v != "" {
 		return v
@@ -137,15 +108,10 @@ func sherpaThreads(spec JobSpec) int {
 	return 4
 }
 
-// WriteTempWAVForTest is the exported wrapper around writeTempWAV used
-// by cmd/wt-test for on-device pipeline experiments. Production code
-// should not depend on this.
 func WriteTempWAVForTest(samples []float32) (string, func(), error) {
 	return writeTempWAV(samples, "wt-pipeline")
 }
 
-// writeTempWAV writes samples to a fresh temp file and returns
-// (wavPath, cleanup, err). cleanup must be deferred by caller.
 func writeTempWAV(samples []float32, prefix string) (string, func(), error) {
 	tmpDir, err := os.MkdirTemp("", prefix+"-*")
 	if err != nil {
@@ -159,10 +125,6 @@ func writeTempWAV(samples []float32, prefix string) (string, func(), error) {
 	return wavPath, func() { _ = os.RemoveAll(tmpDir) }, nil
 }
 
-// runSherpaCmd runs sherpa-onnx-offline once and returns its stdout,
-// stderr, wall time, and error. No phase/progress side-effects — the
-// chunked driver (engine_chunk.go) drives those uniformly across
-// engines.
 func runSherpaCmd(ctx context.Context, bin string, args []string) (string, string, float64, error) {
 	start := time.Now()
 	cmd := exec.CommandContext(ctx, bin, args...)
@@ -180,9 +142,6 @@ func runSherpaCmd(ctx context.Context, bin string, args []string) (string, strin
 	return stdout.String(), stderr.String(), time.Since(start).Seconds(), nil
 }
 
-// chunkSegmentsFromSherpa builds segments from one parsed sherpa JSON
-// result, with timestamps relative to the chunk (start at 0). The
-// generic chunked driver shifts them onto the absolute timeline.
 func chunkSegmentsFromSherpa(r sherpaResult, chunkDurSec float64) []diarizer.TranscriptSegment {
 	if len(r.Tokens) > 0 && len(r.Tokens) == len(r.Timestamps) {
 		return coalesceTokens(r.Tokens, r.Timestamps, chunkDurSec)
@@ -198,11 +157,6 @@ func chunkSegmentsFromSherpa(r sherpaResult, chunkDurSec float64) []diarizer.Tra
 	}}
 }
 
-// runSherpaEngineChunked is the shared back-half for all sherpa-backed
-// engines. argsForWAV builds the engine-specific argv given a chunk's
-// WAV path. firstResult (if any) is the first non-empty parsed result,
-// used by callers like SenseVoice to extract metadata such as detected
-// language.
 func runSherpaEngineChunked(
 	ctx context.Context,
 	engineName, bin string,
@@ -228,7 +182,7 @@ func runSherpaEngineChunked(
 		}
 		parsed, perr := parseSherpaJSON(stdout)
 		if perr != nil {
-			// Pure-silence chunks parse as empty — not an error.
+
 			hooks.log("debug", fmt.Sprintf("%s: empty chunk (%v); stderr=%s",
 				engineName, perr, truncate(stderr, 120)))
 			return nil, nil
@@ -243,23 +197,16 @@ func runSherpaEngineChunked(
 	return segs, firstResult, rtf, err
 }
 
-// sherpaResult mirrors the JSON sherpa-onnx-offline emits per input file.
-// Only the fields we consume are listed; sherpa adds more (words, ...)
-// that vary by model family.
 type sherpaResult struct {
 	Text       string    `json:"text"`
 	Tokens     []string  `json:"tokens"`
 	Timestamps []float64 `json:"timestamps"`
-	// Lang/Emotion/Event are populated by SenseVoice (and similar
-	// multi-task models). Format is a tag like "<|en|>", "<|HAPPY|>",
-	// "<|Speech|>". Empty string for vanilla ASR models.
+
 	Lang    string `json:"lang,omitempty"`
 	Emotion string `json:"emotion,omitempty"`
 	Event   string `json:"event,omitempty"`
 }
 
-// stripSherpaTag unwraps a "<|TAG|>" SenseVoice tag string into its inner
-// value (lowercased). Returns empty string for empty/unknown/missing tags.
 func stripSherpaTag(tag string) string {
 	tag = strings.TrimSpace(tag)
 	tag = strings.TrimPrefix(tag, "<|")
@@ -272,9 +219,6 @@ func stripSherpaTag(tag string) string {
 	return tag
 }
 
-// parseSherpaJSON scans stdout for the first JSON object line containing a
-// "text" field and returns the parsed result. As of sherpa-onnx 1.10+ the
-// CLI prints one such JSON object per input WAV.
 func parseSherpaJSON(stdout string) (sherpaResult, error) {
 	for _, line := range strings.Split(stdout, "\n") {
 		line = strings.TrimSpace(line)
@@ -293,13 +237,6 @@ func parseSherpaJSON(stdout string) (sherpaResult, error) {
 	return sherpaResult{}, fmt.Errorf("no JSON result line found in subprocess output")
 }
 
-// coalesceTokens merges BPE sub-word pieces from a sherpa-onnx token
-// stream into a single chunk-level segment whose Tokens carry per-word
-// timings. Returning one segment per chunk (instead of per-word) lets
-// the output layer assign speakers at the WORD level via the embedded
-// Tokens — then group consecutive same-speaker words into utterances.
-// This is what avoids the per-word speaker flicker we'd see if the
-// segment list itself were word-level.
 func coalesceTokens(tokens []string, timestamps []float64, audioDurSec float64) []diarizer.TranscriptSegment {
 	if len(tokens) == 0 {
 		return nil
@@ -324,9 +261,7 @@ func coalesceTokens(tokens []string, timestamps []float64, audioDurSec float64) 
 	if len(words) == 0 {
 		return nil
 	}
-	// Fill end-times: each word ends where the next word starts (or at
-	// audioDurSec for the last word). sherpa's timestamps array gives
-	// word-onset times only.
+
 	for i := range words {
 		if i+1 < len(words) {
 			words[i].end = words[i+1].start
@@ -359,10 +294,6 @@ func truncate(s string, n int) string {
 	}
 	return s[:n] + "..."
 }
-
-// ---------------------------------------------------------------------------
-// Zipformer engine (transducer)
-// ---------------------------------------------------------------------------
 
 const zipformerBundleName = "sherpa-onnx-zipformer-en-2023-04-01"
 
@@ -405,7 +336,6 @@ func (j *Job) runZipformer(ctx context.Context, spec JobSpec, samples []float32,
 	return RunZipformer(ctx, spec, samples, audioDurSec, rawKey, j.Hooks)
 }
 
-// RunZipformer is the standalone entrypoint (used by wt-test).
 func RunZipformer(ctx context.Context, spec JobSpec, samples []float32, audioDurSec float64, rawKey string, hooks Hooks) ([]diarizer.TranscriptSegment, string, float64, error) {
 	bin, err := findSherpaASRBinary()
 	if err != nil {
@@ -433,15 +363,6 @@ func RunZipformer(ctx context.Context, spec JobSpec, samples []float32, audioDur
 	}
 	return segs, "en", rtf, nil
 }
-
-// ---------------------------------------------------------------------------
-// Parakeet TDT 0.6B v2 engine (NeMo transducer, English, cased+punct)
-// ---------------------------------------------------------------------------
-//
-// Sherpa-onnx treats Parakeet as a regular transducer (--encoder/--decoder/
-// --joiner). Only difference vs Zipformer is filenames inside the bundle
-// dir. Output is naturally cased+punctuated thanks to the NeMo training
-// data, so no post-process is needed.
 
 const parakeetBundleName = "sherpa-onnx-nemo-parakeet-tdt-0.6b-v2-int8"
 
@@ -480,8 +401,6 @@ func (j *Job) runParakeet(ctx context.Context, spec JobSpec, samples []float32, 
 	return RunParakeet(ctx, spec, samples, audioDurSec, rawKey, j.Hooks)
 }
 
-// RunParakeet runs NeMo Parakeet TDT 0.6B v2 via sherpa-onnx-offline.
-// Output is naturally cased + punctuated.
 func RunParakeet(ctx context.Context, spec JobSpec, samples []float32, audioDurSec float64, rawKey string, hooks Hooks) ([]diarizer.TranscriptSegment, string, float64, error) {
 	bin, err := findSherpaASRBinary()
 	if err != nil {
@@ -499,10 +418,7 @@ func RunParakeet(ctx context.Context, spec JobSpec, samples []float32, audioDurS
 			"--joiner=" + models.Joiner,
 			fmt.Sprintf("--num-threads=%d", sherpaThreads(spec)),
 			"--decoding-method=greedy_search",
-			// Parakeet TDT uses NeMo's transducer variant (Token-and-
-			// Duration Transducer); regular --model-type=transducer fails
-			// on metadata lookup. nemo_transducer routes to offline-
-			// recognizer-transducer-nemo-impl.h which knows about TDT.
+
 			"--model-type=nemo_transducer",
 			"--provider=" + sherpaProvider(),
 			wavPath,
@@ -514,16 +430,6 @@ func RunParakeet(ctx context.Context, spec JobSpec, samples []float32, audioDurS
 	}
 	return segs, "en", rtf, nil
 }
-
-// ---------------------------------------------------------------------------
-// SenseVoice engine (Alibaba multilingual: zh/en/ja/ko/yue, single ONNX file)
-// ---------------------------------------------------------------------------
-//
-// SenseVoice is a single-model ASR (no separate encoder/decoder/joiner).
-// Native cased + punctuated output. Language can be auto-detected or forced
-// via spec.Language (zh/en/ja/ko/yue). Includes emotion/event tags by
-// default which we currently ignore (they're in the JSON `emotion`/`event`
-// fields, not `text`).
 
 const senseVoiceBundleName = "sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17"
 
@@ -562,9 +468,6 @@ func (j *Job) runSenseVoice(ctx context.Context, spec JobSpec, samples []float32
 	return RunSenseVoice(ctx, spec, samples, audioDurSec, rawKey, j.Hooks)
 }
 
-// RunSenseVoice runs Alibaba SenseVoice via sherpa-onnx-offline. Output is
-// natively cased + punctuated. Set spec.Language to one of
-// ""/auto/zh/en/ja/ko/yue.
 func RunSenseVoice(ctx context.Context, spec JobSpec, samples []float32, audioDurSec float64, rawKey string, hooks Hooks) ([]diarizer.TranscriptSegment, string, float64, error) {
 	bin, err := findSherpaASRBinary()
 	if err != nil {
@@ -603,8 +506,7 @@ func RunSenseVoice(ctx context.Context, spec JobSpec, samples []float32, audioDu
 	if detected == "auto" {
 		detected = ""
 	}
-	// Surface SenseVoice's detected language tag from the first non-empty
-	// chunk if we asked for auto.
+
 	if detected == "" && first.Lang != "" {
 		if tag := stripSherpaTag(first.Lang); tag != "" {
 			detected = tag
@@ -612,10 +514,6 @@ func RunSenseVoice(ctx context.Context, spec JobSpec, samples []float32, audioDu
 	}
 	return segs, detected, rtf, nil
 }
-
-// ---------------------------------------------------------------------------
-// Moonshine engine (preprocessor + encoder + cached/uncached decoders)
-// ---------------------------------------------------------------------------
 
 const moonshineBundleName = "sherpa-onnx-moonshine-base-en-int8"
 
@@ -659,12 +557,6 @@ func (j *Job) runMoonshine(ctx context.Context, spec JobSpec, samples []float32,
 	return RunMoonshine(ctx, spec, samples, audioDurSec, rawKey, j.Hooks)
 }
 
-// RunMoonshine is the standalone entrypoint (used by wt-test).
-//
-// Moonshine outputs cased + punctuated text natively, so no post-process is
-// needed for those. It does not output token-level timestamps in our static
-// build, so we currently emit a single segment spanning the file (TODO:
-// upstream sherpa added per-token timestamps for Moonshine in v1.11+).
 func RunMoonshine(ctx context.Context, spec JobSpec, samples []float32, audioDurSec float64, rawKey string, hooks Hooks) ([]diarizer.TranscriptSegment, string, float64, error) {
 	bin, err := findSherpaASRBinary()
 	if err != nil {

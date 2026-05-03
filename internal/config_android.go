@@ -26,19 +26,32 @@ var (
 
 	modelsDirOnce sync.Once
 	modelsDirPath string
+
+	configFileOnce sync.Once
+	configFilePath string
 )
 
-// MediaDir resolves the canonical Android shared-storage root for the
-// app's recordings, logs, and other user-visible data.
-//
-// Single home: /storage/emulated/0/Documents/WTranscribe
-//   - Visible in any Files app under "Documents → WTranscribe"
-//   - Survives uninstall + Clear Data (MANAGE_EXTERNAL_STORAGE granted)
-//   - Co-located with Models/ subfolder for easy USB backup
-//
-// WT_MEDIA_DIR env overrides for tests / power users. If the public
-// path is unwritable (permission revoked, etc.) we fall back to the
-// app's private CacheDir/imports.
+func platformConfigFileOverride() string {
+	configFileOnce.Do(func() {
+		if v := os.Getenv("WT_CONFIG_FILE"); v != "" {
+			configFilePath = v
+			return
+		}
+		public := "/storage/emulated/0/Documents/WTranscribe"
+		if err := os.MkdirAll(public, 0o755); err == nil {
+			probe := filepath.Join(public, ".wt-write-test")
+			if f, err := os.Create(probe); err == nil {
+				_ = f.Close()
+				_ = os.Remove(probe)
+				configFilePath = filepath.Join(public, "config.yml")
+				return
+			}
+		}
+
+	})
+	return configFilePath
+}
+
 func MediaDir() string {
 	mediaDirOnce.Do(func() {
 		if v := os.Getenv("WT_MEDIA_DIR"); v != "" {
@@ -60,15 +73,6 @@ func MediaDir() string {
 	return mediaDirPath
 }
 
-// modelsDirOverride probes the canonical public location
-// /storage/emulated/0/Documents/WTranscribe/Models. If the app has been
-// granted MANAGE_EXTERNAL_STORAGE (declared in our manifest) and the
-// directory is writable, prefer it over the private internal-storage
-// fallback. Models stored here SURVIVE uninstall + "Clear Data", which
-// is the whole point on a phone where the active model set is 4+ GB.
-//
-// Result is cached for the process lifetime.
-// platformModelsDirOverride is consumed by config.go's ModelsDir().
 func platformModelsDirOverride() string {
 	return modelsDirOverride()
 }
@@ -89,10 +93,7 @@ func modelsDirOverride() string {
 				return
 			}
 		}
-		// No public access (permission denied or revoked) — caller will
-		// fall back to the private path via the default config.go
-		// ModelsDir(). modelsDirPath stays empty so callers can detect
-		// the non-override case.
+
 	})
 	return modelsDirPath
 }

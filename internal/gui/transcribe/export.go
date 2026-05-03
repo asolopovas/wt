@@ -421,13 +421,6 @@ func (p *Panel) exportSingleAs(f exportFormat, item ExportItem, start time.Time)
 	saveDialog.Show()
 }
 
-// exportBundleFolder writes the transcript (.txt) and audio side-by-side —
-// the unzipped equivalent of the ZIP bundle. Implementation differs per
-// platform: desktop prompts for a folder via SAF; Android writes directly to
-// the public Documents/WTranscribe directory because Fyne's storage layer
-// can't synthesize child URIs of an SAF tree URI ("operation not supported
-// for this URI").
-
 func writeBundleZip(w io.Writer, tr *transcriber.Transcript, item ExportItem, start time.Time) error {
 	zw := zip.NewWriter(w)
 	defer func() { _ = zw.Close() }()

@@ -110,12 +110,11 @@ func TestGroupWordsIntoUtterances_BasicSpeakerChange(t *testing.T) {
 }
 
 func TestGroupWordsIntoUtterances_SmoothsSingleWordFlicker(t *testing.T) {
-	// Single-word SPEAKER_02 flicker in the middle of a SPEAKER_01 run
-	// should be absorbed back to SPEAKER_01 (sandwich rule).
+
 	words := []Word{
 		{Text: "Now", Start: 0, End: 200, Speaker: "SPEAKER_01"},
 		{Text: "what", Start: 200, End: 400, Speaker: "SPEAKER_01"},
-		{Text: "do", Start: 400, End: 500, Speaker: "SPEAKER_02"}, // flicker
+		{Text: "do", Start: 400, End: 500, Speaker: "SPEAKER_02"},
 		{Text: "you", Start: 500, End: 700, Speaker: "SPEAKER_01"},
 		{Text: "think?", Start: 700, End: 1000, Speaker: "SPEAKER_01"},
 	}
@@ -129,10 +128,7 @@ func TestGroupWordsIntoUtterances_SmoothsSingleWordFlicker(t *testing.T) {
 }
 
 func TestGroupWordsIntoUtterances_PreservesGenuineMultiWordTurn(t *testing.T) {
-	// A genuine multi-word SPEAKER_02 turn (≥3 words) embedded inside
-	// SPEAKER_01 must NOT be smoothed away — this is the bug the upstream
-	// majority-vote algorithm causes when sentences are long. Conservative
-	// smoothing only kills 1- and 2-word flickers.
+
 	words := []Word{
 		{Text: "Tell", Start: 0, End: 200, Speaker: "SPEAKER_01"},
 		{Text: "me", Start: 200, End: 400, Speaker: "SPEAKER_01"},
@@ -159,7 +155,7 @@ func TestGroupWordsIntoUtterances_SmoothsTwoWordFlicker(t *testing.T) {
 	words := []Word{
 		{Text: "hello", Start: 0, End: 200, Speaker: "SPEAKER_01"},
 		{Text: "world", Start: 200, End: 400, Speaker: "SPEAKER_01"},
-		{Text: "foo", Start: 400, End: 600, Speaker: "SPEAKER_02"}, // 2-word flicker
+		{Text: "foo", Start: 400, End: 600, Speaker: "SPEAKER_02"},
 		{Text: "bar", Start: 600, End: 800, Speaker: "SPEAKER_02"},
 		{Text: "there", Start: 800, End: 1000, Speaker: "SPEAKER_01"},
 		{Text: "end.", Start: 1000, End: 1200, Speaker: "SPEAKER_01"},
@@ -174,8 +170,7 @@ func TestGroupWordsIntoUtterances_SmoothsTwoWordFlicker(t *testing.T) {
 }
 
 func TestGroupWordsIntoUtterances_SplitsOnSentenceEndSameSpeaker(t *testing.T) {
-	// One speaker, two consecutive sentences should produce two
-	// utterances split on the period.
+
 	words := []Word{
 		{Text: "First", Start: 0, End: 200, Speaker: "SPEAKER_01"},
 		{Text: "sentence.", Start: 200, End: 600, Speaker: "SPEAKER_01"},
@@ -192,8 +187,7 @@ func TestGroupWordsIntoUtterances_SplitsOnSentenceEndSameSpeaker(t *testing.T) {
 }
 
 func TestGroupWordsIntoUtterances_NoSpeakerLabels(t *testing.T) {
-	// Whisper-style: sentence-level segments collapsed into "words" with
-	// no diarization. Should produce one utterance per sentence.
+
 	words := []Word{
 		{Text: "Hello world.", Start: 0, End: 1000, Speaker: "SPEAKER_01"},
 		{Text: "How are you?", Start: 1000, End: 2500, Speaker: "SPEAKER_01"},
@@ -205,9 +199,7 @@ func TestGroupWordsIntoUtterances_NoSpeakerLabels(t *testing.T) {
 }
 
 func TestCoalesceWhisperTokens_BPEContractionsAndSplits(t *testing.T) {
-	// Real whisper.cpp BPE output observed in the wild for the phrase:
-	//   "Hello, Mr O'Donnell. I'm Andrew. Fulham."
-	// Word-initial tokens carry a leading space; continuation pieces do not.
+
 	ms := func(n int) time.Duration { return time.Duration(n) * time.Millisecond }
 	tok := func(text string, start, end int) whisper.Token {
 		return whisper.Token{Text: text, Start: ms(start), End: ms(end)}
@@ -244,8 +236,6 @@ func TestCoalesceWhisperTokens_BPEContractionsAndSplits(t *testing.T) {
 		}
 	}
 
-	// End of "O'Donnell." must extend through the trailing "." piece
-	// (1200ms tok.End for "nell" is overwritten by 1210 from ".").
 	endCheck := func(n int) time.Duration { return time.Duration(n) * time.Millisecond }
 	if got[2].End != endCheck(1210) {
 		t.Errorf("O'Donnell. end = %v, want 1.21s", got[2].End)
@@ -254,9 +244,6 @@ func TestCoalesceWhisperTokens_BPEContractionsAndSplits(t *testing.T) {
 		t.Errorf("O'Donnell. start = %v, want 0.7s", got[2].Start)
 	}
 
-	// Joining the coalesced words with a single space must match what
-	// the user reads in the final transcript — no double spaces, no
-	// split contractions / split multi-piece words.
 	joined := joinWords(func() []string {
 		out := make([]string, len(got))
 		for i, t := range got {
@@ -274,8 +261,7 @@ func TestCoalesceWhisperTokens_EmptyAndAllContinuation(t *testing.T) {
 	if got := coalesceWhisperTokens(nil); got != nil {
 		t.Errorf("nil input: got %+v, want nil", got)
 	}
-	// First token has no leading space — should still start a word
-	// (otherwise the very first word of every utterance would be lost).
+
 	in := []whisper.Token{{Text: "Hello", End: 500 * time.Millisecond}}
 	got := coalesceWhisperTokens(in)
 	if len(got) != 1 || got[0].Text != "Hello" {

@@ -46,14 +46,6 @@ func SpeakerIDForTime(startSec, endSec float64, diarSegs []Segment) (int, bool) 
 	return SpeakerIDForTimeWithHint(startSec, endSec, diarSegs, -1)
 }
 
-// SpeakerIDForTimeWithHint is like SpeakerIDForTime but breaks ties
-// (overlap with multiple speakers within ~5 ms) by preferring the
-// `hintSpeaker` (typically the previous word's speaker). Pass -1 to
-// disable the hint. This is the standard "continuity bias" used by
-// pyannote's word-level speaker assignment to suppress per-word
-// flicker around speaker turns: a word straddling two diarizer
-// segments stays with the previous word unless the new speaker has a
-// clear overlap advantage.
 func SpeakerIDForTimeWithHint(startSec, endSec float64, diarSegs []Segment, hintSpeaker int) (int, bool) {
 	if len(diarSegs) == 0 {
 		return 0, false
@@ -84,10 +76,6 @@ func SpeakerIDForTimeWithHint(startSec, endSec float64, diarSegs []Segment, hint
 		return bestSpk, true
 	}
 
-	// If the hint speaker has overlap and is within 5 ms of the leader,
-	// prefer the hint (continuity). Otherwise pick the leader
-	// deterministically (lowest speaker ID on exact ties to avoid the
-	// nondeterminism of Go's randomised map iteration).
 	bestSpk := -1
 	bestOvl := -1.0
 	for spk, ovl := range overlapBySpeaker {

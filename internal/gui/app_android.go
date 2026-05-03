@@ -85,9 +85,7 @@ func Run(version, buildDate string) error {
 	}
 
 	settingsTabItem := container.NewTabItem("SETTINGS", settingsTab)
-	// LOG tab was removed — the persistent run log lives at
-	// <MediaDir>/wt.log and is reachable via Settings → VIEW LOG. The
-	// in-app live log was duplicating that surface.
+
 	tabs := container.NewAppTabs(
 		container.NewTabItem("TRANSCODE", transcodeTab),
 		settingsTabItem,

@@ -20,7 +20,7 @@ type JobSpec struct {
 	SourcePath  string
 	ModelSize   string
 	Language    string
-	Engine      string // "" or "whisper" => whisper.cpp; "zipformer" => sherpa-onnx zipformer
+	Engine      string
 	Threads     int
 	Speakers    int
 	NoDiarize   bool
@@ -108,9 +108,7 @@ func (h Hooks) resume(p ResumePrompt) ResumeChoice {
 var ErrAborted = errors.New("transcription aborted")
 
 func (j *Job) Run(ctx context.Context, spec JobSpec) (Result, error) {
-	// Whisper engine needs a loaded whisper.Model. Sherpa-backed engines
-	// (parakeet/sensevoice/moonshine/zipformer) shell out to a subprocess
-	// and don't touch j.Model.
+
 	if resolveEngine(spec.Engine) == shared.EngineWhisper && j.Model == nil {
 		return Result{}, fmt.Errorf("job: Model is required for whisper engine")
 	}
@@ -279,8 +277,7 @@ func (j *Job) runWhisper(ctx context.Context, spec JobSpec, samples []float32, a
 		Threads: spec.Threads,
 		TDRZ:    UseTDRZ(spec.TDRZ, false, spec.NoDiarize),
 	})
-	// VAD is still useful within a chunk to skip intra-chunk silence,
-	// but max-speech is bounded by the chunk size we feed in.
+
 	if ConfigureVAD(wctx) {
 		j.Hooks.log("debug", "VAD: Silero v6.2.0")
 	}

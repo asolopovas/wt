@@ -20,18 +20,16 @@ type Config struct {
 	Model           string `yaml:"model"`
 	Language        string `yaml:"language"`
 	Device          string `yaml:"device"`
-	Engine          string `yaml:"engine,omitempty"` // "whisper" (default) or "zipformer"
+	Engine          string `yaml:"engine,omitempty"`
 	Threads         int    `yaml:"threads"`
 	Speakers        int    `yaml:"speakers,omitempty"`
 	NoDiarize       bool   `yaml:"no_diarize,omitempty"`
 	TDRZ            bool   `yaml:"tdrz,omitempty"`
 	CacheExpiryDays int    `yaml:"cache_expiry_days,omitempty"`
-	// LogRetentionDays controls how long rotated wt.log archives are
-	// kept. 0 = forever; 1 = 24h (default); 7 = week; 30 = month.
+
 	LogRetentionDays int `yaml:"log_retention_days,omitempty"`
 }
 
-// Engine identifiers.
 const (
 	EngineWhisper    = "whisper"
 	EngineZipformer  = "zipformer"
@@ -67,16 +65,19 @@ func CacheDir() string {
 }
 
 func FilePath() string {
+	if p := platformConfigFileOverride(); p != "" {
+		return p
+	}
 	return filepath.Join(Dir(), "config.yml")
 }
 
 func Defaults() Config {
 	return Config{
-		Version:         CurrentConfigVersion,
-		Model:           defaultModel(),
-		Device:          "auto",
-		Engine:          EngineWhisper,
-		Threads:         defaultThreads(),
+		Version:          CurrentConfigVersion,
+		Model:            defaultModel(),
+		Device:           "auto",
+		Engine:           EngineWhisper,
+		Threads:          defaultThreads(),
 		CacheExpiryDays:  30,
 		LogRetentionDays: 1,
 	}

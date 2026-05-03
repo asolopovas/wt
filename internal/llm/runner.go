@@ -23,8 +23,6 @@ type Runner struct {
 	Threads    int
 }
 
-// ErrNoLLMInstalled signals that auto-rename should be skipped silently:
-// no LLM model files are present on disk yet (fresh install).
 var ErrNoLLMInstalled = errors.New("no LLM installed (download one in Settings → Models)")
 
 func fileExists(p string) bool {
@@ -56,9 +54,7 @@ func NewRunner() (*Runner, error) {
 		mp = models.PathFor(entry)
 	}
 	if id == "" || !ok || !fileExists(mp) {
-		// Fallback: pick any installed LLM from the catalog so a fresh
-		// install with the default LLM not yet downloaded still auto-names
-		// when *some* LLM is present.
+
 		entry, mp, ok = firstInstalledLLM()
 		if !ok {
 			return nil, ErrNoLLMInstalled
@@ -123,8 +119,7 @@ func (r *Runner) Generate(ctx context.Context, opts Options) (string, error) {
 			"--simple-io",
 			"--no-warmup",
 		}
-		// Keep llama.cpp's own logs on stderr so timeout reports surface real
-		// progress (prefill/eval rates) instead of an empty tail.
+
 		if os.Getenv("WT_LLM_LOG") == "0" {
 			a = append(a, "--log-disable")
 		}
@@ -160,9 +155,6 @@ func (r *Runner) Generate(ctx context.Context, opts Options) (string, error) {
 		waitErr, stderrTail(stderrStr, 6), stdoutTail(out, 400))
 }
 
-// llmTimeout returns the per-invocation timeout for llama-cli. Mobile CPUs
-// are slower, so the default is generous; can be overridden via WT_LLM_TIMEOUT
-// (seconds, e.g. "600").
 func llmTimeout() time.Duration {
 	return computeLLMTimeout(runtime.GOOS, os.Getenv("WT_LLM_TIMEOUT"))
 }

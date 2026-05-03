@@ -14,16 +14,13 @@ import (
 	"github.com/asolopovas/wt/internal/gui/platsvc"
 )
 
-// ShareTranscript opens a format picker, renders the transcript into the
-// chosen format, and hands it to the OS share sheet (Android) or falls back
-// to the normal export flow on desktop.
 func (p *Panel) ShareTranscript(items []ExportItem) {
 	if len(items) == 0 {
 		showNotice(p.window, notifyInfo, "Share", "No transcripts to share yet.")
 		return
 	}
 	if len(items) > 1 {
-		// Multi-share is uncommon and confusing in chooser UIs. Defer to export.
+
 		p.ExportTranscript(items)
 		return
 	}
@@ -33,7 +30,7 @@ func (p *Panel) ShareTranscript(items []ExportItem) {
 		return
 	}
 	if !platsvc.ShareSupported() {
-		// Desktop: no native share sheet; export-to-file is the closest fit.
+
 		p.ExportTranscript(items)
 		return
 	}
@@ -72,7 +69,6 @@ func (p *Panel) shareSingleAs(f exportFormat, item ExportItem, start time.Time) 
 	}
 	tr = p.renamedTranscript(tr)
 
-	// Plain text → share via EXTRA_TEXT (no file needed; ideal for WhatsApp).
 	if runtime.GOOS == "android" && f.ext == "txt" {
 		var buf bytes.Buffer
 		if err := writeText(&buf, tr, start); err != nil {
@@ -94,9 +90,6 @@ func (p *Panel) shareSingleAs(f exportFormat, item ExportItem, start time.Time) 
 		return
 	}
 
-	// All other formats: stage a real file in cache and hand a content:// URI to
-	// the share sheet. zip bundles audio + transcript; bundle shares both as
-	// separate attachments via ACTION_SEND_MULTIPLE.
 	base := exportBaseName(item.SourceName, tr.Model)
 	tmpDir, err := os.MkdirTemp("", "wt-share-*")
 	if err != nil {

@@ -19,24 +19,14 @@ import (
 	"github.com/asolopovas/wt/internal/transcriber/cache"
 )
 
-// languages keeps the legacy code list for code paths that still expect
-// raw codes. Prefer allLanguageCodes()/allLanguageNames() for new code
-// — those return whisper.cpp's full 99-language registry sorted by
-// display name (with "auto" first), and pair with the languageNames
-// map for human-readable dropdown labels.
 var languages = allLanguageCodes()
 
-// speakerOptions is capped at 4 because the active diarizer
-// (NeMo Sortformer 4spk) is hardcoded at 4 speakers; passing >4 is
-// silently ignored upstream (see scripts/diarize.py:110). "auto" lets
-// the model decide.
 var speakerOptions = []string{
 	"auto", "2", "3", "4",
 }
 
 var cacheExpiryOptions = []string{"7", "30", "90", "365", "never"}
 
-// Log-retention dropdown values: human label → days. 0 = forever.
 var logRetentionOptions = []string{"24 hours", "7 days", "30 days", "forever"}
 
 func logRetentionLabelToDays(s string) int {
@@ -69,12 +59,12 @@ type settingsPanel struct {
 	cfg    shared.Config
 	window fyne.Window
 
-	modelSelect    *pointerSelect
-	langSelect     *limitSelect
-	deviceSelect   *pointerSelect
-	threadsSelect  *limitSelect
-	speakersSelect *pointerSelect
-	expirySelect   *pointerSelect
+	modelSelect     *pointerSelect
+	langSelect      *limitSelect
+	deviceSelect    *pointerSelect
+	threadsSelect   *limitSelect
+	speakersSelect  *pointerSelect
+	expirySelect    *pointerSelect
 	logRetainSelect *pointerSelect
 
 	modelMirrors    []*pointerSelect
@@ -108,9 +98,7 @@ func (p *settingsPanel) build() {
 
 	modelOpts := dropdownModels("")
 	p.modelSelect = newPointerSelect(modelOpts, p.onModelChanged)
-	// Initial dropdown selection: prefer the manager's active transcription
-	// entry (covers the user picking from Settings→Models). Fall back to
-	// translating the legacy cfg.Model size string to a display name.
+
 	mgr := models.NewManager()
 	selected := activeTranscriptionDisplayName(transcriptionPickerOptions(mgr), mgr)
 	if selected == "" {
@@ -126,9 +114,6 @@ func (p *settingsPanel) build() {
 	p.modelSelect.Selected = selected
 	p.modelMirrors = append(p.modelMirrors, p.modelSelect)
 
-	// langCode is the raw code persisted in cfg.Language ("" == auto).
-	// The dropdown shows the friendly name from languageNames; selection
-	// changes are translated back to a code in onLangChanged.
 	langCode := p.cfg.Language
 	if langCode == "" {
 		langCode = "auto"
@@ -137,10 +122,7 @@ func (p *settingsPanel) build() {
 	p.langSelect = newLimitSelect(allLanguageNames(), 300, p.onLangChanged)
 	p.langSelect.Inner.Selected = langLabel
 	p.langMirrors = append(p.langMirrors, p.langSelect)
-	// Constrain to the active engine's whitelist after both the model and
-	// language widgets are wired (filterLanguageOptions reads the
-	// manager). Safe to call before mirrors exist; refreshLanguageOptions
-	// is a no-op when langMirrors is empty.
+
 	defer p.refreshLanguageOptions()
 
 	p.deviceSelect = newPointerSelect([]string{"auto", "cuda", "cpu"}, persist)
@@ -271,12 +253,8 @@ func (p *settingsPanel) Debug() bool {
 	return p.debugState
 }
 
-// onViewLog opens a modal showing the tail of the persistent log file
-// (<MediaDir>/wt.log) using the shared preview.ShowText helper — same
-// chrome and styling as the transcription preview, with a COPY button
-// for sharing snippets in bug reports.
 func (p *settingsPanel) onViewLog() {
-	tail := shared.ReadLogTail(256 * 1024) // last 256 KB
+	tail := shared.ReadLogTail(256 * 1024)
 	if tail == "" {
 		tail = "(log is empty — transcribe something first)\n\nLog path:\n" + shared.LogFilePath()
 	}
@@ -287,8 +265,6 @@ func (p *settingsPanel) onViewLog() {
 	})
 }
 
-// onClearLog truncates the on-disk log + rotated sibling. The on-screen
-// log buffer is left alone (it'll get pruned on next AppendLog).
 func (p *settingsPanel) onClearLog() {
 	showConfirm(p.window, "Clear log",
 		"Erase the persistent log file? In-memory log is unaffected.",
@@ -358,11 +334,6 @@ func (p *settingsPanel) writeConfig() error {
 		return fmt.Errorf("loading config: %w", err)
 	}
 
-	// p.modelSelect.Selected is now a display name ("Whisper large-v3-turbo"
-	// or "Parakeet TDT 0.6B v2 (English)"). Translate back to a whisper
-	// size string for cfg.Model so legacy code paths (e.g. whisper-cpp
-	// model loader) keep working. ASR engine routing is driven by the
-	// manager's active state — cfg.Model is only relevant for whisper.
 	cfg.Model = displayNameToWhisperSize(p.modelSelect.Selected, p.cfg.Model)
 	cfg.Language = p.Language()
 	cfg.Device = p.deviceSelect.Selected
@@ -384,8 +355,7 @@ func (p *settingsPanel) ModelSize() string {
 }
 
 func (p *settingsPanel) Language() string {
-	// Inner.Selected stores a display name ("English", "Russian"...).
-	// Convert back to a code for cfg/runner; "Auto-detect" maps to "".
+
 	return languageCodeFromName(p.langSelect.Inner.Selected)
 }
 
@@ -424,9 +394,7 @@ func (p *settingsPanel) onModelChanged(v string) {
 			m.Refresh()
 		}
 	}
-	// Sync the change into the models manager so Settings→Models reflects
-	// the dropdown choice and runner.go's engine resolver picks the right
-	// entry. Lookup is by display name (the option label).
+
 	mgr := models.NewManager()
 	opts := transcriptionPickerOptions(mgr)
 	if id := pickerByDisplayName(opts, v); id != "" {
@@ -439,19 +407,13 @@ func (p *settingsPanel) onModelChanged(v string) {
 	p.persist()
 }
 
-// refreshLanguageOptions recomputes the LANGUAGE dropdown options to
-// match the active engine's whitelist (e.g. Parakeet -> ["en"] only).
-// Whisper / multilingual engines see the full list.
 func (p *settingsPanel) refreshLanguageOptions() {
 	if len(p.langMirrors) == 0 {
 		return
 	}
 	mgr := models.NewManager()
-	allowed := supportedLanguagesForActive(mgr) // []code
+	allowed := supportedLanguagesForActive(mgr)
 
-	// Filter operates on codes (engine whitelists are code-based) but
-	// the dropdown displays names. Convert: filter codes -> map to
-	// display names; same for current selection.
 	currentName := p.langSelect.Inner.Selected
 	currentCode := languageCodeFromName(currentName)
 	if currentCode == "" {
@@ -464,8 +426,7 @@ func (p *settingsPanel) refreshLanguageOptions() {
 	for _, m := range p.langMirrors {
 		m.Inner.Options = opts
 		m.Inner.Selected = selectedName
-		// Disable the dropdown when there's only one valid choice (no
-		// point letting the user open a single-item menu).
+
 		if len(opts) <= 1 {
 			m.Inner.Disable()
 		} else {
@@ -506,8 +467,6 @@ func (p *settingsPanel) newDiarizerSelectMirror() *pointerSelect {
 	return s
 }
 
-// refreshDiarizerOptions repopulates all diarizer mirrors after
-// install/delete/active changes from Settings→Models.
 func (p *settingsPanel) refreshDiarizerOptions() {
 	mgr := models.NewManager()
 	opts := dropdownDiarizers("")
@@ -520,9 +479,7 @@ func (p *settingsPanel) refreshDiarizerOptions() {
 }
 
 func (p *settingsPanel) onLangChanged(v string) {
-	// v is a display name from the dropdown. Mirror it across all
-	// LANGUAGE selects (settings tab + transcode tab). Code conversion
-	// for cfg.Language happens in writeConfig via Language().
+
 	for _, m := range p.langMirrors {
 		if m.Inner.Selected != v {
 			m.Inner.Selected = v
@@ -550,8 +507,7 @@ func (p *settingsPanel) newModelSelectMirror() *pointerSelect {
 }
 
 func (p *settingsPanel) refreshModelOptions() {
-	// Pull the active transcription entry from the manager so changes made
-	// in Settings→Models tap-to-activate are reflected in the dropdown.
+
 	mgr := models.NewManager()
 	pickerOpts := transcriptionPickerOptions(mgr)
 	opts := dropdownModels(p.modelSelect.Selected)
@@ -573,12 +529,7 @@ func (p *settingsPanel) refreshModelOptions() {
 }
 
 func (p *settingsPanel) newLangSelectMirror() *limitSelect {
-	// Construct with the already-filtered options from the master so the
-	// mirror matches the active engine's whitelist on first display.
-	// (Important when the transcode tab mirror is created AFTER the
-	// settings panel's defer p.refreshLanguageOptions() has already run
-	// against the master — otherwise the mirror would expose the full
-	// 99-lang list even when Parakeet is the active engine.)
+
 	s := newLimitSelect(p.langSelect.Inner.Options, 300, p.onLangChanged)
 	s.Inner.Selected = p.langSelect.Inner.Selected
 	if p.langSelect.Inner.Disabled() {
