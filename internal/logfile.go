@@ -109,6 +109,41 @@ func AppendLogLine(msg string) {
 	pruneOldArchives()
 }
 
+// LogProcessStart writes a banner line marking the start of a discrete
+// process (transcription run, recording, model download, etc.) with a
+// full date+time stamp — the only line in the log that includes the
+// date, so when scanning a long file you can quickly find run
+// boundaries:
+//
+//   ----- 2026-05-03 02:08:32  transcription started
+//
+// Per-line timestamps stay time-only ("15:04:05") to keep things compact.
+func LogProcessStart(label string) {
+	logMu.Lock()
+	defer logMu.Unlock()
+	stamp := time.Now().Format("2006-01-02 15:04:05")
+	_, _ = fmt.Fprintf(rotator(), "\n----- %s  %s started\n", stamp, label)
+	pruneOldArchives()
+}
+
+// LogProcessEnd matches LogProcessStart for symmetry. outcome is one of
+// "ok", "failed", "cancelled", etc.; details is freeform. Like
+// LogProcessStart it emits a full date+time banner so process
+// boundaries are easy to spot when scanning the log:
+//
+//   ----- 2026-05-03 02:09:21  transcription ok — 49.2s for 49.0s audio
+func LogProcessEnd(label, outcome, details string) {
+	logMu.Lock()
+	defer logMu.Unlock()
+	stamp := time.Now().Format("2006-01-02 15:04:05")
+	line := fmt.Sprintf("----- %s  %s %s", stamp, label, outcome)
+	if details != "" {
+		line += " — " + details
+	}
+	_, _ = fmt.Fprintln(rotator(), line)
+	pruneOldArchives()
+}
+
 // pruneOldArchives enforces a rolling retention window finer than
 // lumberjack's whole-day granularity (e.g. 24h). Throttled to once per
 // logPruneEvery to avoid scanning the directory on every line.

@@ -125,6 +125,7 @@ func (p *Panel) runTranscription(files []string) {
 	notify(appinfo.Name, fmt.Sprintf("Transcribing %d file(s)…", len(files)))
 
 	runStart := time.Now()
+	shared.LogProcessStart(fmt.Sprintf("transcription (%d file(s))", len(files)))
 	p.debugLog(fmt.Sprintf("run start: files=%d", len(files)))
 
 	modelSize := p.Settings.ModelSize()
@@ -270,6 +271,8 @@ func (p *Panel) runTranscription(files []string) {
 		outcome = "partial"
 	}
 	p.debugLog(fmt.Sprintf("run done: outcome=%s done=%d/%d failed=%d elapsed=%.1fs", outcome, total-errCount, total, errCount, elapsed))
+	shared.LogProcessEnd("transcription", outcome,
+		fmt.Sprintf("%d/%d done, %d failed, %.1fs", total-errCount, total, errCount, elapsed))
 }
 
 func (p *Panel) loadModel(modelSize string) (whisper.Model, error) {

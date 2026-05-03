@@ -65,7 +65,6 @@ func Run(version, buildDate string) error {
 	deviceInfo := detectDevice()
 
 	transcodeTab := buildTranscodeTabAndroid(tp, settings)
-	logTab := transcribe.BuildLogTab(tp)
 	settingsTab := buildSettingsTab(settings, deviceInfo, versionLabel(version, buildDate))
 
 	if missing := platsvc.MissingPermissions(); len(missing) > 0 {
@@ -86,9 +85,11 @@ func Run(version, buildDate string) error {
 	}
 
 	settingsTabItem := container.NewTabItem("SETTINGS", settingsTab)
+	// LOG tab was removed — the persistent run log lives at
+	// <MediaDir>/wt.log and is reachable via Settings → VIEW LOG. The
+	// in-app live log was duplicating that surface.
 	tabs := container.NewAppTabs(
 		container.NewTabItem("TRANSCODE", transcodeTab),
-		container.NewTabItem("LOG", logTab),
 		settingsTabItem,
 	)
 	tabs.SetTabLocation(container.TabLocationBottom)

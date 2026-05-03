@@ -46,14 +46,14 @@ func Run(version, buildDate string) error {
 	deviceInfo := detectDevice()
 
 	transcodeTab := buildTranscodeTab(tp, settings)
-	logTab := transcribe.BuildLogTab(tp)
-	logColumn := container.NewStack(newPanelBackground(), container.NewPadded(logTab))
 	settingsTab := buildSettingsTab(settings, deviceInfo, versionLabel(version, buildDate))
-	workspaceTab := container.New(newSidebarLayout(spaceLG), logColumn, settingsTab)
 
+	// LOG tab / workspace column was removed — the live log now lives
+	// solely on disk (<MediaDir>/wt.log) and is reachable via Settings
+	// → VIEW LOG. Two top-level tabs are enough.
 	tabs := container.NewAppTabs(
 		container.NewTabItemWithIcon("TRANSCODE", theme.MediaRecordIcon(), transcodeTab),
-		container.NewTabItemWithIcon("WORKSPACE", theme.DocumentIcon(), workspaceTab),
+		container.NewTabItemWithIcon("SETTINGS", theme.SettingsIcon(), settingsTab),
 	)
 	tabs.SetTabLocation(container.TabLocationBottom)
 
