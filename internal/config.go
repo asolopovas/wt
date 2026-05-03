@@ -53,6 +53,9 @@ func Dir() string {
 }
 
 func ModelsDir() string {
+	if p := platformModelsDirOverride(); p != "" {
+		return p
+	}
 	return filepath.Join(Dir(), "models")
 }
 

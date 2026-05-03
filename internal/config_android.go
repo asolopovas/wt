@@ -23,6 +23,9 @@ func appDir() string {
 var (
 	mediaDirOnce sync.Once
 	mediaDirPath string
+
+	modelsDirOnce sync.Once
+	modelsDirPath string
 )
 
 func MediaDir() string {
@@ -40,6 +43,43 @@ func MediaDir() string {
 		mediaDirPath = filepath.Join(CacheDir(), "imports")
 	})
 	return mediaDirPath
+}
+
+// modelsDirOverride probes the canonical public location
+// /storage/emulated/0/Documents/WTranscribe/Models. If the app has been
+// granted MANAGE_EXTERNAL_STORAGE (declared in our manifest) and the
+// directory is writable, prefer it over the private internal-storage
+// fallback. Models stored here SURVIVE uninstall + "Clear Data", which
+// is the whole point on a phone where the active model set is 4+ GB.
+//
+// Result is cached for the process lifetime.
+// platformModelsDirOverride is consumed by config.go's ModelsDir().
+func platformModelsDirOverride() string {
+	return modelsDirOverride()
+}
+
+func modelsDirOverride() string {
+	modelsDirOnce.Do(func() {
+		if v := os.Getenv("WT_MODELS_DIR"); v != "" {
+			modelsDirPath = v
+			return
+		}
+		public := "/storage/emulated/0/Documents/WTranscribe/Models"
+		if err := os.MkdirAll(public, 0o755); err == nil {
+			probe := filepath.Join(public, ".wt-write-test")
+			if f, err := os.Create(probe); err == nil {
+				_ = f.Close()
+				_ = os.Remove(probe)
+				modelsDirPath = public
+				return
+			}
+		}
+		// No public access (permission denied or revoked) — caller will
+		// fall back to the private path via the default config.go
+		// ModelsDir(). modelsDirPath stays empty so callers can detect
+		// the non-override case.
+	})
+	return modelsDirPath
 }
 
 func defaultModel() string {
