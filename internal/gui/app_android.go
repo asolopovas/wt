@@ -47,7 +47,7 @@ func Run(version, buildDate string) error {
 		sepWrap := container.NewCenter(sep)
 		sepWrap.Hide()
 		tp.TimerSep = sepWrap
-		history.headerRight.Objects = []fyne.CanvasObject{tp.StatsLine, sepWrap, tp.TimerText}
+		history.headerRight.Objects = []fyne.CanvasObject{container.NewCenter(tp.StatusText), sepWrap, tp.TimerText}
 		history.headerRight.Refresh()
 	}
 	settings.onCacheCleared = history.Refresh
@@ -65,7 +65,7 @@ func Run(version, buildDate string) error {
 	deviceInfo := detectDevice()
 
 	transcodeTab := buildTranscodeTabAndroid(tp, settings)
-	settingsTab := buildSettingsTab(settings, deviceInfo, versionLabel(version, buildDate))
+	settingsTab := buildSettingsTab(settings, tp, deviceInfo, versionLabel(version, buildDate))
 
 	if missing := platsvc.MissingPermissions(); len(missing) > 0 {
 		go func(p []string) {
@@ -264,7 +264,6 @@ func buildTranscodeTabAndroid(tp *transcribe.Panel, settings *settingsPanel) fyn
 
 	bottomBar := container.NewVBox(
 		tp.Progress,
-		container.NewBorder(nil, nil, tp.StatusText, nil),
 		vGap(spaceLG),
 		settingsRow,
 		vGap(spaceXXL),
@@ -295,7 +294,7 @@ func compactStatsLine(text string) fyne.CanvasObject {
 	return t
 }
 
-func buildSettingsTab(sp *settingsPanel, deviceInfo, version string) fyne.CanvasObject {
+func buildSettingsTab(sp *settingsPanel, tp *transcribe.Panel, deviceInfo, version string) fyne.CanvasObject {
 	settingsGrid := container.NewVBox(
 		inlineField("DEVICE", sp.deviceSelect),
 		inlineField("THREADS", sp.threadsSelect),
@@ -306,18 +305,10 @@ func buildSettingsTab(sp *settingsPanel, deviceInfo, version string) fyne.Canvas
 	versionLabel := canvas.NewText(version, decor.TextMuted)
 	versionLabel.TextSize = textCaption
 	versionLabel.TextStyle = decor.MonoBoldStyle
-	header := decor.NewPanelHeader(newCaptionText("SETTINGS"), versionLabel)
+	headerRight := container.NewHBox(tp.StatsLine, decor.HGap(spaceMD), versionLabel)
+	header := decor.NewPanelHeader(newCaptionText("SETTINGS"), headerRight)
 
 	_ = deviceInfo
-	stats := deviceStats()
-	statMap := map[string]string{}
-	for _, st := range stats {
-		statMap[st.Label] = st.Value
-	}
-	statsBlock := container.NewVBox(
-		compactStatsLine(statMap["CPU"]+"  ·  "+statMap["RAM"]),
-		compactStatsLine("GPU  "+statMap["GPU"]),
-	)
 
 	if permsSection == nil {
 		permsSection = newPermissionsSection()
@@ -331,6 +322,7 @@ func buildSettingsTab(sp *settingsPanel, deviceInfo, version string) fyne.Canvas
 		wrapGhost(sp.noDiarizeBtn),
 		wrapGhost(sp.debugBtn),
 	)
+	statsToggleRow := wrapGhost(sp.statsBtn)
 
 	clearCacheBtn := newSecondaryButton("CLEAR CACHE", sp.onClearCache)
 	clearTranscriptsBtn := newSecondaryButton("CLEAR TRANSCRIPTS", sp.onClearTranscripts)
@@ -351,8 +343,6 @@ func buildSettingsTab(sp *settingsPanel, deviceInfo, version string) fyne.Canvas
 		vGap(spaceSM),
 		newSectionDivider(),
 		vGap(spaceSM),
-		statsBlock,
-		vGap(spaceLG),
 		settingsGrid,
 		vGap(spaceLG),
 		permsSection.container,
@@ -363,6 +353,8 @@ func buildSettingsTab(sp *settingsPanel, deviceInfo, version string) fyne.Canvas
 		newSectionDivider(),
 		vGap(spaceMD),
 		toggleRow,
+		vGap(spaceMD),
+		statsToggleRow,
 		vGap(spaceMD),
 		clearRow,
 		vGap(spaceMD),

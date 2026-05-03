@@ -77,6 +77,9 @@ type settingsPanel struct {
 	noDiarizeState  bool
 	debugBtn        *pointerButton
 	debugState      bool
+	statsBtn        *pointerButton
+	statsState      bool
+	onStatsToggle   func(bool)
 	saveBtn         *pointerButton
 
 	models       *modelsSection
@@ -89,7 +92,7 @@ type settingsPanel struct {
 }
 
 func newSettingsPanel(cfg shared.Config, window fyne.Window) *settingsPanel {
-	p := &settingsPanel{cfg: cfg, window: window, noDiarizeState: cfg.NoDiarize}
+	p := &settingsPanel{cfg: cfg, window: window, noDiarizeState: cfg.NoDiarize, statsState: !cfg.HideStats}
 	p.build()
 	return p
 }
@@ -165,6 +168,9 @@ func (p *settingsPanel) build() {
 	p.debugBtn = newPointerButton("", p.onToggleDebug)
 	p.updateDebugLabel()
 
+	p.statsBtn = newPointerButton("", p.onToggleStats)
+	p.updateStatsLabel()
+
 	p.saveBtn = newPrimaryButton("SAVE", p.onSave)
 
 	clearCacheBtn := newSecondaryButton("CLEAR CACHE", p.onClearCache)
@@ -182,9 +188,10 @@ func (p *settingsPanel) build() {
 		newFormField("LOG RETENTION", p.logRetainSelect),
 	)
 
-	toggleRow := container.NewGridWithColumns(2,
+	toggleRow := container.NewGridWithColumns(3,
 		wrapGhost(p.noDiarizeBtn),
 		wrapGhost(p.debugBtn),
+		wrapGhost(p.statsBtn),
 	)
 	clearRow := container.NewGridWithColumns(2,
 		wrapAction(clearCacheBtn),
@@ -238,6 +245,29 @@ func (p *settingsPanel) updateDiarizeLabel() {
 func (p *settingsPanel) onToggleDebug() {
 	p.debugState = !p.debugState
 	p.updateDebugLabel()
+}
+
+func (p *settingsPanel) onToggleStats() {
+	p.statsState = !p.statsState
+	p.updateStatsLabel()
+	if p.onStatsToggle != nil {
+		p.onStatsToggle(p.statsState)
+	}
+	p.persist()
+}
+
+func (p *settingsPanel) updateStatsLabel() {
+	if p.statsState {
+		p.statsBtn.SetText("STATS ON")
+		p.statsBtn.Importance = widget.SuccessImportance
+	} else {
+		p.statsBtn.SetText("STATS OFF")
+		p.statsBtn.Importance = widget.LowImportance
+	}
+}
+
+func (p *settingsPanel) ShowStats() bool {
+	return p.statsState
 }
 
 func (p *settingsPanel) updateDebugLabel() {
@@ -343,6 +373,7 @@ func (p *settingsPanel) writeConfig() error {
 	cfg.NoDiarize = p.noDiarizeState
 	cfg.CacheExpiryDays = p.cacheExpiryDays()
 	cfg.LogRetentionDays = logRetentionLabelToDays(p.logRetainSelect.Selected)
+	cfg.HideStats = !p.statsState
 
 	if err := shared.Save(cfg); err != nil {
 		return fmt.Errorf("saving settings: %w", err)

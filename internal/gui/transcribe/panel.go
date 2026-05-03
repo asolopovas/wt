@@ -23,6 +23,7 @@ type Settings interface {
 	NoDiarize() bool
 	Device() string
 	Debug() bool
+	ShowStats() bool
 }
 
 type History interface {

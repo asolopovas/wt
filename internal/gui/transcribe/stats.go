@@ -19,11 +19,19 @@ type statSegment struct {
 }
 
 func (p *Panel) startStats() {
-	p.setStats(p.collectStats())
+	if p.Settings != nil && !p.Settings.ShowStats() {
+		p.setStats(nil)
+	} else {
+		p.setStats(p.collectStats())
+	}
 	go func() {
 		ticker := time.NewTicker(2 * time.Second)
 		defer ticker.Stop()
 		for range ticker.C {
+			if p.Settings != nil && !p.Settings.ShowStats() {
+				p.setStats(nil)
+				continue
+			}
 			p.setStats(p.collectStats())
 		}
 	}()
