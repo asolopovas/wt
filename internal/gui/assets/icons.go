@@ -93,3 +93,11 @@ var AddFileIcon = &fyne.StaticResource{
 	StaticName:    "icon_add_file.svg",
 	StaticContent: addFileIconData,
 }
+
+//go:embed icon_save.svg
+var saveIconData []byte
+
+var SaveIcon = &fyne.StaticResource{
+	StaticName:    "icon_save.svg",
+	StaticContent: saveIconData,
+}

@@ -44,6 +44,8 @@ type Panel struct {
 	clearCacheBtn *pointerButton
 	TranscribeBtn *pointerButton
 	CancelBtn     *pointerButton
+	AddFilesBtn   *pointerButton
+	RecordBtn     *pointerButton
 
 	speakerRenames map[string]string
 

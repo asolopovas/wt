@@ -237,8 +237,10 @@ func wireShareIntake(tp *transcribe.Panel, tabs *container.AppTabs) {
 func buildTranscodeTabAndroid(tp *transcribe.Panel, settings *settingsPanel) fyne.CanvasObject {
 	tp.TranscribeBtn.Importance = widget.HighImportance
 
-	addBtn := newPointerButtonWithIcon("ADD FILES", assets.AddFileIcon, tp.OnBrowse)
+	var addBtn *pointerButton
+	addBtn = newPointerButtonWithIcon("ADD FILES", assets.AddFileIcon, func() { tp.OnAddOrSave(addBtn) })
 	addBtn.Importance = widget.LowImportance
+	tp.AddFilesBtn = addBtn
 	cancelBtn := newPointerButtonWithIcon("CANCEL", assets.CancelIcon, tp.OnCancel)
 	cancelBtn.Importance = widget.DangerImportance
 	cancelBtn.Disable()
@@ -247,6 +249,7 @@ func buildTranscodeTabAndroid(tp *transcribe.Panel, settings *settingsPanel) fyn
 	var recBtn *pointerButton
 	recBtn = newPointerButtonWithIcon("RECORD", assets.MicIcon, func() { tp.OnToggleRecord(recBtn) })
 	recBtn.Importance = widget.DangerImportance
+	tp.RecordBtn = recBtn
 
 	settingsRow := container.NewGridWithColumns(2,
 		newFormField("MODEL", settings.newModelSelectMirror()),
@@ -264,6 +267,7 @@ func buildTranscodeTabAndroid(tp *transcribe.Panel, settings *settingsPanel) fyn
 	bottomBar := container.NewVBox(
 		tp.Progress,
 		container.NewBorder(nil, nil, tp.StatusText, nil),
+		vGap(spaceXXL),
 		settingsRow,
 		vGap(spaceXXL),
 		actionRow,

@@ -57,7 +57,9 @@ func (t *whisperTheme) Color(name fyne.ThemeColorName, variant fyne.ThemeVariant
 	case theme.ColorNameForegroundOnSuccess:
 		return colOnPrimary
 	case theme.ColorNameForegroundOnError:
-		return colBackground
+		// White text on the coral DangerImportance background — dark
+		// foreground on red is hard to read for the RECORD/CANCEL buttons.
+		return color.NRGBA{R: 255, G: 255, B: 255, A: 255}
 	case theme.ColorNamePlaceHolder:
 		return colMuted
 	case theme.ColorNameHeaderBackground:
