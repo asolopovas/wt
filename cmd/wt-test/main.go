@@ -24,6 +24,7 @@ func main() {
 	lang := flag.String("lang", "auto", "language code (auto/en/ru/...)")
 	threads := flag.Int("t", max(runtime.NumCPU()-2, 1), "threads")
 	diarizeOnly := flag.Bool("diarize-only", false, "run only the diarizer and exit")
+	diarize := flag.Bool("diarize", false, "after ASR, run diarizer + BuildTranscript and print utterances")
 	speakers := flag.Int("speakers", 0, "force number of speakers (0=auto)")
 	engine := flag.String("engine", "whisper", "ASR engine: whisper | parakeet | sensevoice | moonshine | zipformer")
 	flag.Parse()
@@ -53,7 +54,7 @@ func main() {
 
 	switch *engine {
 	case shared.EngineParakeet, shared.EngineSenseVoice, shared.EngineMoonshine, shared.EngineZipformer:
-		runSherpaEngine(*engine, audioPath, *lang, *threads)
+		runSherpaEngine(*engine, audioPath, *lang, *threads, *diarize, *speakers)
 		return
 	}
 
@@ -146,7 +147,7 @@ func main() {
 	fmt.Printf("=== DONE ===\n")
 }
 
-func runSherpaEngine(engine, audioPath, lang string, threads int) {
+func runSherpaEngine(engine, audioPath, lang string, threads int, withDiar bool, speakers int) {
 	fmt.Printf("Audio:    %s\n", audioPath)
 	fmt.Printf("Engine:   %s (sherpa-onnx)\n", engine)
 	fmt.Printf("Lang:     %s\n", lang)
@@ -212,13 +213,57 @@ func runSherpaEngine(engine, audioPath, lang string, threads int) {
 	elapsed := since(t0)
 	fmt.Printf("\nDone in %.1fs (RTF=%.2f, lang=%s)\n", elapsed, rtf, detectedLang)
 
-	fmt.Printf("\n--- Results ---\n")
+	fmt.Printf("\n--- Segments (%d) ---\n", len(segs))
 	for i, s := range segs {
-		fmt.Printf("[%d] %s -> %s: %s\n", i, s.Start, s.End, s.Text)
+		ntoks := len(s.Tokens)
+		fmt.Printf("[%d] %s -> %s tokens=%d: %s\n", i, s.Start, s.End, ntoks, s.Text)
 	}
-	fmt.Printf("\nSegments: %d\n", len(segs))
+
+	if withDiar {
+		fmt.Printf("\n--- Diarizing ---\n")
+		dt0 := time.Now()
+		backend, derr := diarizer.New(speakers)
+		if derr != nil {
+			fatal("init diarizer: %v", derr)
+		}
+		fmt.Printf("Backend: %s (init %.1fs)\n", backend.Name(), since(dt0))
+		wavPath, cleanup, werr := transcriber.WriteTempWAVForTest(samples)
+		if werr != nil {
+			fatal("writing temp wav: %v", werr)
+		}
+		defer cleanup()
+		dt0 = time.Now()
+		diarSegs, derr := backend.Diarize(context.Background(), wavPath, speakers, audioDur, nil)
+		if derr != nil {
+			fatal("diarize: %v", derr)
+		}
+		fmt.Printf("Diarized in %.1fs, %d raw segments, %d unique speakers\n",
+			since(dt0), len(diarSegs), countUniqueSpeakers(diarSegs))
+
+		transcript := transcriber.BuildTranscript(segs, diarSegs, true, transcriber.TranscriptMeta{
+			Language:   detectedLang,
+			DurationMs: int64(audioDur * 1000),
+			Diarizer:   backend.Name(),
+		})
+		fmt.Printf("\n--- Utterances (%d) ---\n", len(transcript.Utterances))
+		for i, u := range transcript.Utterances {
+			fmt.Printf("[%d] %5.2fs->%5.2fs %s: %s\n",
+				i, float64(u.Start)/1000, float64(u.End)/1000, u.Speaker, u.Text)
+		}
+		fmt.Printf("\nSpeakersDetected: %d  Words: %d  Utterances: %d\n",
+			transcript.SpeakersDetected, len(transcript.Words), len(transcript.Utterances))
+	}
+
 	memReport("final")
 	fmt.Printf("=== DONE ===\n")
+}
+
+func countUniqueSpeakers(segs []diarizer.Segment) int {
+	seen := map[int]struct{}{}
+	for _, s := range segs {
+		seen[s.Speaker] = struct{}{}
+	}
+	return len(seen)
 }
 
 func runDiarizeOnly(audioPath string, speakers int) {

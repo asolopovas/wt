@@ -107,28 +107,67 @@ func TestGroupWordsIntoUtterances_BasicSpeakerChange(t *testing.T) {
 	}
 }
 
-func TestGroupWordsIntoUtterances_RealignsMidSentenceFlicker(t *testing.T) {
-	// Mid-sentence speaker flicker: a single word in the middle of a
-	// SPEAKER_01 sentence is mislabelled SPEAKER_02. Punctuation-based
-	// realignment should majority-vote it back to SPEAKER_01.
+func TestGroupWordsIntoUtterances_SmoothsSingleWordFlicker(t *testing.T) {
+	// Single-word SPEAKER_02 flicker in the middle of a SPEAKER_01 run
+	// should be absorbed back to SPEAKER_01 (sandwich rule).
 	words := []Word{
 		{Text: "Now", Start: 0, End: 200, Speaker: "SPEAKER_01"},
 		{Text: "what", Start: 200, End: 400, Speaker: "SPEAKER_01"},
 		{Text: "do", Start: 400, End: 500, Speaker: "SPEAKER_02"}, // flicker
 		{Text: "you", Start: 500, End: 700, Speaker: "SPEAKER_01"},
 		{Text: "think?", Start: 700, End: 1000, Speaker: "SPEAKER_01"},
-		{Text: "Well,", Start: 1100, End: 1400, Speaker: "SPEAKER_02"},
-		{Text: "interesting.", Start: 1400, End: 2000, Speaker: "SPEAKER_02"},
 	}
 	utts := groupWordsIntoUtterances(words)
-	if len(utts) != 2 {
-		t.Fatalf("want 2 utterances after realignment, got %d: %+v", len(utts), utts)
+	if len(utts) != 1 {
+		t.Fatalf("want 1 utterance after smoothing, got %d: %+v", len(utts), utts)
 	}
-	if utts[0].Speaker != "SPEAKER_01" || !strings.Contains(utts[0].Text, "do") {
-		t.Errorf("utt0 = %+v (expected the flicker absorbed into SPEAKER_01)", utts[0])
+	if utts[0].Speaker != "SPEAKER_01" || utts[0].Text != "Now what do you think?" {
+		t.Errorf("utt0 = %+v", utts[0])
 	}
-	if utts[1].Speaker != "SPEAKER_02" {
-		t.Errorf("utt1 = %+v", utts[1])
+}
+
+func TestGroupWordsIntoUtterances_PreservesGenuineMultiWordTurn(t *testing.T) {
+	// A genuine multi-word SPEAKER_02 turn (≥3 words) embedded inside
+	// SPEAKER_01 must NOT be smoothed away — this is the bug the upstream
+	// majority-vote algorithm causes when sentences are long. Conservative
+	// smoothing only kills 1- and 2-word flickers.
+	words := []Word{
+		{Text: "Tell", Start: 0, End: 200, Speaker: "SPEAKER_01"},
+		{Text: "me", Start: 200, End: 400, Speaker: "SPEAKER_01"},
+		{Text: "sports", Start: 500, End: 800, Speaker: "SPEAKER_02"},
+		{Text: "football", Start: 800, End: 1100, Speaker: "SPEAKER_02"},
+		{Text: "every", Start: 1100, End: 1400, Speaker: "SPEAKER_02"},
+		{Text: "day", Start: 1400, End: 1700, Speaker: "SPEAKER_02"},
+		{Text: "Okay", Start: 1900, End: 2200, Speaker: "SPEAKER_01"},
+		{Text: "good.", Start: 2200, End: 2600, Speaker: "SPEAKER_01"},
+	}
+	utts := groupWordsIntoUtterances(words)
+	if len(utts) != 3 {
+		t.Fatalf("want 3 utterances, got %d: %+v", len(utts), utts)
+	}
+	if utts[0].Speaker != "SPEAKER_01" || utts[1].Speaker != "SPEAKER_02" || utts[2].Speaker != "SPEAKER_01" {
+		t.Errorf("speakers = %s/%s/%s", utts[0].Speaker, utts[1].Speaker, utts[2].Speaker)
+	}
+	if !strings.Contains(utts[1].Text, "football") {
+		t.Errorf("SPEAKER_02 turn lost football: %+v", utts[1])
+	}
+}
+
+func TestGroupWordsIntoUtterances_SmoothsTwoWordFlicker(t *testing.T) {
+	words := []Word{
+		{Text: "hello", Start: 0, End: 200, Speaker: "SPEAKER_01"},
+		{Text: "world", Start: 200, End: 400, Speaker: "SPEAKER_01"},
+		{Text: "foo", Start: 400, End: 600, Speaker: "SPEAKER_02"}, // 2-word flicker
+		{Text: "bar", Start: 600, End: 800, Speaker: "SPEAKER_02"},
+		{Text: "there", Start: 800, End: 1000, Speaker: "SPEAKER_01"},
+		{Text: "end.", Start: 1000, End: 1200, Speaker: "SPEAKER_01"},
+	}
+	utts := groupWordsIntoUtterances(words)
+	if len(utts) != 1 {
+		t.Fatalf("want 1 utterance after 2-word flicker smoothing, got %d: %+v", len(utts), utts)
+	}
+	if utts[0].Speaker != "SPEAKER_01" {
+		t.Errorf("utt0 speaker = %s, want SPEAKER_01", utts[0].Speaker)
 	}
 }
 

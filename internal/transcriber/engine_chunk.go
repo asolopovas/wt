@@ -176,6 +176,10 @@ func runChunked(
 		}
 
 		// Shift chunk-local timestamps onto the absolute audio timeline.
+		// Both segment-level and per-token (word) timestamps must be
+		// shifted — BuildTranscript reads token times for word-level
+		// speaker assignment, and stale chunk-local times would map every
+		// word in chunk N onto the diarizer track at time 0..chunkSec.
 		off := time.Duration(ch.StartSec * float64(time.Second))
 		chunkEnd := time.Duration(ch.EndSec * float64(time.Second))
 		for j := range chunkSegs {
@@ -186,6 +190,16 @@ func runChunked(
 			}
 			if chunkSegs[j].Start < off {
 				chunkSegs[j].Start = off
+			}
+			for t := range chunkSegs[j].Tokens {
+				chunkSegs[j].Tokens[t].Start += off
+				chunkSegs[j].Tokens[t].End += off
+				if chunkSegs[j].Tokens[t].End > chunkEnd {
+					chunkSegs[j].Tokens[t].End = chunkEnd
+				}
+				if chunkSegs[j].Tokens[t].Start < off {
+					chunkSegs[j].Tokens[t].Start = off
+				}
 			}
 		}
 		merged = append(merged, chunkSegs...)

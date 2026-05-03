@@ -122,22 +122,33 @@ func BuildTranscript(segs []diarizer.TranscriptSegment, diarSegs []diarizer.Segm
 	// Collect every word across every segment. If a segment has no
 	// tokens, treat the whole segment as a single "word" with its full
 	// text (this is the Whisper case — sentence-level segments).
+	//
+	// Speaker assignment uses a continuity hint (previous word's
+	// speaker) so per-word flicker on close ties is suppressed. This is
+	// the standard pyannote/whisperX trick.
 	var rawWords []rawWord
+	hint := -1
+	lookup := func(start, end time.Duration) (int, bool) {
+		if !useDiar {
+			return 0, false
+		}
+		id, ok := diarizer.SpeakerIDForTimeWithHint(start.Seconds(), end.Seconds(), diarSegs, hint)
+		if ok {
+			hint = id
+		}
+		return id, ok
+	}
 	for _, seg := range segs {
 		if len(seg.Tokens) > 0 {
 			for _, tok := range seg.Tokens {
 				w := rawWord{text: tok.Text, start: tok.Start, end: tok.End, conf: tok.P}
-				if useDiar {
-					w.spkID, w.hasID = diarizer.SpeakerIDForTime(tok.Start.Seconds(), tok.End.Seconds(), diarSegs)
-				}
+				w.spkID, w.hasID = lookup(tok.Start, tok.End)
 				rawWords = append(rawWords, w)
 			}
 			continue
 		}
 		w := rawWord{text: seg.Text, start: seg.Start, end: seg.End}
-		if useDiar {
-			w.spkID, w.hasID = diarizer.SpeakerIDForTime(seg.Start.Seconds(), seg.End.Seconds(), diarSegs)
-		}
+		w.spkID, w.hasID = lookup(seg.Start, seg.End)
 		rawWords = append(rawWords, w)
 	}
 
@@ -188,87 +199,41 @@ func isSentenceEnd(text string) bool {
 	return strings.ContainsRune(sentenceEndingPunct, rune(t[len(t)-1]))
 }
 
-// realignSpeakersByPunctuation smooths per-word speaker labels using
-// sentence boundaries (`.?!`). When a speaker change occurs mid-sentence
-// — i.e. the previous word does not end the sentence — the algorithm
-// looks at the surrounding sentence (bounded by the previous and next
-// sentence-ending words) and takes a majority vote over the speakers
-// assigned to those words. If a clear majority exists (more than half
-// the sentence), every word in the sentence is relabelled to that
-// speaker. This is the key step that prevents per-word flicker around
-// speaker turns when the underlying ASR runs at word granularity.
+// smoothIsolatedFlickers cleans single-word speaker flickers — a word
+// labelled X sandwiched between two words both labelled Y gets
+// relabelled Y. This is the most conservative form of speaker smoothing
+// and is what we use instead of the upstream punctuation-based
+// majority-vote algorithm (MahmoudAshraf97/whisper-diarization). The
+// majority-vote variant works well with Whisper's sentence-level
+// punctuation but is too aggressive with sherpa-onnx engines
+// (SenseVoice/Parakeet) which often emit long un-punctuated runs: a
+// single sentence can span 26+ words including a full speaker turn,
+// causing the minority speaker to be folded into the dominant one.
 //
-// Algorithm ported from MahmoudAshraf97/whisper-diarization helpers.py:
-//   get_realigned_ws_mapping_with_punctuation
-// The 50-word sentence cap matches the upstream default.
-func realignSpeakersByPunctuation(words []Word) {
-	const maxWordsPerSentence = 50
-	findSentenceLeft := func(idx int) int {
-		left := idx
-		for left > 0 &&
-			idx-left < maxWordsPerSentence &&
-			words[left-1].Speaker == words[left].Speaker &&
-			!isSentenceEnd(words[left-1].Text) {
-			left--
-		}
-		if left == 0 || isSentenceEnd(words[left-1].Text) {
-			return left
-		}
-		return -1
+// Two-word flickers (X X surrounded by Y Y) are also smoothed because
+// pyannote occasionally produces a brief 2-frame artefact at speaker
+// boundaries. Three-or-more-word runs are left alone — we trust those.
+func smoothIsolatedFlickers(words []Word) {
+	n := len(words)
+	if n < 3 {
+		return
 	}
-	findSentenceRight := func(idx, budget int) int {
-		right := idx
-		for right < len(words)-1 &&
-			right-idx < budget &&
-			!isSentenceEnd(words[right].Text) {
-			right++
+	// Single-word flicker: w[i-1] == w[i+1] != w[i]
+	for i := 1; i < n-1; i++ {
+		if words[i].Speaker != words[i-1].Speaker &&
+			words[i-1].Speaker == words[i+1].Speaker {
+			words[i].Speaker = words[i-1].Speaker
 		}
-		if right == len(words)-1 || isSentenceEnd(words[right].Text) {
-			return right
-		}
-		return -1
 	}
-
-	for k := 0; k < len(words); {
-		if k >= len(words)-1 ||
-			words[k].Speaker == words[k+1].Speaker ||
-			isSentenceEnd(words[k].Text) {
-			k++
-			continue
+	// Two-word flicker: w[i-1] == w[i+2] != w[i] == w[i+1]
+	for i := 1; i < n-2; i++ {
+		if words[i].Speaker != words[i-1].Speaker &&
+			words[i].Speaker == words[i+1].Speaker &&
+			words[i-1].Speaker == words[i+2].Speaker {
+			words[i].Speaker = words[i-1].Speaker
+			words[i+1].Speaker = words[i-1].Speaker
+			i++ // skip the partner we just relabelled
 		}
-		left := findSentenceLeft(k)
-		if left < 0 {
-			k++
-			continue
-		}
-		right := findSentenceRight(k, maxWordsPerSentence-(k-left)-1)
-		if right < 0 {
-			k++
-			continue
-		}
-		// Majority vote across [left, right].
-		counts := map[string]int{}
-		for i := left; i <= right; i++ {
-			counts[words[i].Speaker]++
-		}
-		var bestSpk string
-		bestN := 0
-		for spk, n := range counts {
-			if n > bestN {
-				bestSpk = spk
-				bestN = n
-			}
-		}
-		n := right - left + 1
-		if bestN < n/2 {
-			// No clear majority — leave labels alone.
-			k++
-			continue
-		}
-		for i := left; i <= right; i++ {
-			words[i].Speaker = bestSpk
-		}
-		k = right + 1
 	}
 }
 
@@ -286,7 +251,7 @@ func groupWordsIntoUtterances(words []Word) []Utterance {
 	if len(words) == 0 {
 		return nil
 	}
-	realignSpeakersByPunctuation(words)
+	smoothIsolatedFlickers(words)
 
 	utts := make([]Utterance, 0, len(words)/4+1)
 	curStart := words[0].Start

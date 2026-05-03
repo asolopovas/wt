@@ -137,6 +137,13 @@ func sherpaThreads(spec JobSpec) int {
 	return 4
 }
 
+// WriteTempWAVForTest is the exported wrapper around writeTempWAV used
+// by cmd/wt-test for on-device pipeline experiments. Production code
+// should not depend on this.
+func WriteTempWAVForTest(samples []float32) (string, func(), error) {
+	return writeTempWAV(samples, "wt-pipeline")
+}
+
 // writeTempWAV writes samples to a fresh temp file and returns
 // (wavPath, cleanup, err). cleanup must be deferred by caller.
 func writeTempWAV(samples []float32, prefix string) (string, func(), error) {
