@@ -80,7 +80,7 @@ func newCappedGrid(cols int, gap, maxH float32) *cappedGrid {
 	return &cappedGrid{cols: cols, gap: gap, maxH: maxH}
 }
 
-func (c *cappedGrid) MinSize(objects []fyne.CanvasObject) fyne.Size {
+func (c *cappedGrid) rowHeight(objects []fyne.CanvasObject) float32 {
 	h := float32(0)
 	for _, o := range objects {
 		m := o.MinSize().Height
@@ -91,7 +91,28 @@ func (c *cappedGrid) MinSize(objects []fyne.CanvasObject) fyne.Size {
 	if c.maxH > 0 && h > c.maxH {
 		h = c.maxH
 	}
-	return fyne.NewSize(0, h)
+	return h
+}
+
+func (c *cappedGrid) rowCount(objects []fyne.CanvasObject) int {
+	cols := c.cols
+	if cols <= 0 || cols > len(objects) {
+		cols = len(objects)
+	}
+	if cols <= 0 {
+		return 0
+	}
+	return (len(objects) + cols - 1) / cols
+}
+
+func (c *cappedGrid) MinSize(objects []fyne.CanvasObject) fyne.Size {
+	rows := c.rowCount(objects)
+	if rows == 0 {
+		return fyne.NewSize(0, 0)
+	}
+	rowH := c.rowHeight(objects)
+	total := rowH*float32(rows) + c.gap*float32(rows-1)
+	return fyne.NewSize(0, total)
 }
 
 func (c *cappedGrid) Layout(objects []fyne.CanvasObject, size fyne.Size) {
@@ -106,16 +127,16 @@ func (c *cappedGrid) Layout(objects []fyne.CanvasObject, size fyne.Size) {
 	if cellW < 0 {
 		cellW = 0
 	}
-	h := size.Height
-	if c.maxH > 0 && h > c.maxH {
-		h = c.maxH
+	rowH := c.rowHeight(objects)
+	if rowH <= 0 {
+		rowH = size.Height
 	}
 	for i, o := range objects {
 		col := i % cols
 		row := i / cols
 		x := float32(col) * (cellW + c.gap)
-		y := float32(row) * (h + c.gap)
+		y := float32(row) * (rowH + c.gap)
 		o.Move(fyne.NewPos(x, y))
-		o.Resize(fyne.NewSize(cellW, h))
+		o.Resize(fyne.NewSize(cellW, rowH))
 	}
 }

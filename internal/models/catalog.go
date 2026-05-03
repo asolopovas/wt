@@ -197,7 +197,7 @@ var llmEntries = []Entry{
 		ID: "qwen3-1.7b-q4km", Family: FamilyLLM,
 		DisplayName: "Qwen3 1.7B (Q4_K_M, namer)",
 		Description: "Larger, slightly higher-quality naming. Slower on phone.",
-		URL:         "https://huggingface.co/Qwen/Qwen3-1.7B-GGUF/resolve/main/Qwen3-1.7B-Q4_K_M.gguf",
+		URL:         "https://huggingface.co/unsloth/Qwen3-1.7B-GGUF/resolve/main/Qwen3-1.7B-Q4_K_M.gguf",
 		RelPath:     "qwen3-1.7b-q4km.gguf",
 		SizeBytes:   1_100_000_000,
 		RAMHintMB:   1800,

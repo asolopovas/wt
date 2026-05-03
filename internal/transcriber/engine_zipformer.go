@@ -28,6 +28,11 @@ func sherpaBinaryName() string {
 	}
 }
 
+func SherpaASRBinaryAvailable() bool {
+	_, err := findSherpaASRBinary()
+	return err == nil
+}
+
 func findSherpaASRBinary() (string, error) {
 	name := sherpaBinaryName()
 

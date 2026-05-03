@@ -144,7 +144,7 @@ func (p *Panel) runTranscription(files []string) {
 
 	activeEngine := shared.EngineWhisper
 	if mgr := models.NewManager(); mgr != nil {
-		if eng, _ := models.EngineForActiveASR(mgr.Active(models.FamilyASR)); eng != "" {
+		if eng, _ := models.EngineForActiveASR(mgr.Active(models.FamilyASR)); eng != "" && transcriber.SherpaASRBinaryAvailable() {
 			activeEngine = eng
 		}
 	}
@@ -516,7 +516,7 @@ func (p *Panel) transcribeFile(model whisper.Model, path, modelSize, deviceLabel
 
 	engine := shared.EngineWhisper
 	if mgr := models.NewManager(); mgr != nil {
-		if eng, _ := models.EngineForActiveASR(mgr.Active(models.FamilyASR)); eng != "" {
+		if eng, _ := models.EngineForActiveASR(mgr.Active(models.FamilyASR)); eng != "" && transcriber.SherpaASRBinaryAvailable() {
 			engine = eng
 		}
 	}

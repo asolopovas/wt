@@ -2,10 +2,33 @@ package gui
 
 import (
 	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"runtime"
 	"slices"
 
 	"github.com/asolopovas/wt/internal/models"
 )
+
+func sherpaASRBinaryAvailable() bool {
+	name := "sherpa-onnx-offline"
+	if runtime.GOOS == "windows" {
+		name = "sherpa-onnx-offline.exe"
+	}
+	if runtime.GOOS == "android" {
+		return true
+	}
+	if exe, err := os.Executable(); err == nil {
+		if st, err := os.Stat(filepath.Join(filepath.Dir(exe), name)); err == nil && !st.IsDir() {
+			return true
+		}
+	}
+	if _, err := exec.LookPath(name); err == nil {
+		return true
+	}
+	return false
+}
 
 type pickerOption struct {
 	ID          string
@@ -31,7 +54,11 @@ func pickerByDisplayName(opts []pickerOption, name string) string {
 
 func transcriptionPickerOptions(mgr *models.Manager) []pickerOption {
 	var out []pickerOption
+	asrAvailable := sherpaASRBinaryAvailable()
 	for _, fam := range []models.Family{models.FamilyWhisper, models.FamilyASR} {
+		if fam == models.FamilyASR && !asrAvailable {
+			continue
+		}
 		for _, e := range models.ByFamily(fam) {
 			if mgr.Status(e.ID) != models.StatusInstalled {
 				continue
@@ -54,8 +81,10 @@ func diarizerPickerOptions(mgr *models.Manager) []pickerOption {
 }
 
 func activeTranscriptionID(mgr *models.Manager) string {
-	if id := mgr.Active(models.FamilyASR); id != "" {
-		return id
+	if sherpaASRBinaryAvailable() {
+		if id := mgr.Active(models.FamilyASR); id != "" {
+			return id
+		}
 	}
 	return mgr.Active(models.FamilyWhisper)
 }
