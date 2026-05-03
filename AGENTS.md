@@ -68,6 +68,14 @@ No raw pixel literals, hex colors, or `widget.NewButton` + manual styling.
 - **Widget reuse**: a Fyne widget can only have one parent. To show the same control in two tabs, add a mirror factory on the owning panel (see `settingsPanel.newModelSelectMirror`).
 - **Mirror initialisation order**: panel-level state mutations (e.g. `refreshLanguageOptions` filtering the master select's `Options` based on active engine) run during `settingsPanel.build()` via `defer`. Mirror factories like `newLangSelectMirror`/`newModelSelectMirror` are called *later* by `app.go`/`app_android.go` when the transcode tab is constructed. Always seed a new mirror from the master widget's already-filtered `Options` (and copy `Disabled()` state) — not the raw global slice. Otherwise the mirror surfaces stale unfiltered options at tap time (LimitSelect.Tapped reads Inner.Options on each tap).
 
+## Android model storage
+
+Models live at `/storage/emulated/0/Documents/WTranscribe/Models/` on Android (resolved via `shared.platformModelsDirOverride()` in `internal/config_android.go`). This is the idiomatic sideload location — survives uninstall AND "Clear Data", visible to the user in the Files app, lets them drop new model files in via USB without using the app. Mirrors the existing `MediaDir()` pattern. Requires `MANAGE_EXTERNAL_STORAGE` (already in manifest). Falls back to private dir (`Dir()+"models"`) if the write-test fails (permission revoked).
+
+Never copy from /sdcard back to private internal storage — the override returns the public path directly so models are read in place. Doubling the storage cost (4+ GB) is unacceptable on phones.
+
+For backup/transfer between devices, the user can `adb pull /sdcard/Documents/WTranscribe/Models` to a PC then push to a fresh device. Don't add model-pull/push tasks to the Taskfile — plain `adb pull` is the right interface.
+
 ## Testing
 
 stdlib `testing` only. Names: `Test<Function>_<Scenario>`, table-driven preferred. Config tests: `t.TempDir()` + `t.Setenv("HOME", ...)`. CI runs `go vet`, `golangci-lint`, full `go test` on Linux. Diarization integration tests: `//go:build integration` (`task test-integration`); `getSherpaSample` lazy-downloads to `samples/diarization/sherpa/` (gitignored). Use `-short` to skip the download. Don't add skip-on-missing-model tests.
