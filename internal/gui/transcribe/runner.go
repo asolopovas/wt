@@ -151,16 +151,14 @@ func (p *Panel) runTranscription(files []string) {
 		p.setStatus("Loading model...")
 		p.debugLog(fmt.Sprintf("model=%s device=%s threads=%d language=%q speakers=%d noDiarize=%v", modelSize, device, threads, language, speakers, noDiarize))
 		var err error
-		model, err = p.loadModel(modelSize)
+		model, err = p.acquireModel(modelSize)
 		if err != nil {
 			p.AppendLog(fmt.Sprintf("Error: %v", err))
 			p.setStatus("Model loading failed")
 			p.debugLog(fmt.Sprintf("run done: outcome=failed phase=load-model elapsed=%.1fs reason=%v", time.Since(runStart).Seconds(), err))
 			return
 		}
-		defer func() {
-			_ = model.Close()
-		}()
+		defer p.releaseModel()
 	} else {
 		p.debugLog(fmt.Sprintf("engine=%s threads=%d language=%q speakers=%d noDiarize=%v (skip whisper load)", activeEngine, threads, language, speakers, noDiarize))
 	}

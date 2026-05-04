@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"strconv"
 	"time"
@@ -177,6 +178,158 @@ func runChunked(
 	}
 	hooks.log("info", fmt.Sprintf("%s: %d chunk(s) in %.1fs RTF=%.2f",
 		engineName, len(chunks), totalElapsed, rtf))
+
+	deduped := DeduplicateSegments(merged)
+
+	if rawKey != "" {
+		if ok, reason := cache.RawCacheSafe(deduped, audioDurSec, false); ok {
+			if err := cache.SaveRawSegments(rawKey, deduped); err != nil {
+				hooks.log("warn", fmt.Sprintf("could not save raw transcript cache: %v", err))
+			}
+			cache.DeletePartial(rawKey)
+		} else {
+			hooks.log("debug", "skipped raw cache save: "+reason)
+		}
+	}
+
+	return deduped, rtf, nil
+}
+
+func runChunkedStream(
+	ctx context.Context,
+	engineName string,
+	hooks Hooks,
+	next func() ([]float32, error),
+	audioDurSec float64,
+	rawKey string,
+	process chunkProcessor,
+) (segs []diarizer.TranscriptSegment, rtf float64, err error) {
+	var (
+		resumeSegs  []diarizer.TranscriptSegment
+		resumeAtSec float64
+	)
+	if rawKey != "" {
+		if part, ok := cache.LoadPartial(rawKey); ok {
+			switch hooks.resume(ResumePrompt{
+				ResumeAt: time.Duration(part.LastEndMs) * time.Millisecond,
+				Segments: len(part.Segments),
+			}) {
+			case ResumeYes:
+				resumeSegs = part.Segments
+				resumeAtSec = float64(part.LastEndMs) / 1000.0
+				hooks.log("info", fmt.Sprintf("%s: resuming from %s (%d cached segs)",
+					engineName,
+					FormatHMS(time.Duration(part.LastEndMs)*time.Millisecond),
+					len(resumeSegs)))
+			case ResumeFresh:
+				cache.DeletePartial(rawKey)
+				hooks.log("info", fmt.Sprintf("%s: discarded partial; starting from beginning", engineName))
+			case ResumeAbort:
+				return nil, 0, ErrAborted
+			}
+		}
+	}
+
+	hooks.phase(PhaseTranscribing)
+	hooks.progress(PhaseTranscribing, 0)
+
+	merged := append([]diarizer.TranscriptSegment(nil), resumeSegs...)
+	totalElapsed := 0.0
+	totalAudio := 0.0
+	curStartSec := 0.0
+	chunkIdx := 0
+
+	for {
+		if cerr := ctx.Err(); cerr != nil {
+			savePartialChunked(rawKey, merged, audioDurSec, hooks, engineName)
+			return nil, 0, ErrAborted
+		}
+		samples, nerr := next()
+		if nerr != nil {
+			if errors.Is(nerr, io.EOF) {
+				break
+			}
+			return nil, 0, fmt.Errorf("%s: %w", engineName, nerr)
+		}
+		if len(samples) == 0 {
+			break
+		}
+		chunkIdx++
+		chunkDur := float64(len(samples)) / float64(WhisperSampleRate)
+		endSec := curStartSec + chunkDur
+
+		if endSec <= resumeAtSec+0.05 {
+			curStartSec = endSec
+			continue
+		}
+
+		hooks.log("debug", fmt.Sprintf("%s: chunk %d %s–%s",
+			engineName, chunkIdx,
+			FormatHMS(time.Duration(curStartSec*float64(time.Second))),
+			FormatHMS(time.Duration(endSec*float64(time.Second)))))
+
+		procStart := time.Now()
+		chunkSegs, perr := process(ctx, samples, chunkDur)
+		elapsed := time.Since(procStart).Seconds()
+		if perr != nil {
+			if errors.Is(perr, ErrAborted) || errors.Is(ctx.Err(), context.Canceled) {
+				savePartialChunked(rawKey, merged, audioDurSec, hooks, engineName)
+				return nil, 0, ErrAborted
+			}
+			return nil, 0, fmt.Errorf("%s chunk %d: %w", engineName, chunkIdx, perr)
+		}
+
+		off := time.Duration(curStartSec * float64(time.Second))
+		chunkEnd := time.Duration(endSec * float64(time.Second))
+		for j := range chunkSegs {
+			chunkSegs[j].Start += off
+			chunkSegs[j].End += off
+			if chunkSegs[j].End > chunkEnd {
+				chunkSegs[j].End = chunkEnd
+			}
+			if chunkSegs[j].Start < off {
+				chunkSegs[j].Start = off
+			}
+			for t := range chunkSegs[j].Tokens {
+				chunkSegs[j].Tokens[t].Start += off
+				chunkSegs[j].Tokens[t].End += off
+				if chunkSegs[j].Tokens[t].End > chunkEnd {
+					chunkSegs[j].Tokens[t].End = chunkEnd
+				}
+				if chunkSegs[j].Tokens[t].Start < off {
+					chunkSegs[j].Tokens[t].Start = off
+				}
+			}
+		}
+		merged = append(merged, chunkSegs...)
+		totalElapsed += elapsed
+		totalAudio += chunkDur
+
+		savePartialChunked(rawKey, merged, audioDurSec, hooks, engineName)
+
+		denom := audioDurSec
+		if denom <= 0 {
+			denom = endSec
+		}
+		pct := 0.0
+		if denom > 0 {
+			pct = 100.0 * endSec / denom
+		}
+		if pct > 100 {
+			pct = 100
+		}
+		hooks.progress(PhaseTranscribing, pct)
+
+		curStartSec = endSec
+	}
+
+	hooks.progress(PhaseTranscribing, 100)
+
+	if totalElapsed > 0 {
+		rtf = totalAudio / totalElapsed
+	}
+	hooks.log("info", fmt.Sprintf("%s: %d chunk(s) in %.1fs RTF=%.2f (streamed)",
+		engineName, chunkIdx, totalElapsed, rtf))
 
 	deduped := DeduplicateSegments(merged)
 

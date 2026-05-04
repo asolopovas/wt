@@ -144,21 +144,6 @@ func (j *Job) Run(ctx context.Context, spec JobSpec) (Result, error) {
 		return Result{}, ErrAborted
 	}
 
-	j.Hooks.phase(PhaseLoadingAudio)
-	loadStart := time.Now()
-	samples, err := LoadAudioSamples(absPath)
-	if err != nil {
-		return Result{}, fmt.Errorf("loading audio: %w", err)
-	}
-	audioDurSec := float64(len(samples)) / WhisperSampleRate
-	j.Hooks.log("debug", fmt.Sprintf("audio loaded (%s, %.1fs) samples=%d",
-		FormatHMS(time.Duration(audioDurSec*float64(time.Second))),
-		time.Since(loadStart).Seconds(), len(samples)))
-
-	if err := ctx.Err(); err != nil {
-		return Result{}, ErrAborted
-	}
-
 	var (
 		segs         []diarizer.TranscriptSegment
 		detectedLang string
@@ -176,14 +161,73 @@ func (j *Job) Run(ctx context.Context, spec JobSpec) (Result, error) {
 		}
 	}
 
-	if !rawHit {
-		asrSegs, dl, observedRTF, err := j.runASR(ctx, spec, samples, audioDurSec, rawKey)
-		if err != nil {
-			return Result{}, err
+	diarizeWanted := !spec.NoDiarize && diarizer.SupportsExternalBackend()
+	diarHasReadyWAV := diarizeWanted && diarizeWAVCached(absPath)
+	needSamples := !rawHit || (diarizeWanted && !diarHasReadyWAV)
+
+	canStream := StreamingEnabled() &&
+		!rawHit &&
+		rawKey != "" &&
+		!cache.HasPartial(rawKey) &&
+		FindFFmpeg() != "" &&
+		resolveEngine(spec.Engine) == shared.EngineWhisper &&
+		!strings.EqualFold(filepath.Ext(absPath), ".wav")
+
+	j.Hooks.phase(PhaseLoadingAudio)
+	var (
+		samples     []float32
+		audioDurSec float64
+		streaming   bool
+	)
+	switch {
+	case canStream:
+		if ms := ProbeDurationMs(absPath); ms > 0 {
+			audioDurSec = float64(ms) / 1000.0
 		}
-		segs = asrSegs
-		detectedLang = dl
-		rtf = observedRTF
+		streaming = true
+		j.Hooks.log("debug", fmt.Sprintf("audio streaming via ffmpeg (dur=%s)",
+			FormatHMS(time.Duration(audioDurSec*float64(time.Second)))))
+	case needSamples:
+		loadStart := time.Now()
+		loaded, err := LoadAudioSamples(absPath)
+		if err != nil {
+			return Result{}, fmt.Errorf("loading audio: %w", err)
+		}
+		samples = loaded
+		audioDurSec = float64(len(samples)) / WhisperSampleRate
+		j.Hooks.log("debug", fmt.Sprintf("audio loaded (%s, %.1fs) samples=%d",
+			FormatHMS(time.Duration(audioDurSec*float64(time.Second))),
+			time.Since(loadStart).Seconds(), len(samples)))
+	default:
+		if ms := ProbeDurationMs(absPath); ms > 0 {
+			audioDurSec = float64(ms) / 1000.0
+		}
+		j.Hooks.log("debug", fmt.Sprintf("audio decode skipped (raw cache hit, dur=%s)",
+			FormatHMS(time.Duration(audioDurSec*float64(time.Second)))))
+	}
+
+	if err := ctx.Err(); err != nil {
+		return Result{}, ErrAborted
+	}
+
+	if !rawHit {
+		if streaming {
+			asrSegs, dl, observedRTF, err := j.runWhisperStream(ctx, spec, absPath, audioDurSec, rawKey, diarizeWanted && !diarHasReadyWAV)
+			if err != nil {
+				return Result{}, err
+			}
+			segs = asrSegs
+			detectedLang = dl
+			rtf = observedRTF
+		} else {
+			asrSegs, dl, observedRTF, err := j.runASR(ctx, spec, samples, audioDurSec, rawKey)
+			if err != nil {
+				return Result{}, err
+			}
+			segs = asrSegs
+			detectedLang = dl
+			rtf = observedRTF
+		}
 	}
 	if detectedLang == "" {
 		detectedLang = spec.Language
@@ -200,7 +244,7 @@ func (j *Job) Run(ctx context.Context, spec JobSpec) (Result, error) {
 		diarOK   bool
 		diarName string
 	)
-	if !spec.NoDiarize && diarizer.SupportsExternalBackend() {
+	if diarizeWanted {
 		dSegs, dName, ok := j.runDiarize(ctx, absPath, samples, audioDurSec, spec.Speakers)
 		diarSegs, diarName, diarOK = dSegs, dName, ok
 	}
@@ -267,6 +311,81 @@ func (j *Job) Run(ctx context.Context, spec JobSpec) (Result, error) {
 	}, nil
 }
 
+func (j *Job) runWhisperStream(ctx context.Context, spec JobSpec, absPath string, audioDurSec float64, rawKey string, teeForDiarize bool) ([]diarizer.TranscriptSegment, string, float64, error) {
+	wctx, err := j.Model.NewContext()
+	if err != nil {
+		return nil, "", 0, fmt.Errorf("creating context: %w", err)
+	}
+	ConfigureContext(wctx, ContextConfig{
+		Threads: spec.Threads,
+		TDRZ:    UseTDRZ(spec.TDRZ, false, spec.NoDiarize),
+	})
+	if ConfigureVAD(wctx) {
+		j.Hooks.log("debug", "VAD: Silero v6.2.0")
+	}
+	SetLanguage(wctx, spec.Language)
+
+	var cacheWAV string
+	if teeForDiarize {
+		if key, kerr := AudioCacheKey(absPath); kerr == nil {
+			cacheWAV = filepath.Join(shared.CacheDir(), key)
+		}
+	}
+
+	stream, serr := OpenAudioStream(ctx, absPath, StreamOptions{
+		ChunkSamples: int(chunkSec() * float64(WhisperSampleRate)),
+		CacheWAVPath: cacheWAV,
+	})
+	if serr != nil {
+		return nil, "", 0, fmt.Errorf("opening audio stream: %w", serr)
+	}
+	defer func() {
+		if cerr := stream.Close(); cerr != nil {
+			j.Hooks.log("warn", fmt.Sprintf("audio stream close: %v", cerr))
+		}
+	}()
+	if audioDurSec <= 0 {
+		audioDurSec = stream.Duration()
+	}
+
+	var detected string
+	abortCb := func() bool { return ctx.Err() == nil }
+
+	process := func(ctx context.Context, samples []float32, _ float64) (segsOut []diarizer.TranscriptSegment, processErr error) {
+		defer func() {
+			if r := recover(); r != nil {
+				j.Hooks.log("error", fmt.Sprintf("whisper engine panic: %v", r))
+				processErr = fmt.Errorf("whisper engine panic: %v", r)
+			}
+		}()
+		if err := wctx.Process(samples, abortCb, nil, nil); err != nil {
+			if ctx.Err() != nil {
+				return nil, ErrAborted
+			}
+			return nil, fmt.Errorf("processing audio: %w", err)
+		}
+		if detected == "" {
+			if d := wctx.DetectedLanguage(); d != "" {
+				detected = d
+			}
+		}
+		return ExtractSegments(wctx), nil
+	}
+
+	next := func() ([]float32, error) {
+		return stream.Next()
+	}
+	segs, rtf, err := runChunkedStream(ctx, "whisper", j.Hooks, next, audioDurSec, rawKey, process)
+	if err != nil {
+		stream.Abort()
+		return nil, "", 0, err
+	}
+	if detected == "" {
+		detected = spec.Language
+	}
+	return segs, detected, rtf, nil
+}
+
 func (j *Job) runWhisper(ctx context.Context, spec JobSpec, samples []float32, audioDurSec float64, rawKey string) ([]diarizer.TranscriptSegment, string, float64, error) {
 	wctx, err := j.Model.NewContext()
 	if err != nil {
@@ -286,7 +405,13 @@ func (j *Job) runWhisper(ctx context.Context, spec JobSpec, samples []float32, a
 	var detected string
 	abortCb := func() bool { return ctx.Err() == nil }
 
-	process := func(ctx context.Context, samples []float32, _ float64) ([]diarizer.TranscriptSegment, error) {
+	process := func(ctx context.Context, samples []float32, _ float64) (segsOut []diarizer.TranscriptSegment, processErr error) {
+		defer func() {
+			if r := recover(); r != nil {
+				j.Hooks.log("error", fmt.Sprintf("whisper engine panic: %v", r))
+				processErr = fmt.Errorf("whisper engine panic: %v", r)
+			}
+		}()
 		if err := wctx.Process(samples, abortCb, nil, nil); err != nil {
 			if ctx.Err() != nil {
 				return nil, ErrAborted
@@ -366,9 +491,24 @@ func (j *Job) ensureWAVForDiarize(absPath string, samples []float32) string {
 	if _, statErr := os.Stat(cachePath); statErr == nil {
 		return cachePath
 	}
+	if samples == nil {
+		return absPath
+	}
 	if werr := WritePCM16WAV(cachePath, samples, WhisperSampleRate); werr != nil {
 		j.Hooks.log("warn", fmt.Sprintf("could not write WAV cache: %v", werr))
 		return absPath
 	}
 	return cachePath
+}
+
+func diarizeWAVCached(absPath string) bool {
+	if strings.HasSuffix(strings.ToLower(absPath), ".wav") {
+		return true
+	}
+	key, err := AudioCacheKey(absPath)
+	if err != nil {
+		return false
+	}
+	_, err = os.Stat(filepath.Join(shared.CacheDir(), key))
+	return err == nil
 }

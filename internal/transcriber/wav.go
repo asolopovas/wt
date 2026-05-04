@@ -1,6 +1,7 @@
 package transcriber
 
 import (
+	"bufio"
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
@@ -11,6 +12,8 @@ import (
 	"os"
 	"path/filepath"
 )
+
+const pcmStreamBlockBytes = 1 << 20
 
 const WhisperSampleRate = 16000
 
@@ -93,12 +96,7 @@ func readPCM16WAV(path string) ([]float32, error) {
 			}
 
 			numSamples := int(chunkSize) / 2
-			pcm := make([]byte, chunkSize)
-			if _, err := io.ReadFull(f, pcm); err != nil {
-				return nil, fmt.Errorf("reading PCM data: %w", err)
-			}
-
-			return pcmToFloat32(pcm, numSamples), nil
+			return streamPCMToFloat32(f, numSamples)
 
 		default:
 			skipSize := int64(chunkSize)
@@ -131,11 +129,42 @@ func AudioCacheKey(path string) (string, error) {
 func pcmToFloat32(buf []byte, numSamples int) []float32 {
 	const scale = 1.0 / float32(math.MaxInt16)
 	samples := make([]float32, numSamples)
-	for i := range numSamples {
+	for i := 0; i < numSamples; i++ {
 		sample := int16(binary.LittleEndian.Uint16(buf[i*2:]))
 		samples[i] = float32(sample) * scale
 	}
 	return samples
+}
+
+func streamPCMToFloat32(r io.Reader, numSamples int) ([]float32, error) {
+	const scale = 1.0 / float32(math.MaxInt16)
+	samples := make([]float32, numSamples)
+	block := pcmStreamBlockBytes
+	if block%2 != 0 {
+		block--
+	}
+	buf := make([]byte, block)
+	idx := 0
+	for idx < numSamples {
+		want := (numSamples - idx) * 2
+		if want > len(buf) {
+			want = len(buf)
+		}
+		n, err := io.ReadFull(r, buf[:want])
+		if err != nil && !(errors.Is(err, io.ErrUnexpectedEOF) && n > 0) {
+			return nil, fmt.Errorf("reading PCM data: %w", err)
+		}
+		n -= n % 2
+		for i := 0; i < n; i += 2 {
+			s := int16(binary.LittleEndian.Uint16(buf[i:]))
+			samples[idx] = float32(s) * scale
+			idx++
+		}
+		if n == 0 {
+			break
+		}
+	}
+	return samples[:idx], nil
 }
 
 func WritePCM16WAV(path string, samples []float32, sampleRate int) error {
@@ -155,68 +184,46 @@ func WritePCM16WAV(path string, samples []float32, sampleRate int) error {
 	dataSize := uint32(len(samples) * 2)
 	chunkSize := 36 + dataSize
 
-	w := f
-	write := func(b []byte) error { _, err := w.Write(b); return err }
-	u32 := func(v uint32) []byte {
-		b := make([]byte, 4)
-		binary.LittleEndian.PutUint32(b, v)
-		return b
-	}
-	u16 := func(v uint16) []byte {
-		b := make([]byte, 2)
-		binary.LittleEndian.PutUint16(b, v)
-		return b
-	}
+	bw := bufio.NewWriterSize(f, 256*1024)
 
-	if err := write([]byte("RIFF")); err != nil {
-		return err
-	}
-	if err := write(u32(chunkSize)); err != nil {
-		return err
-	}
-	if err := write([]byte("WAVEfmt ")); err != nil {
-		return err
-	}
-	if err := write(u32(16)); err != nil {
-		return err
-	}
-	if err := write(u16(1)); err != nil {
-		return err
-	}
-	if err := write(u16(uint16(numChannels))); err != nil {
-		return err
-	}
-	if err := write(u32(uint32(sampleRate))); err != nil {
-		return err
-	}
-	if err := write(u32(uint32(byteRate))); err != nil {
-		return err
-	}
-	if err := write(u16(uint16(blockAlign))); err != nil {
-		return err
-	}
-	if err := write(u16(uint16(bitsPerSample))); err != nil {
-		return err
-	}
-	if err := write([]byte("data")); err != nil {
-		return err
-	}
-	if err := write(u32(dataSize)); err != nil {
+	var hdr [44]byte
+	copy(hdr[0:4], "RIFF")
+	binary.LittleEndian.PutUint32(hdr[4:8], chunkSize)
+	copy(hdr[8:16], "WAVEfmt ")
+	binary.LittleEndian.PutUint32(hdr[16:20], 16)
+	binary.LittleEndian.PutUint16(hdr[20:22], 1)
+	binary.LittleEndian.PutUint16(hdr[22:24], uint16(numChannels))
+	binary.LittleEndian.PutUint32(hdr[24:28], uint32(sampleRate))
+	binary.LittleEndian.PutUint32(hdr[28:32], uint32(byteRate))
+	binary.LittleEndian.PutUint16(hdr[32:34], uint16(blockAlign))
+	binary.LittleEndian.PutUint16(hdr[34:36], uint16(bitsPerSample))
+	copy(hdr[36:40], "data")
+	binary.LittleEndian.PutUint32(hdr[40:44], dataSize)
+	if _, err := bw.Write(hdr[:]); err != nil {
 		return err
 	}
 
-	buf := make([]byte, 2)
-	for _, s := range samples {
-		v := s * 32767
-		if v > 32767 {
-			v = 32767
-		} else if v < -32768 {
-			v = -32768
+	const batch = 4096
+	buf := make([]byte, batch*2)
+	for i := 0; i < len(samples); i += batch {
+		end := i + batch
+		if end > len(samples) {
+			end = len(samples)
 		}
-		binary.LittleEndian.PutUint16(buf, uint16(int16(v)))
-		if _, err := w.Write(buf); err != nil {
+		n := 0
+		for _, s := range samples[i:end] {
+			v := s * 32767
+			if v > 32767 {
+				v = 32767
+			} else if v < -32768 {
+				v = -32768
+			}
+			binary.LittleEndian.PutUint16(buf[n:], uint16(int16(v)))
+			n += 2
+		}
+		if _, err := bw.Write(buf[:n]); err != nil {
 			return err
 		}
 	}
-	return nil
+	return bw.Flush()
 }
