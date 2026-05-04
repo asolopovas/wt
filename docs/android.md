@@ -32,6 +32,28 @@ Public sideload path resolved by `internal/config_android.go:platformModelsDirOv
 - On-device prototyping: `task android-test -- <wt-test-args>`. On Windows/msys prefix with `MSYS_NO_PATHCONV=1` when forwarding `/data/local/tmp/...` paths.
 - Env vars don't propagate through hardcoded `adb shell` — use `adb shell 'cd /data/local/tmp && FOO=bar ./wt-test ...'` directly.
 
+## ASR engine selection on Android
+
+**Use the sherpa-onnx engines, not whisper.cpp.** On the same hardware, the ONNX Runtime path is dramatically faster:
+
+| Engine | Model | Galaxy S24+ (Exynos 2400) RTF | vs whisper.cpp turbo |
+|---|---|---|---|
+| whisper.cpp | turbo (1.6 GB ggml) | 0.27 | 1× (baseline) |
+| **sherpa-onnx whisper-turbo** | sherpa-whisper-turbo (1.0 GB) | **1.99** | **7.3× faster, identical accuracy** |
+| sherpa-onnx parakeet-tdt-v2 | parakeet-tdt-0.6b-v2-int8 | 5.65 | 21× faster, ~turbo accuracy |
+| sherpa-onnx whisper-tiny.en | sherpa-whisper-tiny.en | 9.19 | 34× faster, lower acc |
+| sherpa-onnx moonshine-tiny | sherpa-onnx-moonshine-tiny-en-int8 | 10.25 | 38× faster, lower acc |
+| whisper.cpp | tiny | 0.50 | 0.5× (slower than tiny via ONNX **and** worse text) |
+
+Measured 2026-05-04 on `audio.wav` (120 s English speech). The whisper.cpp tiny output is strictly worse than sherpa whisper-tiny.en — it makes more name and homophone errors. Recommendation:
+
+- **Default Android ASR**: `sherpa-whisper-turbo` (catalog ID) for best quality
+- **Fast Android ASR**: `parakeet-tdt-0.6b-v2-int8` for near-turbo accuracy at 3× the speed
+- **Budget / streaming**: `moonshine-tiny-en-int8` for very fast English-only
+- **Multilingual**: `sherpa-whisper-tiny` (99 langs) or `sense-voice-zh-en-ja-ko-yue-int8` (5 Asian langs)
+
+The new engine `whisper-onnx` (`internal/transcriber/engine_zipformer.go:RunWhisperONNX`) routes a Whisper model through `sherpa-onnx-offline --whisper-encoder=...`. Sherpa-whisper has a hardcoded 30 s per-call limit; the existing `runChunked` driver already chunks at 30 s so it composes naturally. Override the model directory with `WT_WHISPER_ONNX_DIR` for tests.
+
 ## NPU / NNAPI
 
 - Don't ship `libonnxruntime.so` by default. NNAPI was slower than CPU for SenseVoice on Exynos 2400; static APK wins.

@@ -31,11 +31,12 @@ type Config struct {
 }
 
 const (
-	EngineWhisper    = "whisper"
-	EngineZipformer  = "zipformer"
-	EngineMoonshine  = "moonshine"
-	EngineParakeet   = "parakeet"
-	EngineSenseVoice = "sensevoice"
+	EngineWhisper     = "whisper"
+	EngineWhisperONNX = "whisper-onnx"
+	EngineZipformer   = "zipformer"
+	EngineMoonshine   = "moonshine"
+	EngineParakeet    = "parakeet"
+	EngineSenseVoice  = "sensevoice"
 )
 
 func PythonDir() string {

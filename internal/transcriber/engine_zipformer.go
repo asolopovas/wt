@@ -520,6 +520,97 @@ func RunSenseVoice(ctx context.Context, spec JobSpec, samples []float32, audioDu
 	return segs, detected, rtf, nil
 }
 
+type whisperONNXModelPaths struct{ Encoder, Decoder, Tokens string }
+
+func whisperONNXModelDir(modelID string) string {
+	if v := os.Getenv("WT_WHISPER_ONNX_DIR"); v != "" {
+		return v
+	}
+	name := modelID
+	if name == "" {
+		name = "sherpa-whisper-tiny.en"
+	}
+	return filepath.Join(shared.ModelsDir(), name)
+}
+
+func resolveWhisperONNXModels(modelID string) (whisperONNXModelPaths, error) {
+	dir := whisperONNXModelDir(modelID)
+	prefix := strings.TrimPrefix(modelID, "sherpa-whisper-")
+	if prefix == "" || prefix == modelID {
+		prefix = "tiny.en"
+	}
+	candidates := []whisperONNXModelPaths{
+		{
+			Encoder: filepath.Join(dir, prefix+"-encoder.int8.onnx"),
+			Decoder: filepath.Join(dir, prefix+"-decoder.int8.onnx"),
+			Tokens:  filepath.Join(dir, prefix+"-tokens.txt"),
+		},
+		{
+			Encoder: filepath.Join(dir, "encoder.int8.onnx"),
+			Decoder: filepath.Join(dir, "decoder.int8.onnx"),
+			Tokens:  filepath.Join(dir, "tokens.txt"),
+		},
+	}
+	for _, p := range candidates {
+		if fileExists(p.Encoder) && fileExists(p.Decoder) && fileExists(p.Tokens) {
+			return p, nil
+		}
+	}
+	return whisperONNXModelPaths{}, fmt.Errorf("whisper-onnx models missing in %s (looked for %s-encoder.int8.onnx and encoder.int8.onnx)", dir, prefix)
+}
+
+func whisperONNXLanguage(spec JobSpec, modelID string) string {
+	if strings.HasSuffix(modelID, ".en") || strings.HasSuffix(modelID, "-en") {
+		return "en"
+	}
+	lang := strings.TrimSpace(strings.ToLower(spec.Language))
+	if lang == "" || lang == "auto" {
+		return ""
+	}
+	return lang
+}
+
+func (j *Job) runWhisperONNX(ctx context.Context, spec JobSpec, samples []float32, audioDurSec float64, rawKey string) ([]diarizer.TranscriptSegment, string, float64, error) {
+	return RunWhisperONNX(ctx, spec, samples, audioDurSec, rawKey, j.Hooks)
+}
+
+func RunWhisperONNX(ctx context.Context, spec JobSpec, samples []float32, audioDurSec float64, rawKey string, hooks Hooks) ([]diarizer.TranscriptSegment, string, float64, error) {
+	bin, err := findSherpaASRBinary()
+	if err != nil {
+		return nil, "", 0, fmt.Errorf("whisper-onnx engine: %w", err)
+	}
+	modelID := spec.ModelSize
+	models, err := resolveWhisperONNXModels(modelID)
+	if err != nil {
+		return nil, "", 0, fmt.Errorf("whisper-onnx engine: %w", err)
+	}
+	lang := whisperONNXLanguage(spec, modelID)
+	argsForWAV := func(wavPath string) []string {
+		a := []string{
+			"--whisper-encoder=" + models.Encoder,
+			"--whisper-decoder=" + models.Decoder,
+			"--tokens=" + models.Tokens,
+			fmt.Sprintf("--num-threads=%d", sherpaThreads(spec)),
+			"--provider=" + sherpaProvider(),
+			"--model-type=whisper",
+		}
+		if lang != "" {
+			a = append(a, "--whisper-language="+lang)
+		}
+		a = append(a, wavPath)
+		return a
+	}
+	segs, _, rtf, err := runSherpaEngineChunked(ctx, "whisper-onnx", bin, argsForWAV, hooks, samples, audioDurSec, rawKey)
+	if err != nil {
+		return nil, "", 0, err
+	}
+	detected := lang
+	if detected == "" {
+		detected = spec.Language
+	}
+	return segs, detected, rtf, nil
+}
+
 const moonshineBundleName = "sherpa-onnx-moonshine-base-en-int8"
 
 func moonshineModelDir() string {
@@ -529,6 +620,10 @@ func moonshineModelDir() string {
 	name := moonshineBundleName
 	if v := os.Getenv("WT_MOONSHINE_BUNDLE"); v != "" {
 		name = v
+	}
+	flat := filepath.Join(shared.ModelsDir(), name)
+	if fileExists(filepath.Join(flat, "preprocess.onnx")) {
+		return flat
 	}
 	return filepath.Join(shared.ModelsDir(), "moonshine", name)
 }

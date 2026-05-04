@@ -26,7 +26,7 @@ func main() {
 	diarizeOnly := flag.Bool("diarize-only", false, "run only the diarizer and exit")
 	diarize := flag.Bool("diarize", false, "after ASR, run diarizer + BuildTranscript and print utterances")
 	speakers := flag.Int("speakers", 0, "force number of speakers (0=auto)")
-	engine := flag.String("engine", "whisper", "ASR engine: whisper | parakeet | sensevoice | moonshine | zipformer")
+	engine := flag.String("engine", "whisper", "ASR engine: whisper | whisper-onnx | parakeet | sensevoice | moonshine | zipformer")
 	flag.Parse()
 
 	if flag.NArg() < 1 {
@@ -53,8 +53,8 @@ func main() {
 	}
 
 	switch *engine {
-	case shared.EngineParakeet, shared.EngineSenseVoice, shared.EngineMoonshine, shared.EngineZipformer:
-		runSherpaEngine(*engine, audioPath, *lang, *threads, *diarize, *speakers)
+	case shared.EngineParakeet, shared.EngineSenseVoice, shared.EngineMoonshine, shared.EngineZipformer, shared.EngineWhisperONNX:
+		runSherpaEngine(*engine, audioPath, *modelSize, *lang, *threads, *diarize, *speakers)
 		return
 	}
 
@@ -147,9 +147,12 @@ func main() {
 	fmt.Printf("=== DONE ===\n")
 }
 
-func runSherpaEngine(engine, audioPath, lang string, threads int, withDiar bool, speakers int) {
+func runSherpaEngine(engine, audioPath, modelID, lang string, threads int, withDiar bool, speakers int) {
 	fmt.Printf("Audio:    %s\n", audioPath)
 	fmt.Printf("Engine:   %s (sherpa-onnx)\n", engine)
+	if modelID != "" {
+		fmt.Printf("ModelID:  %s\n", modelID)
+	}
 	fmt.Printf("Lang:     %s\n", lang)
 	fmt.Printf("Threads:  %d\n", threads)
 	if p := os.Getenv("WT_ZIPFORMER_PROVIDER"); p != "" {
@@ -182,6 +185,7 @@ func runSherpaEngine(engine, audioPath, lang string, threads int, withDiar bool,
 	spec := transcriber.JobSpec{
 		SourcePath: audioPath,
 		Engine:     engine,
+		ModelSize:  modelID,
 		Language:   lang,
 		Threads:    threads,
 	}
@@ -203,6 +207,9 @@ func runSherpaEngine(engine, audioPath, lang string, threads int, withDiar bool,
 			context.Background(), spec, samples, audioDur, "", hooks)
 	case shared.EngineMoonshine:
 		segs, detectedLang, rtf, err = transcriber.RunMoonshine(
+			context.Background(), spec, samples, audioDur, "", hooks)
+	case shared.EngineWhisperONNX:
+		segs, detectedLang, rtf, err = transcriber.RunWhisperONNX(
 			context.Background(), spec, samples, audioDur, "", hooks)
 	default:
 		fatal("unknown sherpa sub-engine %q", engine)
