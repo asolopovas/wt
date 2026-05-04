@@ -1,0 +1,62 @@
+version: "3"
+
+tasks:
+  default:
+    desc: "Default release: stable on a tag, rolling otherwise."
+    cmds:
+      - task: stable
+        if: '[ -z "{{.ROLLING}}" ]'
+      - task: rolling
+        if: '[ -n "{{.ROLLING}}" ]'
+
+  stable:
+    desc: "Build everything + push tag + create GH release. Requires HEAD on a vX.Y.Z tag."
+    preconditions:
+      - sh: command -v gh >/dev/null 2>&1
+        msg: "gh CLI not found. Install via: winget install GitHub.cli"
+      - sh: '[ -z "$(git status --porcelain)" ]'
+        msg: "Working tree has uncommitted changes; commit or stash first."
+      - sh: "git describe --tags --exact-match HEAD >/dev/null 2>&1"
+        msg: "HEAD is not on a release tag. Run `git tag vX.Y.Z` (or `task release:bump`) first."
+    cmds:
+      - task: :build
+      - task: :installer-exe
+        platforms: [windows]
+      - task: :linux-deb
+        platforms: [linux]
+      - task: :android:apk
+        platforms: [windows]
+      - cmd: '{{if eq OS "windows"}}C:/msys64/usr/bin/bash.exe{{else}}bash{{end}} scripts/release-publish.sh "{{.VERSION}}"'
+
+  rolling:
+    desc: "Update the rolling prerelease tag with current artifacts."
+    preconditions:
+      - sh: command -v gh >/dev/null 2>&1
+        msg: "gh CLI not found."
+    cmds:
+      - task: :build
+      - task: :android:apk
+        platforms: [windows]
+      - cmd: bash scripts/release-rolling.sh "{{.VERSION}}"
+
+  bump:
+    desc: "Auto-increment patch version + create tag. Pass NEW=X.Y.Z to override."
+    vars:
+      NEW:
+        sh: |
+          if [ -n "{{.NEW}}" ]; then echo "{{.NEW}}"; exit 0; fi
+          cur="{{.VERSION}}"
+          IFS=. read -r maj min pat <<< "$cur"
+          pat=$((pat + 1))
+          if [ "$pat" -ge 10 ]; then pat=0; min=$((min + 1)); fi
+          if [ "$min" -ge 10 ]; then min=0; maj=$((maj + 1)); fi
+          echo "$maj.$min.$pat"
+    cmds:
+      - cmd: |
+          new="{{.NEW}}"
+          if git rev-parse "v$new" >/dev/null 2>&1; then
+            echo "Tag v$new already exists" >&2; exit 1
+          fi
+          echo "Tagging v$new"
+          git tag "v$new"
+          echo "Now run: task release"
