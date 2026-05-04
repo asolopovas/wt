@@ -13,7 +13,6 @@ tasks:
   apk:
     desc: "Build the signed Android APK (Windows host required)."
     deps:
-      - whisper-lib
       - ffmpeg
       - llama-cli
       - sherpa-bin
@@ -52,7 +51,6 @@ tasks:
 
   test:
     desc: "Build wt-test CLI for arm64, push to /data/local/tmp, run via adb. CLI_ARGS forwarded."
-    deps: [whisper-lib]
     vars:
       NDK_CC: "{{.NDK_TOOLCHAIN}}/bin/aarch64-linux-android35-clang"
     cmds:
@@ -90,7 +88,7 @@ tasks:
             go vet ./cmd/wt-gui/... ./cmd/wt-test/... ./internal/...
           fi
 
-  vulkan-headers:
+  _disabled_vulkan_headers:
     internal: true
     run: once
     vars:
@@ -127,40 +125,6 @@ tasks:
           fi
           "$MSYS_BASH" -lc "export ANDROID_NDK_HOME='{{.NDK_ROOT}}'; export PATH='/mingw64/bin:/usr/bin:'\"\$PATH\"; cd '{{.ROOT_DIR | toSlash}}' && bash scripts/build-ffmpeg-android.sh"
 
-  whisper-lib:
-    internal: true
-    run: once
-    deps: [vulkan-headers]
-    vars:
-      ANDROID_BUILD: "{{.WHISPER_ROOT}}/build-android-arm64"
-    status:
-      - test -f "{{.ANDROID_BUILD}}/src/libwhisper.a"
-      - test -f "{{.ANDROID_BUILD}}/ggml/src/ggml-vulkan/libggml-vulkan.a"
-    cmds:
-      - cmd: git clone --depth 1 https://github.com/ggml-org/whisper.cpp.git {{.WHISPER_ROOT}}
-        if: '[ ! -d "{{.WHISPER_ROOT}}" ]'
-      - cmd: |
-          export PATH="/c/msys64/mingw64/bin:$PATH"
-          cmake -B "{{.ANDROID_BUILD}}" -S "{{.WHISPER_ROOT}}" \
-            -DCMAKE_MAKE_PROGRAM="C:/msys64/mingw64/bin/mingw32-make.exe" \
-            -DCMAKE_TOOLCHAIN_FILE="{{.NDK_ROOT}}/build/cmake/android.toolchain.cmake" \
-            -DANDROID_ABI=arm64-v8a \
-            -DANDROID_PLATFORM=android-28 \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DBUILD_SHARED_LIBS=OFF \
-            -DGGML_VULKAN=ON \
-            -DGGML_NATIVE=OFF \
-            -DGGML_OPENMP=OFF \
-            -DWHISPER_BUILD_EXAMPLES=OFF \
-            -DWHISPER_BUILD_TESTS=OFF \
-            -DVulkan_INCLUDE_DIR="{{.ANDROID_SYSROOT}}/usr/include" \
-            -DVulkan_LIBRARY="{{.ANDROID_SYSROOT}}/usr/lib/aarch64-linux-android/28/libvulkan.so" \
-            -DVulkan_GLSLC_EXECUTABLE="{{.NDK_ROOT}}/shader-tools/windows-x86_64/glslc.exe" \
-            -DGGML_VULKAN_SHADERS_GEN_TOOLCHAIN="{{.ROOT_DIR | toSlash}}/scripts/host-mingw-toolchain.cmake" \
-            -G "MinGW Makefiles"
-          cmake --build "{{.ANDROID_BUILD}}" --config Release -j${NUMBER_OF_PROCESSORS:-$(nproc)}
-          cp "{{.ANDROID_SYSROOT}}/usr/lib/aarch64-linux-android/28/libvulkan.so" \
-            "{{.ANDROID_BUILD}}/ggml/src/ggml-vulkan/libvulkan.so"
 
   llama-cli:
     internal: true

@@ -52,7 +52,7 @@ func modelsCommand() *cli.Command {
 
 func modelsList(_ context.Context, _ *cli.Command) error {
 	mgr := models.NewManager()
-	for _, fam := range []models.Family{models.FamilyWhisper, models.FamilyDiarizer, models.FamilyLLM} {
+	for _, fam := range []models.Family{models.FamilyASR, models.FamilyDiarizer, models.FamilyLLM} {
 		pterm.DefaultBasicText.Printf("\n  [%s]\n", strings.ToUpper(string(fam)))
 		for _, e := range models.ByFamily(fam) {
 			st := mgr.Status(e.ID)

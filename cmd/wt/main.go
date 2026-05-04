@@ -18,7 +18,6 @@ import (
 	"github.com/asolopovas/wt/internal/transcriber"
 	"github.com/asolopovas/wt/internal/transcriber/cache"
 	"github.com/asolopovas/wt/internal/ui"
-	whisper "github.com/ggerganov/whisper.cpp/bindings/go/pkg/whisper"
 )
 
 var (
@@ -37,7 +36,7 @@ func main() {
 
 	app := &cli.Command{
 		Name:      "wt",
-		Usage:     "Transcribe audio files using whisper.cpp",
+		Usage:     "Transcribe audio files using sherpa-onnx (whisper, parakeet, moonshine, sensevoice, canary, gigaam)",
 		Version:   appinfo.DisplayVersion(Version, BuildDate),
 		ArgsUsage: "<audio files...>",
 		Description: fmt.Sprintf(
@@ -80,11 +79,6 @@ func main() {
 				Value: 0,
 			},
 			&cli.BoolFlag{
-				Name:  "tdrz",
-				Usage: "enable tinydiarize speaker turn detection",
-				Value: cfg.TDRZ,
-			},
-			&cli.BoolFlag{
 				Name:  "no-diarize",
 				Usage: "skip speaker diarization entirely",
 			},
@@ -111,7 +105,6 @@ func main() {
 				cmd.String("model"),
 				cmd.Int("threads"),
 				cmd.Int("speakers"),
-				cmd.Bool("tdrz"),
 				cmd.Bool("no-diarize"),
 				cmd.Bool("live"),
 				cmd.Bool("no-rename"),
@@ -126,7 +119,7 @@ func main() {
 	}
 }
 
-func run(lang, modelSize, modelPath string, threads, speakers int, tdrz, noDiarize, live, noRename bool, args []string) error {
+func run(lang, modelSize, modelPath string, threads, speakers int, noDiarize, live, noRename bool, args []string) error {
 	if live {
 		return transcriber.Live(lang, modelSize, modelPath, threads)
 	}
@@ -146,29 +139,19 @@ func run(lang, modelSize, modelPath string, threads, speakers int, tdrz, noDiari
 	runStart := time.Now()
 	shared.LogProcessStart(fmt.Sprintf("transcription (%d file(s))", len(paths)))
 	shared.LogInfo(fmt.Sprintf("log: %s", shared.LogFilePath()))
-	shared.LogInfo(fmt.Sprintf("args: model-size=%s model=%q lang=%q threads=%d speakers=%d tdrz=%v no-diarize=%v no-rename=%v verbose=%v",
-		modelSize, modelPath, lang, threads, speakers, tdrz, noDiarize, noRename, ui.Verbose))
+	shared.LogInfo(fmt.Sprintf("args: model-size=%s model=%q lang=%q threads=%d speakers=%d no-diarize=%v no-rename=%v verbose=%v",
+		modelSize, modelPath, lang, threads, speakers, noDiarize, noRename, ui.Verbose))
 	for i, p := range paths {
 		shared.LogInfo(fmt.Sprintf("input[%d/%d]: %s", i+1, len(paths), p))
 	}
 
 	ui.Banner(appinfo.DisplayVersion(Version, BuildDate), modelSize)
 
-	resolvedModel, mErr := transcriber.ResolveModelPathLocal(modelSize, modelPath)
-	if mErr == nil {
-		shared.LogInfo("model file: " + resolvedModel)
+	if resolvedModel, mErr := transcriber.ResolveModelPathLocal(modelSize, modelPath); mErr == nil {
+		shared.LogInfo("model dir: " + resolvedModel)
 	} else {
 		shared.LogDebug("model not yet resolved locally: " + mErr.Error())
 	}
-
-	model, err := transcriber.LoadModel(modelSize, modelPath, threads)
-	if err != nil {
-		shared.LogProcessEnd("transcription", "failed", "loading model: "+err.Error())
-		return fmt.Errorf("loading model: %w", err)
-	}
-	defer func() {
-		_ = model.Close()
-	}()
 
 	ui.Debug("Files", fmt.Sprintf("%d", len(paths)))
 
@@ -177,7 +160,7 @@ func run(lang, modelSize, modelPath string, threads, speakers int, tdrz, noDiari
 		filename := filepath.Base(path)
 		ui.FileHeader(i+1, len(paths), filename)
 		jobStart := time.Now()
-		absPath, jsonPath, err := runJob(model.Model, path, modelSize, lang, threads, speakers, tdrz, noDiarize)
+		absPath, jsonPath, err := runJob(path, modelSize, lang, threads, speakers, noDiarize)
 		if err != nil {
 			shared.LogError(fmt.Sprintf("file failed: %s — %v (after %.1fs)", filename, err, time.Since(jobStart).Seconds()))
 			ui.Errorf("%v", err)
@@ -233,7 +216,7 @@ func expandFiles(patterns []string) ([]string, error) {
 	return paths, nil
 }
 
-func runJob(model whisper.Model, path, modelSize, lang string, threads, speakers int, tdrz, noDiarize bool) (string, string, error) {
+func runJob(path, modelSize, lang string, threads, speakers int, noDiarize bool) (string, string, error) {
 	absPath, err := filepath.Abs(path)
 	if err != nil {
 		return "", "", fmt.Errorf("resolving path: %w", err)
@@ -312,14 +295,14 @@ func runJob(model whisper.Model, path, modelSize, lang string, threads, speakers
 		},
 	}
 
-	engine := shared.EngineWhisper
+	engine := shared.EngineWhisperONNX
 	if mgr := models.NewManager(); mgr != nil {
 		if eng, _ := models.EngineForActiveASR(mgr.Active(models.FamilyASR)); eng != "" {
 			engine = eng
 		}
 	}
 
-	job := &transcriber.Job{Model: model, Hooks: hooks}
+	job := &transcriber.Job{Hooks: hooks}
 	spec := transcriber.JobSpec{
 		SourcePath: absPath,
 		ModelSize:  modelSize,
@@ -328,7 +311,6 @@ func runJob(model whisper.Model, path, modelSize, lang string, threads, speakers
 		Threads:    threads,
 		Speakers:   speakers,
 		NoDiarize:  noDiarize,
-		TDRZ:       tdrz,
 	}
 
 	res, err := job.Run(context.Background(), spec)

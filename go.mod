@@ -2,10 +2,7 @@ module github.com/asolopovas/wt
 
 go 1.26.1
 
-require (
-	github.com/ggerganov/whisper.cpp/bindings/go v0.0.0-20260305053642-30c5194c9691
-	gopkg.in/yaml.v3 v3.0.1
-)
+require gopkg.in/yaml.v3 v3.0.1
 
 require (
 	fyne.io/fyne/v2 v2.7.3
@@ -13,6 +10,7 @@ require (
 	github.com/pterm/pterm v0.12.83
 	github.com/urfave/cli/v3 v3.7.0
 	github.com/xuri/excelize/v2 v2.10.1
+	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 )
 
 require (
@@ -61,7 +59,4 @@ require (
 	golang.org/x/sys v0.42.0 // indirect
 	golang.org/x/term v0.40.0 // indirect
 	golang.org/x/text v0.35.0 // indirect
-	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
 )
-
-replace github.com/ggerganov/whisper.cpp/bindings/go => ./bindings/go

@@ -83,11 +83,7 @@ func ByFamily(f Family) []Entry {
 	return out
 }
 
-var whisperEntries = []Entry{
-	{ID: "whisper-tiny", Family: FamilyWhisper, DisplayName: "Whisper tiny (multilingual)", URL: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.bin", RelPath: "ggml-tiny.bin", SizeBytes: 77_700_000, RAMHintMB: 200, DefaultActive: false},
-	{ID: "whisper-small", Family: FamilyWhisper, DisplayName: "Whisper small (multilingual)", URL: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.bin", RelPath: "ggml-small.bin", SizeBytes: 488_000_000, RAMHintMB: 700},
-	{ID: "whisper-turbo", Family: FamilyWhisper, DisplayName: "Whisper large-v3-turbo", URL: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo.bin", RelPath: "ggml-large-v3-turbo.bin", SizeBytes: 1_620_000_000, RAMHintMB: 2400, DefaultActive: true},
-}
+var whisperEntries = []Entry{}
 
 var (
 	diarSegPyannote30URL = "https://huggingface.co/csukuangfj/sherpa-onnx-pyannote-segmentation-3-0/resolve/main/model.onnx"
@@ -225,6 +221,66 @@ var asrEntries = []Entry{
 			{URL: "https://huggingface.co/csukuangfj/sherpa-onnx-whisper-turbo/resolve/main/turbo-encoder.int8.onnx", RelPath: "sherpa-whisper-turbo/turbo-encoder.int8.onnx", SizeBytes: 674_716_297},
 			{URL: "https://huggingface.co/csukuangfj/sherpa-onnx-whisper-turbo/resolve/main/turbo-decoder.int8.onnx", RelPath: "sherpa-whisper-turbo/turbo-decoder.int8.onnx", SizeBytes: 361_080_764},
 			{URL: "https://huggingface.co/csukuangfj/sherpa-onnx-whisper-turbo/resolve/main/turbo-tokens.txt", RelPath: "sherpa-whisper-turbo/turbo-tokens.txt", SizeBytes: 816_730},
+		},
+	},
+	{
+		ID:          "parakeet-tdt-0.6b-v3-int8",
+		Family:      FamilyASR,
+		Engine:      shared.EngineParakeet,
+		Languages:   []string{"bg", "hr", "cs", "da", "nl", "en", "et", "fi", "fr", "de", "el", "hu", "it", "lv", "lt", "mt", "pl", "pt", "ro", "sk", "sl", "es", "sv", "ru", "uk"},
+		DisplayName: "Parakeet TDT 0.6B v3 (25 EU langs)",
+		Description: "NVIDIA Parakeet TDT v3, 25 European languages. Successor to v2 with broader language coverage. ~671 MB.",
+		SizeBytes:   671_000_000,
+		RAMHintMB:   1200,
+		Files: []FileSpec{
+			{URL: "https://huggingface.co/csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8/resolve/main/encoder.int8.onnx", RelPath: "sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8/encoder.int8.onnx", SizeBytes: 660_000_000},
+			{URL: "https://huggingface.co/csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8/resolve/main/decoder.int8.onnx", RelPath: "sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8/decoder.int8.onnx", SizeBytes: 7_500_000},
+			{URL: "https://huggingface.co/csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8/resolve/main/joiner.int8.onnx", RelPath: "sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8/joiner.int8.onnx", SizeBytes: 3_500_000},
+			{URL: "https://huggingface.co/csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8/resolve/main/tokens.txt", RelPath: "sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8/tokens.txt", SizeBytes: 80_000},
+		},
+	},
+	{
+		ID:          "canary-180m-flash",
+		Family:      FamilyASR,
+		Engine:      shared.EngineCanary,
+		Languages:   []string{"en", "de", "es", "fr"},
+		DisplayName: "Canary 180M Flash (en/de/es/fr)",
+		Description: "NVIDIA Canary 180M Flash, very fast multilingual ASR (en/de/es/fr) with translation. ~146 MB.",
+		SizeBytes:   146_000_000,
+		RAMHintMB:   400,
+		Files: []FileSpec{
+			{URL: "https://huggingface.co/csukuangfj/sherpa-onnx-nemo-canary-180m-flash/resolve/main/encoder.int8.onnx", RelPath: "sherpa-onnx-nemo-canary-180m-flash/encoder.int8.onnx", SizeBytes: 110_000_000},
+			{URL: "https://huggingface.co/csukuangfj/sherpa-onnx-nemo-canary-180m-flash/resolve/main/decoder.int8.onnx", RelPath: "sherpa-onnx-nemo-canary-180m-flash/decoder.int8.onnx", SizeBytes: 36_000_000},
+			{URL: "https://huggingface.co/csukuangfj/sherpa-onnx-nemo-canary-180m-flash/resolve/main/tokens.txt", RelPath: "sherpa-onnx-nemo-canary-180m-flash/tokens.txt", SizeBytes: 100_000},
+		},
+	},
+	{
+		ID:          "gigaam-v3-ru",
+		Family:      FamilyASR,
+		Engine:      shared.EngineNemoCTC,
+		Languages:   []string{"ru"},
+		DisplayName: "GigaAM v3 (Russian)",
+		Description: "Sber GigaAM v3 NeMo CTC, Russian-only. Fast and accurate for Russian audio. ~250 MB.",
+		SizeBytes:   250_000_000,
+		RAMHintMB:   500,
+		Files: []FileSpec{
+			{URL: "https://huggingface.co/csukuangfj/sherpa-onnx-nemo-ctc-giga-am-v3-russian-2025-04-19/resolve/main/model.int8.onnx", RelPath: "sherpa-onnx-nemo-ctc-giga-am-v3/model.int8.onnx", SizeBytes: 240_000_000},
+			{URL: "https://huggingface.co/csukuangfj/sherpa-onnx-nemo-ctc-giga-am-v3-russian-2025-04-19/resolve/main/tokens.txt", RelPath: "sherpa-onnx-nemo-ctc-giga-am-v3/tokens.txt", SizeBytes: 1_000},
+		},
+	},
+	{
+		ID:          "sherpa-whisper-medium.en",
+		Family:      FamilyASR,
+		Engine:      shared.EngineWhisperONNX,
+		Languages:   []string{"en"},
+		DisplayName: "Whisper medium.en (ONNX, English)",
+		Description: "OpenAI Whisper medium.en via ONNX Runtime. Higher accuracy than base.en, 769M params, ~470 MB.",
+		SizeBytes:   470_000_000,
+		RAMHintMB:   800,
+		Files: []FileSpec{
+			{URL: "https://huggingface.co/csukuangfj/sherpa-onnx-whisper-medium.en/resolve/main/medium.en-encoder.int8.onnx", RelPath: "sherpa-whisper-medium.en/medium.en-encoder.int8.onnx", SizeBytes: 90_000_000},
+			{URL: "https://huggingface.co/csukuangfj/sherpa-onnx-whisper-medium.en/resolve/main/medium.en-decoder.int8.onnx", RelPath: "sherpa-whisper-medium.en/medium.en-decoder.int8.onnx", SizeBytes: 380_000_000},
+			{URL: "https://huggingface.co/csukuangfj/sherpa-onnx-whisper-medium.en/resolve/main/medium.en-tokens.txt", RelPath: "sherpa-whisper-medium.en/medium.en-tokens.txt", SizeBytes: 836_000},
 		},
 	},
 	{

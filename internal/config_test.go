@@ -118,7 +118,7 @@ func TestSaveAndLoad(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", tmpDir)
 
 	cfg := Config{
-		Model:   "small",
+		Model:   "sherpa-whisper-base.en",
 		Device:  "cpu",
 		Threads: 4,
 		TDRZ:    true,

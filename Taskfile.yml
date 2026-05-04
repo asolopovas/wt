@@ -12,10 +12,11 @@ vars:
   BINARY: wt
   APP_NAME: WTranscribe
 
-  WHISPER_ROOT: "{{.ROOT_DIR | toSlash}}/third_party/whisper.cpp"
-  WHISPER_BUILD: "{{.WHISPER_ROOT}}/build"
   LLAMA_ROOT: "{{.ROOT_DIR | toSlash}}/third_party/llama.cpp"
   SHERPA_ROOT: "{{.ROOT_DIR | toSlash}}/third_party/sherpa-onnx"
+  SHERPA_BIN_VERSION: "v1.13.0"
+  SHERPA_GPU_DIR: "{{.ROOT_DIR | toSlash}}/third_party/sherpa-onnx-cuda"
+  SHERPA_GPU_URL: "https://github.com/k2-fsa/sherpa-onnx/releases/download/{{.SHERPA_BIN_VERSION}}/sherpa-onnx-{{.SHERPA_BIN_VERSION}}-cuda-12.x-cudnn-9.x-linux-x64-gpu.tar.bz2"
 
   VERSION:
     sh: 'v="$(git describe --tags --abbrev=0 2>/dev/null | sed s/^v//)"; if [ -z "$v" ]; then v="0.0.0"; fi; echo "$v"'
@@ -57,23 +58,13 @@ vars:
     sh: |
       p=""
       [ -n "{{.MINGW_BIN}}" ] && p="{{.MINGW_BIN}}"
-      if [ -n "{{.CUDA_DIR}}" ]; then
-        if [ -n "$p" ]; then p="{{.WHISPER_BUILD}}/bin;$p"; else p="{{.WHISPER_BUILD}}/bin"; fi
-      fi
       echo "$p"
 
-  GO_ENV: 'export PATH="{{.WHISPER_BUILD}}/bin;{{.EXTRA_PATH}};$PATH" LD_LIBRARY_PATH="{{.WHISPER_BUILD}}/src:{{.WHISPER_BUILD}}/ggml/src:{{.WHISPER_BUILD}}/ggml/src/ggml-cuda${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"'
-
-  CGO_LDFLAGS_LINUX: "-L{{.WHISPER_BUILD}}/src -L{{.WHISPER_BUILD}}/ggml/src -lwhisper -lggml -lggml-base -lggml-cpu -lm -lstdc++ -ldl -lpthread -Wl,-rpath,$ORIGIN"
-  CGO_LDFLAGS_WIN_CUDA: "-L{{.WHISPER_BUILD}}/src -L{{.WHISPER_BUILD}}/ggml/src {{.WHISPER_BUILD}}/src/whisper.lib {{.WHISPER_BUILD}}/ggml/src/ggml.lib {{.WHISPER_BUILD}}/ggml/src/ggml-base.lib -lm -lstdc++ -fopenmp"
-  CGO_LDFLAGS_WIN_CPU: "-L{{.WHISPER_ROOT}}/build/src -L{{.WHISPER_ROOT}}/build/ggml/src -lwhisper -lggml -lggml-base -lggml-cpu -lm -lstdc++ -fopenmp -static"
+  GO_ENV: 'export PATH="{{.EXTRA_PATH}};$PATH"'
 
 env:
   CGO_ENABLED: "1"
   CC: '{{if eq OS "linux"}}gcc{{else}}{{.GCC_PATH}}{{end}}'
-  CGO_CFLAGS: "-I{{.WHISPER_ROOT}}/include -I{{.WHISPER_ROOT}}/ggml/include"
-  CGO_LDFLAGS: '{{if eq OS "linux"}}{{.CGO_LDFLAGS_LINUX}}{{else if .CUDA_DIR}}{{.CGO_LDFLAGS_WIN_CUDA}}{{else}}{{.CGO_LDFLAGS_WIN_CPU}}{{end}}'
-  CGO_LDFLAGS_ALLOW: '.*\.(lib|so|so\..*)'
 
 tasks:
   default:
@@ -102,12 +93,8 @@ tasks:
   test:
     desc: "Run tests. SHORT=1 skips CGo/model. INTEGRATION=1 runs diarization integration suite."
     cmds:
-      - task: whisper-lib
-        if: '[ -n "{{.SHORT}}" ] && [ "{{OS}}" = "linux" ]'
       - cmd: '{{if eq OS "linux"}}{{.GO_ENV}} && {{end}}export PATH="{{.EXTRA_PATH}};$PATH" && go test -v -short ./cmd/... ./internal/...'
         if: '[ -n "{{.SHORT}}" ]'
-      - task: whisper-lib
-        if: '[ -z "{{.SHORT}}" ]'
       - cmd: "{{.GO_ENV}} && go test -v -tags=integration ./internal/diarizer/..."
         if: '[ -n "{{.INTEGRATION}}" ]'
       - cmd: "{{.GO_ENV}} && go test -v ./cmd/... ./internal/..."
@@ -136,10 +123,10 @@ tasks:
         if: '[ -n "{{.FIX}}" ]'
 
   clean:
-    desc: "Remove dist/. DEEP=1 also clears whisper.cpp build."
+    desc: "Remove dist/. DEEP=1 also clears third_party builds."
     cmds:
       - rm -rf dist
-      - cmd: rm -rf {{.WHISPER_BUILD}}
+      - cmd: rm -rf third_party/sherpa-onnx-cuda third_party/llama.cpp/build
         if: '[ -n "{{.DEEP}}" ]'
 
   models:
@@ -156,15 +143,12 @@ tasks:
         if: '[ "{{.FETCH}}" != "samples" ] && [ "{{.FETCH}}" != "import" ]'
 
   build:linux:
-    deps: [whisper-lib, fetch-deps, fetch-vad]
+    deps: [sherpa-cuda-bin, fetch-deps, fetch-vad]
     sources:
       - cmd/**/*.go
       - internal/**/*.go
-      - bindings/**/*.go
       - scripts/diarize.py
       - Taskfile.yml
-      - third_party/whisper.cpp/include/whisper.h
-      - third_party/whisper.cpp/ggml/include/ggml.h
     generates:
       - dist/bin/{{.BINARY}}
       - dist/bin/{{.BINARY}}-gui
@@ -177,10 +161,14 @@ tasks:
         if: '[ "{{.ONLY}}" != "cli" ]'
       - cmd: |
           dest="{{.ROOT_DIR | toSlash}}/dist/bin"
-          mkdir -p "$dest"
-          find "{{.WHISPER_BUILD}}/src" "{{.WHISPER_BUILD}}/ggml" \
-            \( -name 'libwhisper.so*' -o -name 'libggml*.so*' \) \
-            -exec cp -P {} "$dest/" \;
+          src="{{.SHERPA_GPU_DIR}}"
+          if [ -d "$src/bin" ]; then
+            cp -f "$src/bin/sherpa-onnx-offline" "$dest/sherpa-onnx-offline" || true
+            cp -f "$src/bin/sherpa-onnx" "$dest/sherpa-onnx" 2>/dev/null || true
+            cp -f "$src/bin/sherpa-onnx-offline-speaker-diarization" "$dest/sherpa-onnx-offline-speaker-diarization" 2>/dev/null || true
+            chmod 755 "$dest"/sherpa-onnx* 2>/dev/null || true
+            cp -P "$src/lib/"*.so* "$dest/" 2>/dev/null || true
+          fi
       - task: llama-cli-host
       - cmd: |
           src="{{.ROOT_DIR | toSlash}}/dist/llama"
@@ -196,15 +184,12 @@ tasks:
         if: '[ -z "{{.ONLY}}" ]'
 
   build:windows:
-    deps: [whisper-lib, fetch-deps, fetch-vad]
+    deps: [fetch-deps, fetch-vad]
     sources:
       - cmd/**/*.go
       - internal/**/*.go
-      - bindings/**/*.go
       - scripts/diarize.py
       - Taskfile.yml
-      - third_party/whisper.cpp/include/whisper.h
-      - third_party/whisper.cpp/ggml/include/ggml.h
     generates:
       - dist/bin/{{.BINARY}}.exe
       - dist/bin/{{.BINARY}}-gui.exe
@@ -215,17 +200,6 @@ tasks:
         if: '[ "{{.ONLY}}" != "gui" ]'
       - cmd: '{{.GO_ENV}} && go build -ldflags "-X main.Version={{.VERSION}} -X main.BuildDate={{.GIT_DATE}} -H windowsgui" -o dist/bin/{{.BINARY}}-gui.exe ./cmd/wt-gui'
         if: '[ "{{.ONLY}}" != "cli" ]'
-      - cmd: |
-          dlldir="{{.WHISPER_BUILD}}/bin"
-          dest="{{.ROOT_DIR | toSlash}}/dist/bin"
-          mkdir -p "$dest"
-          for f in "$dlldir"/whisper.dll "$dlldir"/ggml.dll "$dlldir"/ggml-base.dll; do
-            cp "$f" "$dest/"
-          done
-          for f in "$dlldir"/ggml-cpu-*.dll "$dlldir"/ggml-cuda.dll; do
-            [ -f "$f" ] && cp "$f" "$dest/"
-          done
-        if: '[ -n "{{.CUDA_DIR}}" ]'
       - task: llama-cli-host
       - cmd: |
           src="{{.ROOT_DIR | toSlash}}/dist/llama"
@@ -263,22 +237,29 @@ tasks:
     cmds:
       - bash scripts/fetch-vad.sh
 
-  whisper-lib:
+  sherpa-cuda-bin:
     internal: true
     run: once
+    desc: "Download pre-built sherpa-onnx CUDA binaries (Linux x64)"
     status:
       - |
-        if [ "{{OS}}" = "linux" ]; then
-          test -f "{{.WHISPER_BUILD}}/src/libwhisper.so"
-        elif [ -n "{{.CUDA_DIR}}" ]; then
-          test -f "{{.WHISPER_BUILD}}/bin/whisper.dll"
-        else
-          test -f "{{.WHISPER_ROOT}}/build/src/libwhisper.a"
-        fi
+        if [ "{{OS}}" != "linux" ]; then exit 0; fi
+        test -f "{{.SHERPA_GPU_DIR}}/bin/sherpa-onnx-offline" -a -f "{{.SHERPA_GPU_DIR}}/lib/libonnxruntime.so"
     cmds:
-      - cmd: git clone --depth 1 https://github.com/ggml-org/whisper.cpp.git {{.WHISPER_ROOT}}
-        if: '[ ! -d "{{.WHISPER_ROOT}}" ]'
-      - 'bash scripts/build-whisper.sh "{{.WHISPER_ROOT}}" "{{.WHISPER_BUILD}}" "{{.CUDA_DIR}}" "{{.CUDA_ARCH}}" "{{.ROOT_DIR | toSlash}}" "{{.LINUX_CUDA}}" "{{if eq OS "linux"}}1{{end}}"'
+      - cmd: |
+          if [ "{{OS}}" != "linux" ]; then exit 0; fi
+          mkdir -p "{{.SHERPA_GPU_DIR}}"
+          cd "{{.SHERPA_GPU_DIR}}/.."
+          tarball=sherpa-onnx-cuda.tar.bz2
+          if [ ! -f "$tarball" ]; then
+            curl -fSL -o "$tarball" "{{.SHERPA_GPU_URL}}"
+          fi
+          tmp=$(mktemp -d)
+          tar -xjf "$tarball" -C "$tmp"
+          inner="$tmp/$(ls "$tmp")"
+          rm -rf "{{.SHERPA_GPU_DIR}}"
+          mv "$inner" "{{.SHERPA_GPU_DIR}}"
+          rm -rf "$tmp"
 
   fetch-deps:
     internal: true

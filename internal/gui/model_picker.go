@@ -58,7 +58,7 @@ func pickerByDisplayName(opts []pickerOption, name string) string {
 func transcriptionPickerOptions(mgr *models.Manager) []pickerOption {
 	var out []pickerOption
 	asrAvailable := sherpaASRBinaryAvailable()
-	for _, fam := range []models.Family{models.FamilyWhisper, models.FamilyASR} {
+	for _, fam := range []models.Family{models.FamilyASR} {
 		if fam == models.FamilyASR && !asrAvailable {
 			continue
 		}
@@ -89,23 +89,14 @@ func activeTranscriptionID(mgr *models.Manager) string {
 			return id
 		}
 	}
-	return mgr.Active(models.FamilyWhisper)
+	return mgr.Active(models.FamilyASR)
 }
 
 func setActiveTranscription(mgr *models.Manager, id string) error {
-	e, ok := models.ByID(id)
-	if !ok {
+	if _, ok := models.ByID(id); !ok {
 		return fmt.Errorf("unknown model: %s", id)
 	}
-	if err := mgr.SetActive(id); err != nil {
-		return err
-	}
-	if e.Family == models.FamilyWhisper {
-		if err := mgr.ClearActive(models.FamilyASR); err != nil {
-			return err
-		}
-	}
-	return nil
+	return mgr.SetActive(id)
 }
 
 func activeTranscriptionDisplayName(opts []pickerOption, mgr *models.Manager) string {

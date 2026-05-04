@@ -36,14 +36,14 @@ Public sideload path resolved by `internal/config_android.go:platformModelsDirOv
 
 **Use the sherpa-onnx engines, not whisper.cpp.** On the same hardware, the ONNX Runtime path is dramatically faster:
 
-| Engine | Model | Galaxy S24+ (Exynos 2400) RTF | vs whisper.cpp turbo |
-|---|---|---|---|
-| whisper.cpp | turbo (1.6 GB ggml) | 0.27 | 1× (baseline) |
-| **sherpa-onnx whisper-turbo** | sherpa-whisper-turbo (1.0 GB) | **1.99** | **7.3× faster, identical accuracy** |
-| sherpa-onnx parakeet-tdt-v2 | parakeet-tdt-0.6b-v2-int8 | 5.65 | 21× faster, ~turbo accuracy |
-| sherpa-onnx whisper-tiny.en | sherpa-whisper-tiny.en | 9.19 | 34× faster, lower acc |
-| sherpa-onnx moonshine-tiny | sherpa-onnx-moonshine-tiny-en-int8 | 10.25 | 38× faster, lower acc |
-| whisper.cpp | tiny | 0.50 | 0.5× (slower than tiny via ONNX **and** worse text) |
+| Engine                        | Model                              | Galaxy S24+ (Exynos 2400) RTF | vs whisper.cpp turbo                                |
+| ----------------------------- | ---------------------------------- | ----------------------------- | --------------------------------------------------- |
+| whisper.cpp                   | turbo (1.6 GB ggml)                | 0.27                          | 1× (baseline)                                       |
+| **sherpa-onnx whisper-turbo** | sherpa-whisper-turbo (1.0 GB)      | **1.99**                      | **7.3× faster, identical accuracy**                 |
+| sherpa-onnx parakeet-tdt-v2   | parakeet-tdt-0.6b-v2-int8          | 5.65                          | 21× faster, ~turbo accuracy                         |
+| sherpa-onnx whisper-tiny.en   | sherpa-whisper-tiny.en             | 9.19                          | 34× faster, lower acc                               |
+| sherpa-onnx moonshine-tiny    | sherpa-onnx-moonshine-tiny-en-int8 | 10.25                         | 38× faster, lower acc                               |
+| whisper.cpp                   | tiny                               | 0.50                          | 0.5× (slower than tiny via ONNX **and** worse text) |
 
 Measured 2026-05-04 on `audio.wav` (120 s English speech). The whisper.cpp tiny output is strictly worse than sherpa whisper-tiny.en — it makes more name and homophone errors. Recommendation:
 

@@ -522,6 +522,140 @@ func RunSenseVoice(ctx context.Context, spec JobSpec, samples []float32, audioDu
 
 type whisperONNXModelPaths struct{ Encoder, Decoder, Tokens string }
 
+type canaryModelPaths struct{ Encoder, Decoder, Tokens string }
+
+func canaryModelDir(modelID string) string {
+	if v := os.Getenv("WT_CANARY_DIR"); v != "" {
+		return v
+	}
+	name := modelID
+	if name == "" {
+		name = "sherpa-onnx-nemo-canary-180m-flash"
+	}
+	return filepath.Join(shared.ModelsDir(), name)
+}
+
+func resolveCanaryModels(modelID string) (canaryModelPaths, error) {
+	dir := canaryModelDir(modelID)
+	candidates := []canaryModelPaths{
+		{Encoder: filepath.Join(dir, "encoder.int8.onnx"), Decoder: filepath.Join(dir, "decoder.int8.onnx"), Tokens: filepath.Join(dir, "tokens.txt")},
+		{Encoder: filepath.Join(dir, "encoder.onnx"), Decoder: filepath.Join(dir, "decoder.onnx"), Tokens: filepath.Join(dir, "tokens.txt")},
+	}
+	for _, p := range candidates {
+		if fileExists(p.Encoder) && fileExists(p.Decoder) && fileExists(p.Tokens) {
+			return p, nil
+		}
+	}
+	return canaryModelPaths{}, fmt.Errorf("canary models missing in %s", dir)
+}
+
+func canaryLang(spec JobSpec) string {
+	lang := strings.ToLower(strings.TrimSpace(spec.Language))
+	switch lang {
+	case "en", "de", "es", "fr":
+		return lang
+	default:
+		return "en"
+	}
+}
+
+func (j *Job) runCanary(ctx context.Context, spec JobSpec, samples []float32, audioDurSec float64, rawKey string) ([]diarizer.TranscriptSegment, string, float64, error) {
+	return RunCanary(ctx, spec, samples, audioDurSec, rawKey, j.Hooks)
+}
+
+func RunCanary(ctx context.Context, spec JobSpec, samples []float32, audioDurSec float64, rawKey string, hooks Hooks) ([]diarizer.TranscriptSegment, string, float64, error) {
+	bin, err := findSherpaASRBinary()
+	if err != nil {
+		return nil, "", 0, fmt.Errorf("canary engine: %w", err)
+	}
+	modelID := spec.ModelSize
+	models, err := resolveCanaryModels(modelID)
+	if err != nil {
+		return nil, "", 0, fmt.Errorf("canary engine: %w", err)
+	}
+	lang := canaryLang(spec)
+	argsForWAV := func(wavPath string) []string {
+		return []string{
+			"--canary-encoder=" + models.Encoder,
+			"--canary-decoder=" + models.Decoder,
+			"--tokens=" + models.Tokens,
+			"--canary-src-lang=" + lang,
+			"--canary-tgt-lang=" + lang,
+			"--canary-use-pnc=true",
+			fmt.Sprintf("--num-threads=%d", sherpaThreads(spec)),
+			"--provider=" + sherpaProvider(),
+			wavPath,
+		}
+	}
+	segs, _, rtf, err := runSherpaEngineChunked(ctx, "canary", bin, argsForWAV, hooks, samples, audioDurSec, rawKey)
+	if err != nil {
+		return nil, "", 0, err
+	}
+	return segs, lang, rtf, nil
+}
+
+type nemoCTCModelPaths struct{ Model, Tokens string }
+
+func nemoCTCModelDir(modelID string) string {
+	if v := os.Getenv("WT_NEMO_CTC_DIR"); v != "" {
+		return v
+	}
+	name := modelID
+	if name == "" {
+		name = "sherpa-onnx-nemo-ctc-giga-am-v3"
+	}
+	return filepath.Join(shared.ModelsDir(), name)
+}
+
+func resolveNemoCTCModels(modelID string) (nemoCTCModelPaths, error) {
+	dir := nemoCTCModelDir(modelID)
+	candidates := []nemoCTCModelPaths{
+		{Model: filepath.Join(dir, "model.int8.onnx"), Tokens: filepath.Join(dir, "tokens.txt")},
+		{Model: filepath.Join(dir, "model.onnx"), Tokens: filepath.Join(dir, "tokens.txt")},
+	}
+	for _, p := range candidates {
+		if fileExists(p.Model) && fileExists(p.Tokens) {
+			return p, nil
+		}
+	}
+	return nemoCTCModelPaths{}, fmt.Errorf("nemo-ctc models missing in %s", dir)
+}
+
+func (j *Job) runNemoCTC(ctx context.Context, spec JobSpec, samples []float32, audioDurSec float64, rawKey string) ([]diarizer.TranscriptSegment, string, float64, error) {
+	return RunNemoCTC(ctx, spec, samples, audioDurSec, rawKey, j.Hooks)
+}
+
+func RunNemoCTC(ctx context.Context, spec JobSpec, samples []float32, audioDurSec float64, rawKey string, hooks Hooks) ([]diarizer.TranscriptSegment, string, float64, error) {
+	bin, err := findSherpaASRBinary()
+	if err != nil {
+		return nil, "", 0, fmt.Errorf("nemo-ctc engine: %w", err)
+	}
+	modelID := spec.ModelSize
+	models, err := resolveNemoCTCModels(modelID)
+	if err != nil {
+		return nil, "", 0, fmt.Errorf("nemo-ctc engine: %w", err)
+	}
+	argsForWAV := func(wavPath string) []string {
+		return []string{
+			"--nemo-ctc-model=" + models.Model,
+			"--tokens=" + models.Tokens,
+			fmt.Sprintf("--num-threads=%d", sherpaThreads(spec)),
+			"--provider=" + sherpaProvider(),
+			"--model-type=nemo_ctc",
+			wavPath,
+		}
+	}
+	segs, _, rtf, err := runSherpaEngineChunked(ctx, "nemo-ctc", bin, argsForWAV, hooks, samples, audioDurSec, rawKey)
+	if err != nil {
+		return nil, "", 0, err
+	}
+	lang := strings.ToLower(strings.TrimSpace(spec.Language))
+	if lang == "" || lang == "auto" {
+		lang = ""
+	}
+	return segs, lang, rtf, nil
+}
+
 func whisperONNXModelDir(modelID string) string {
 	if v := os.Getenv("WT_WHISPER_ONNX_DIR"); v != "" {
 		return v

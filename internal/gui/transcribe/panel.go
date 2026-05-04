@@ -11,7 +11,6 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/widget"
-	whisper "github.com/ggerganov/whisper.cpp/bindings/go/pkg/whisper"
 )
 
 const maxLogLines = 5000
@@ -88,13 +87,6 @@ type Panel struct {
 	progSlice float64
 
 	activePath atomic.Pointer[string]
-
-	modelMu              sync.Mutex
-	cachedModel          whisper.Model
-	cachedModelSize      string
-	lastModelActivity    atomic.Int64
-	unloadWatcherStarted atomic.Bool
-	unloadWatcherStop    chan struct{}
 }
 
 func (p *Panel) setActivePath(path string) {

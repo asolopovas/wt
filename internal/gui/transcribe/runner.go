@@ -21,7 +21,6 @@ import (
 	"github.com/asolopovas/wt/internal/models"
 	"github.com/asolopovas/wt/internal/progress"
 	"github.com/asolopovas/wt/internal/transcriber"
-	whisper "github.com/ggerganov/whisper.cpp/bindings/go/pkg/whisper"
 )
 
 func notify(title, body string) {
@@ -134,80 +133,35 @@ func (p *Panel) runTranscription(files []string) {
 
 	modelSize := p.Settings.ModelSize()
 	device := p.Settings.Device()
+	_ = device
 	threads := p.Settings.Threads()
 	language := p.Settings.Language()
 	speakers := p.Settings.Speakers()
 	noDiarize := p.Settings.NoDiarize()
 
-	activeEngine := shared.EngineWhisper
+	activeEngine := shared.EngineWhisperONNX
 	if mgr := models.NewManager(); mgr != nil {
 		if eng, _ := models.EngineForActiveASR(mgr.Active(models.FamilyASR)); eng != "" && transcriber.SherpaASRBinaryAvailable() {
 			activeEngine = eng
 		}
 	}
 
-	var model whisper.Model
-	if activeEngine == shared.EngineWhisper {
-		p.setStatus("Loading model...")
-		p.debugLog(fmt.Sprintf("model=%s device=%s threads=%d language=%q speakers=%d noDiarize=%v", modelSize, device, threads, language, speakers, noDiarize))
-		var err error
-		model, err = p.acquireModel(modelSize)
-		if err != nil {
-			p.AppendLog(fmt.Sprintf("Error: %v", err))
-			p.setStatus("Model loading failed")
-			p.debugLog(fmt.Sprintf("run done: outcome=failed phase=load-model elapsed=%.1fs reason=%v", time.Since(runStart).Seconds(), err))
-			return
-		}
-		defer p.releaseModel()
-	} else {
-		p.debugLog(fmt.Sprintf("engine=%s threads=%d language=%q speakers=%d noDiarize=%v (skip whisper load)", activeEngine, threads, language, speakers, noDiarize))
-	}
+	p.debugLog(fmt.Sprintf("engine=%s model=%s threads=%d language=%q speakers=%d noDiarize=%v", activeEngine, modelSize, threads, language, speakers, noDiarize))
 
-	deviceLabelLog := "CPU"
-	gpuFound := false
-	if activeEngine == shared.EngineWhisper {
-		devices := whisper.BackendDevices()
-		for _, dev := range devices {
-			if dev.Type == "GPU" || dev.Type == "iGPU" {
-				gpuFound = true
-				suffix := ""
-				if runtime.GOOS == "android" {
-					suffix = ", shared mem"
-				}
-				deviceLabelLog = dev.Description + suffix
-				if runtime.GOOS != "android" {
-					usedMB := dev.TotalMB - dev.FreeMB
-					p.debugLog(fmt.Sprintf("VRAM: %d/%d MB", usedMB, dev.TotalMB))
-				}
-				p.debugLog(fmt.Sprintf("GPU: %s (free=%dMB total=%dMB)", dev.Description, dev.FreeMB, dev.TotalMB))
-			}
-		}
-		if !gpuFound {
-			p.debugLog("no GPU detected, using CPU")
-		}
+	deviceLabelLog := "CPU (sherpa-onnx)"
+	if p := os.Getenv("WT_ZIPFORMER_PROVIDER"); p == "cuda" {
+		deviceLabelLog = "GPU CUDA (sherpa-onnx)"
+	} else if p == "nnapi" {
+		deviceLabelLog = "NPU NNAPI (sherpa-onnx)"
 	}
-
-	if activeEngine == shared.EngineWhisper {
-		p.AppendLog(fmt.Sprintf("Model: %s · %s", modelSize, deviceLabelLog))
-	} else {
-		p.AppendLog(fmt.Sprintf("Engine: %s (sherpa-onnx) · %s", activeEngine, deviceLabelLog))
-	}
+	p.AppendLog(fmt.Sprintf("Engine: %s · %s · %s", activeEngine, modelSize, deviceLabelLog))
 
 	p.debugLog("Settings:")
 	p.debugLog(fmt.Sprintf("  Engine    : %s", activeEngine))
-	switch activeEngine {
-	case shared.EngineWhisper:
-		modelFile := transcriber.ModelFiles[modelSize]
-		if modelFile == "" {
-			modelFile = modelSize
-		}
-		if resolved, err := transcriber.ResolveModelPathLocal(modelSize, ""); err == nil {
-			p.debugLog(fmt.Sprintf("  Model     : %s (%s)", modelSize, resolved))
-		} else {
-			p.debugLog(fmt.Sprintf("  Model     : %s (%s)", modelSize, modelFile))
-		}
-	default:
-		p.debugLog(fmt.Sprintf("  ASR model : %s (sherpa-onnx)", modelSize))
+	if resolved, err := transcriber.ResolveModelPathLocal(modelSize, ""); err == nil {
+		p.debugLog(fmt.Sprintf("  Model     : %s (%s)", modelSize, resolved))
+	} else {
+		p.debugLog(fmt.Sprintf("  Model     : %s", modelSize))
 	}
 	p.debugLog(fmt.Sprintf("  Device    : %s", deviceLabelLog))
 	p.debugLog(fmt.Sprintf("  Language  : %s", language))
@@ -231,11 +185,8 @@ func (p *Panel) runTranscription(files []string) {
 	errCount := 0
 
 	deviceLabel := "cpu"
-	for _, dev := range whisper.BackendDevices() {
-		if dev.Type == "GPU" || dev.Type == "iGPU" {
-			deviceLabel = dev.Description
-			break
-		}
+	if p := os.Getenv("WT_ZIPFORMER_PROVIDER"); p != "" && p != "cpu" {
+		deviceLabel = p
 	}
 
 	for i, path := range files {
@@ -258,7 +209,7 @@ func (p *Panel) runTranscription(files []string) {
 		p.setActivePath(path)
 
 		fileStart := time.Now()
-		err := p.transcribeFile(model, path, modelSize, deviceLabel, language, threads, speakers, noDiarize)
+		err := p.transcribeFile(path, modelSize, deviceLabel, language, threads, speakers, noDiarize)
 		p.setChipProcessing(filename, false)
 		p.setActivePath("")
 		if err != nil {
@@ -301,38 +252,15 @@ func (p *Panel) runTranscription(files []string) {
 		fmt.Sprintf("%d/%d done, %d failed, %.1fs", total-errCount, total, errCount, elapsed))
 }
 
-func (p *Panel) loadModel(modelSize string) (whisper.Model, error) {
-	prog := p.makeDownloadProgress(modelSize)
-
-	path, err := transcriber.ResolveModelPathWithProgress(modelSize, "", prog)
-	if err != nil {
-		return nil, err
+func (p *Panel) ensureModelDir(modelSize string) error {
+	_ = p.makeDownloadProgress(modelSize)
+	if _, err := transcriber.ResolveModelPathLocal(modelSize, ""); err != nil {
+		return fmt.Errorf("model %q not found locally; download via Settings → Models", modelSize)
 	}
-
-	exePath, err := os.Executable()
-	if err == nil {
-		whisper.BackendSetSearchPath(filepath.Dir(exePath))
-	}
-
-	whisper.SetLogQuiet(true)
-
-	start := time.Now()
-	runtime.LockOSThread()
-	prio, lowered := sysstats.SetCurrentThreadBackground()
-	m, err := whisper.New(path)
-	if lowered {
-		sysstats.RestoreThreadPriority(prio)
-	}
-	runtime.UnlockOSThread()
-	if err != nil {
-		return nil, fmt.Errorf("loading model: %w", err)
-	}
-
-	p.debugLog(fmt.Sprintf("model loaded in %.1fs", time.Since(start).Seconds()))
-	return m, nil
+	return nil
 }
 
-func (p *Panel) transcribeFile(model whisper.Model, path, modelSize, deviceLabel, language string, threads, speakers int, noDiarize bool) error {
+func (p *Panel) transcribeFile(path, modelSize, deviceLabel, language string, threads, speakers int, noDiarize bool) error {
 	absPath, err := filepath.Abs(path)
 	if err != nil {
 		return fmt.Errorf("resolving path: %w", err)
@@ -516,7 +444,7 @@ func (p *Panel) transcribeFile(model whisper.Model, path, modelSize, deviceLabel
 		}
 	}
 
-	job := &transcriber.Job{Model: model, Diarizer: dia, Hooks: hooks}
+	job := &transcriber.Job{Diarizer: dia, Hooks: hooks}
 	spec := transcriber.JobSpec{
 		SourcePath:  absPath,
 		ModelSize:   modelSize,

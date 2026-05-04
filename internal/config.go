@@ -31,12 +31,15 @@ type Config struct {
 }
 
 const (
-	EngineWhisper     = "whisper"
 	EngineWhisperONNX = "whisper-onnx"
 	EngineZipformer   = "zipformer"
 	EngineMoonshine   = "moonshine"
 	EngineParakeet    = "parakeet"
 	EngineSenseVoice  = "sensevoice"
+	EngineCanary      = "canary"
+	EngineNemoCTC     = "nemo-ctc"
+
+	EngineWhisper = EngineWhisperONNX
 )
 
 func PythonDir() string {
@@ -96,6 +99,21 @@ func upgradeConfig(cfg *Config) (changed bool) {
 			cfg.Version = CurrentConfigVersion
 			changed = true
 		}
+	}
+	if cfg.Engine == "whisper" {
+		cfg.Engine = EngineWhisperONNX
+		changed = true
+	}
+	switch cfg.Model {
+	case "tiny", "whisper-tiny":
+		cfg.Model = "sherpa-whisper-tiny"
+		changed = true
+	case "small", "whisper-small":
+		cfg.Model = "sherpa-whisper-base.en"
+		changed = true
+	case "turbo", "whisper-turbo", "large-v3-turbo":
+		cfg.Model = "sherpa-whisper-turbo"
+		changed = true
 	}
 	return changed
 }

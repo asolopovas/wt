@@ -2,10 +2,8 @@ package main
 
 import (
 	"context"
-	"errors"
 	"flag"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -15,7 +13,6 @@ import (
 	shared "github.com/asolopovas/wt/internal"
 	"github.com/asolopovas/wt/internal/diarizer"
 	"github.com/asolopovas/wt/internal/transcriber"
-	whisper "github.com/ggerganov/whisper.cpp/bindings/go/pkg/whisper"
 )
 
 func main() {
@@ -53,98 +50,11 @@ func main() {
 	}
 
 	switch *engine {
-	case shared.EngineParakeet, shared.EngineSenseVoice, shared.EngineMoonshine, shared.EngineZipformer, shared.EngineWhisperONNX:
-		runSherpaEngine(*engine, audioPath, *modelSize, *lang, *threads, *diarize, *speakers)
-		return
+	case "whisper":
+		*engine = shared.EngineWhisperONNX
 	}
-
-	resolvedModel := resolveModel(*modelSize, *modelPath)
-	fmt.Printf("Audio:  %s\n", audioPath)
-	fmt.Printf("Model:  %s\n", resolvedModel)
-	fmt.Printf("Lang:   %s\n", *lang)
-	fmt.Printf("Threads: %d\n", *threads)
-
-	fmt.Printf("\n--- Loading audio ---\n")
-	t0 := time.Now()
-	samples, err := transcriber.LoadAudioSamples(audioPath)
-	if err != nil {
-		fatal("loading audio: %v", err)
-	}
-	audioDur := float64(len(samples)) / float64(transcriber.WhisperSampleRate)
-	fmt.Printf("OK: %d samples (%.1fs audio) in %.1fs\n", len(samples), audioDur, since(t0))
-
-	fmt.Printf("\n--- Loading model ---\n")
-	whisper.SetLogQuiet(true)
-	t0 = time.Now()
-	model, err := whisper.New(resolvedModel)
-	if err != nil {
-		fatal("loading model: %v", err)
-	}
-	defer func() { _ = model.Close() }()
-	fmt.Printf("OK: loaded in %.1fs\n", since(t0))
-	memReport("after model load")
-
-	for _, dev := range whisper.BackendDevices() {
-		fmt.Printf("Device: %s %s (free=%dMB total=%dMB)\n",
-			dev.Type, dev.Description, dev.FreeMB, dev.TotalMB)
-	}
-
-	fmt.Printf("\n--- Transcribing ---\n")
-	ctx, err := model.NewContext()
-	if err != nil {
-		fatal("creating context: %v", err)
-	}
-
-	transcriber.ConfigureContext(ctx, transcriber.ContextConfig{
-		Threads: *threads,
-		TDRZ:    true,
-	})
-	transcriber.SetLanguage(ctx, *lang)
-
-	t0 = time.Now()
-	lastPct := -1
-
-	progressCb := func(pct int) {
-		pct = min(pct, 100)
-		if pct > lastPct && pct%10 == 0 {
-			lastPct = pct
-			fmt.Printf("  %d%% (%.0fs)\n", pct, since(t0))
-		}
-	}
-
-	if err := ctx.Process(samples, func() bool { return true }, nil, whisper.ProgressCallback(progressCb)); err != nil {
-		fatal("processing: %v", err)
-	}
-
-	elapsed := since(t0)
-	fmt.Printf("Done in %.1fs (RTF=%.2f)\n", elapsed, audioDur/elapsed)
-
-	if detected := ctx.DetectedLanguage(); detected != "" {
-		fmt.Printf("Detected language: %s\n", detected)
-	}
-
-	fmt.Printf("\n--- Results ---\n")
-	segCount := 0
-	speaker := 1
-	for {
-		seg, err := ctx.NextSegment()
-		if errors.Is(err, io.EOF) {
-			break
-		}
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "ERROR reading segment: %v\n", err)
-			break
-		}
-		segCount++
-		fmt.Printf("[%s -> %s] SPEAKER_%02d %s\n", seg.Start, seg.End, speaker, seg.Text)
-		if seg.SpeakerTurnNext {
-			speaker = 3 - speaker
-		}
-	}
-
-	fmt.Printf("\nSegments: %d\n", segCount)
-	memReport("final")
-	fmt.Printf("=== DONE ===\n")
+	runSherpaEngine(*engine, audioPath, *modelSize, *lang, *threads, *diarize, *speakers)
+	_ = modelPath
 }
 
 func runSherpaEngine(engine, audioPath, modelID, lang string, threads int, withDiar bool, speakers int) {

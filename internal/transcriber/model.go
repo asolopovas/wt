@@ -4,220 +4,67 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"slices"
-	"time"
-
-	"github.com/pterm/pterm"
+	"strings"
 
 	shared "github.com/asolopovas/wt/internal"
-	"github.com/asolopovas/wt/internal/ui"
-	whisper "github.com/ggerganov/whisper.cpp/bindings/go/pkg/whisper"
 )
 
-type Model struct {
-	whisper.Model
+func ResolveModelPathLocal(modelID, override string) (string, error) {
+	if override != "" {
+		if _, err := os.Stat(override); err == nil {
+			return override, nil
+		}
+	}
+	if modelID == "" {
+		return "", fmt.Errorf("model id is empty")
+	}
+	dir := filepath.Join(shared.ModelsDir(), modelID)
+	if _, err := os.Stat(dir); err == nil {
+		return dir, nil
+	}
+	if _, err := os.Stat(dir + ".onnx"); err == nil {
+		return dir + ".onnx", nil
+	}
+	return "", fmt.Errorf("model %q not found in %s", modelID, shared.ModelsDir())
 }
 
-const modelURLBase = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main"
+type DownloadProgress func(stage string, downloaded, total int64)
+
+func ResolveModelPathWithProgress(modelID, override string, _ DownloadProgress) (string, error) {
+	return ResolveModelPathLocal(modelID, override)
+}
+
+func ModelDir(modelID string) string {
+	return filepath.Join(shared.ModelsDir(), modelID)
+}
 
 var ModelFiles = map[string]string{
-	"tiny":           "ggml-tiny.bin",
-	"tiny.en":        "ggml-tiny.en.bin",
-	"small":          "ggml-small.bin",
-	"small.en":       "ggml-small.en.bin",
-	"large-v3-turbo": "ggml-large-v3-turbo.bin",
-	"turbo":          "ggml-large-v3-turbo.bin",
+	"sherpa-whisper-tiny.en":           "sherpa-whisper-tiny.en",
+	"sherpa-whisper-tiny":              "sherpa-whisper-tiny",
+	"sherpa-whisper-base.en":           "sherpa-whisper-base.en",
+	"sherpa-whisper-medium.en":         "sherpa-whisper-medium.en",
+	"sherpa-whisper-turbo":             "sherpa-whisper-turbo",
+	"moonshine-tiny-en-int8":           "sherpa-onnx-moonshine-tiny-en-int8",
+	"parakeet-tdt-0.6b-v2-int8":        "sherpa-onnx-nemo-parakeet-tdt-0.6b-v2-int8",
+	"parakeet-tdt-0.6b-v3-int8":        "sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8",
+	"sense-voice-zh-en-ja-ko-yue-int8": "sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17",
+	"canary-180m-flash":                "sherpa-onnx-nemo-canary-180m-flash",
+	"gigaam-v3-ru":                     "sherpa-onnx-nemo-ctc-giga-am-v3",
 }
+
+func DefaultModelID() string { return "sherpa-whisper-turbo" }
 
 func ValidModelNames() []string {
-	names := make([]string, 0, len(ModelFiles))
+	out := make([]string, 0, len(ModelFiles))
 	for k := range ModelFiles {
-		names = append(names, k)
+		out = append(out, k)
 	}
-	slices.Sort(names)
-	return names
+	return out
 }
 
-type DownloadProgress = shared.DownloadProgress
-
-func ResolveModelPath(modelSize, modelPath string) (string, error) {
-	return ResolveModelPathWithProgress(modelSize, modelPath, nil)
-}
-
-func ResolveModelPathLocal(modelSize, modelPath string) (string, error) {
-	if modelPath != "" {
-		if _, err := os.Stat(modelPath); err != nil {
-			return "", fmt.Errorf("model file not found: %s", modelPath)
-		}
-		return modelPath, nil
+func ModelDisplayName(modelID string) string {
+	if v := strings.TrimPrefix(modelID, "sherpa-"); v != "" {
+		return v
 	}
-	if modelSize == "" {
-		return "", fmt.Errorf("model size or path required")
-	}
-	filename, ok := ModelFiles[modelSize]
-	if !ok {
-		return "", fmt.Errorf("unknown model size %q", modelSize)
-	}
-	path := filepath.Join(shared.ModelsDir(), filename)
-	if _, err := os.Stat(path); err != nil {
-		return "", fmt.Errorf("model %s not found at %s", modelSize, path)
-	}
-	return path, nil
-}
-
-func ResolveModelPathWithProgress(modelSize, modelPath string, prog DownloadProgress) (string, error) {
-	if modelPath != "" {
-		if _, err := os.Stat(modelPath); err != nil {
-			return "", fmt.Errorf("model file not found: %s", modelPath)
-		}
-		return modelPath, nil
-	}
-
-	filename, ok := ModelFiles[modelSize]
-	if !ok {
-		return "", fmt.Errorf("unknown model size %q", modelSize)
-	}
-
-	dir := shared.ModelsDir()
-	path := filepath.Join(dir, filename)
-
-	if _, err := os.Stat(path); err == nil {
-		return path, nil
-	}
-
-	for _, legacyDir := range legacyModelDirs() {
-		oldPath := filepath.Join(legacyDir, filename)
-		if _, err := os.Stat(oldPath); err == nil {
-			if err := os.MkdirAll(dir, 0o755); err != nil {
-				return "", fmt.Errorf("creating models dir: %w", err)
-			}
-			pterm.Info.Printf("Migrating model from %s...\n", oldPath)
-			if err := os.Rename(oldPath, path); err != nil {
-				ui.Warn(fmt.Sprintf("could not migrate model: %v", err))
-			} else {
-				return path, nil
-			}
-		}
-	}
-
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return "", fmt.Errorf("creating models dir: %w", err)
-	}
-
-	url := modelURLBase + "/" + filename
-	if err := shared.DownloadFile(path, url, wrapForCLI(prog, modelSize)); err != nil {
-		return "", fmt.Errorf("downloading model: %w", err)
-	}
-	return path, nil
-}
-
-func wrapForCLI(prog DownloadProgress, label string) DownloadProgress {
-	if prog != nil {
-		return prog
-	}
-	var pb *pterm.ProgressbarPrinter
-	var lastMB int
-	return func(downloaded, total int64) {
-		if downloaded < 0 {
-			ui.Warn(fmt.Sprintf("%s: download interrupted (retry %d) — resuming", label, -downloaded))
-			return
-		}
-		if total <= 0 {
-			return
-		}
-		if pb == nil {
-			p, perr := pterm.DefaultProgressbar.
-				WithTitle("Downloading " + label).
-				WithTotal(int(total / (1024 * 1024))).
-				WithShowCount(true).
-				Start()
-			if perr == nil {
-				pb = p
-			}
-			lastMB = 0
-		}
-		mb := int(downloaded / (1024 * 1024))
-		if pb != nil && mb > lastMB {
-			pb.Add(mb - lastMB)
-			lastMB = mb
-		}
-	}
-}
-
-func ResolveVADModelPath() (string, error) {
-	dir := shared.ModelsDir()
-	path := filepath.Join(dir, embeddedVADName)
-
-	if st, err := os.Stat(path); err == nil && st.Size() == int64(len(vadModelBytes)) {
-		return path, nil
-	}
-
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return "", fmt.Errorf("creating models dir: %w", err)
-	}
-
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, vadModelBytes, 0o644); err != nil {
-		return "", fmt.Errorf("extracting embedded VAD model: %w", err)
-	}
-	if err := os.Rename(tmp, path); err != nil {
-		_ = os.Remove(tmp)
-		return "", fmt.Errorf("installing VAD model: %w", err)
-	}
-	return path, nil
-}
-
-func legacyModelDirs() []string {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return nil
-	}
-	return []string{
-		filepath.Join(home, ".wt", "models"),
-		filepath.Join(home, ".cache", "wt"),
-	}
-}
-
-func LoadModel(modelSize, modelPath string, threads int) (*Model, error) {
-	path, err := ResolveModelPath(modelSize, modelPath)
-	if err != nil {
-		return nil, err
-	}
-
-	exePath, err := os.Executable()
-	if err == nil {
-		whisper.BackendSetSearchPath(filepath.Dir(exePath))
-	}
-
-	whisper.SetLogQuiet(true)
-
-	spinner := ui.Spinner(fmt.Sprintf("Loading model '%s'...", modelSize))
-	start := time.Now()
-
-	m, err := whisper.New(path)
-	if err != nil {
-		_ = spinner.Stop()
-		ui.Crossf("Loading model '%s' FAILED", modelSize)
-		return nil, fmt.Errorf("loading model: %w", err)
-	}
-
-	_ = spinner.Stop()
-
-	gpuFound := false
-	devices := whisper.BackendDevices()
-	for _, dev := range devices {
-		if dev.Type == "GPU" || dev.Type == "iGPU" {
-			gpuFound = true
-			ui.Tickf("Model loaded (%s, %s, %.1fs)", modelSize, dev.Type, time.Since(start).Seconds())
-			ui.Debug("Device", dev.Description)
-			usedMB := dev.TotalMB - dev.FreeMB
-			ui.Debug("VRAM", fmt.Sprintf("%d/%d MB", usedMB, dev.TotalMB))
-		}
-	}
-	if !gpuFound {
-		ui.Tickf("Model loaded (%s, CPU, %.1fs)", modelSize, time.Since(start).Seconds())
-	}
-	ui.Debug("Threads", fmt.Sprintf("%d", threads))
-
-	return &Model{Model: m}, nil
+	return modelID
 }

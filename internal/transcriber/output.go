@@ -3,16 +3,13 @@ package transcriber
 import (
 	"bufio"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/asolopovas/wt/internal/diarizer"
-	whisper "github.com/ggerganov/whisper.cpp/bindings/go/pkg/whisper"
 )
 
 func OutputFilename(inputBase, model string) string {
@@ -48,71 +45,6 @@ type Word struct {
 
 func msFromDuration(d time.Duration) int64 {
 	return d.Milliseconds()
-}
-
-func coalesceWhisperTokens(toks []whisper.Token) []diarizer.TokenData {
-	if len(toks) == 0 {
-		return nil
-	}
-	out := make([]diarizer.TokenData, 0, len(toks))
-	for _, tok := range toks {
-		piece := tok.Text
-		if piece == "" {
-			continue
-		}
-		isBoundary := len(out) == 0 || strings.HasPrefix(piece, " ")
-		piece = strings.TrimPrefix(piece, " ")
-		if piece == "" {
-			continue
-		}
-		if isBoundary {
-			out = append(out, diarizer.TokenData{
-				Text:  piece,
-				Start: tok.Start,
-				End:   tok.End,
-				P:     tok.P,
-			})
-			continue
-		}
-		last := &out[len(out)-1]
-		last.Text += piece
-		last.End = tok.End
-		if tok.P > 0 && (last.P == 0 || tok.P < last.P) {
-			last.P = tok.P
-		}
-	}
-	return out
-}
-
-func ExtractSegments(ctx whisper.Context) []diarizer.TranscriptSegment {
-	var segs []diarizer.TranscriptSegment
-	for {
-		segment, err := ctx.NextSegment()
-		if errors.Is(err, io.EOF) {
-			break
-		}
-		if err != nil {
-			break
-		}
-
-		textToks := make([]whisper.Token, 0, len(segment.Tokens))
-		for _, tok := range segment.Tokens {
-			if !ctx.IsText(tok) {
-				continue
-			}
-			textToks = append(textToks, tok)
-		}
-		tokens := coalesceWhisperTokens(textToks)
-
-		segs = append(segs, diarizer.TranscriptSegment{
-			Start:           segment.Start,
-			End:             segment.End,
-			Text:            segment.Text,
-			SpeakerTurnNext: segment.SpeakerTurnNext,
-			Tokens:          tokens,
-		})
-	}
-	return segs
 }
 
 type TranscriptMeta struct {
