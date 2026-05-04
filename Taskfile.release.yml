@@ -25,7 +25,6 @@ tasks:
       - task: :linux-deb
         platforms: [linux]
       - task: :android:apk
-        platforms: [windows]
       - cmd: '{{if eq OS "windows"}}C:/msys64/usr/bin/bash.exe{{else}}bash{{end}} scripts/release-publish.sh "{{.VERSION}}"'
 
   rolling:
@@ -36,7 +35,6 @@ tasks:
     cmds:
       - task: :build
       - task: :android:apk
-        platforms: [windows]
       - cmd: bash scripts/release-rolling.sh "{{.VERSION}}"
 
   bump:
