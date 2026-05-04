@@ -9,6 +9,11 @@ set -euo pipefail
 : "${ANDROID_SYSROOT:?ANDROID_SYSROOT required}"
 : "${BUILD_TOOLS:?BUILD_TOOLS required}"
 
+ANDROID_SDK="${ANDROID_SDK:-${ANDROID_SDK_ROOT:-${ANDROID_HOME:-$HOME/Android/Sdk}}}"
+USER_HOME="${USER_HOME:-$HOME}"
+BIN_EXT="${BIN_EXT:-}"
+EXE_EXT="${EXE_EXT:-}"
+
 cd "$ROOT_DIR"
 
 python scripts/android-manifest.py "$VERSION" "$APP_NAME"
@@ -39,20 +44,39 @@ func init() {
 }
 EOF
 
-export ANDROID_HOME="$LOCALAPPDATA/Android/Sdk"
+export ANDROID_HOME="$ANDROID_SDK"
 export ANDROID_NDK_HOME="$NDK_ROOT"
 unset CGO_CFLAGS CGO_LDFLAGS CGO_LDFLAGS_ALLOW CC
 
+if ! command -v fyne >/dev/null 2>&1; then
+	if [ -x "$HOME/go/bin/fyne" ]; then
+		export PATH="$HOME/go/bin:$PATH"
+	else
+		echo "ERROR: 'fyne' tool not found. Install with: go install fyne.io/fyne/v2/cmd/fyne@latest" >&2
+		exit 1
+	fi
+fi
+
 fyne package --os android/arm64 \
-	--app-id com.asolopovas.wtranscribe \
+	--appID com.asolopovas.wtranscribe \
 	--name "$APP_NAME" \
-	--app-version "$VERSION" \
+	--appVersion "$VERSION" \
 	--icon "$ROOT_DIR/winres/icon.png" \
 	--src "$ROOT_DIR/cmd/wt-gui"
 
-android_jar="$LOCALAPPDATA/Android/Sdk/platforms/android-36.1/android.jar"
+android_jar=""
+for cand in "$ANDROID_SDK/platforms/android-36.1/android.jar" \
+	"$ANDROID_SDK/platforms/android-36/android.jar" \
+	"$ANDROID_SDK/platforms/android-35/android.jar" \
+	"$ANDROID_SDK/platforms/android-34/android.jar"; do
+	if [ -f "$cand" ]; then android_jar="$cand"; break; fi
+done
+if [ -z "$android_jar" ]; then
+	android_jar="$(ls -d "$ANDROID_SDK/platforms"/android-* 2>/dev/null | sort -V | tail -1)/android.jar"
+fi
 if [ ! -f "$android_jar" ]; then
-	android_jar="$(ls -d "$LOCALAPPDATA/Android/Sdk/platforms"/android-* 2>/dev/null | sort -V | tail -1)/android.jar"
+	echo "ERROR: no android.jar found under $ANDROID_SDK/platforms/" >&2
+	exit 1
 fi
 
 rm -rf dist/svc-build
@@ -63,7 +87,9 @@ javac -source 1.8 -target 1.8 -Xlint:-options \
 	scripts/android-service/com/asolopovas/wtranscribe/WtForegroundService.java \
 	scripts/android-service/com/asolopovas/wtranscribe/WtFileProvider.java
 
-"$BUILD_TOOLS/d8.bat" --min-api 24 \
+D8="$BUILD_TOOLS/d8${BIN_EXT}"
+if [ ! -f "$D8" ]; then D8="$BUILD_TOOLS/d8"; fi
+"$D8" --min-api 24 \
 	--output dist/svc-build \
 	dist/svc-build/classes/com/asolopovas/wtranscribe/WtForegroundService.class \
 	dist/svc-build/classes/com/asolopovas/wtranscribe/WtFileProvider.class
@@ -84,17 +110,22 @@ APK="$apk" \
 	OUT="dist/unsigned.apk" \
 	python scripts/android-apk-patch.py
 
-"$BUILD_TOOLS/zipalign.exe" -f 4 dist/unsigned.apk dist/aligned.apk
+ZIPALIGN="$BUILD_TOOLS/zipalign${EXE_EXT}"
+if [ ! -f "$ZIPALIGN" ]; then ZIPALIGN="$BUILD_TOOLS/zipalign"; fi
+"$ZIPALIGN" -f 4 dist/unsigned.apk dist/aligned.apk
 
-if [ ! -f "$USERPROFILE/.android/debug.keystore" ]; then
-	keytool -genkey -v -keystore "$USERPROFILE/.android/debug.keystore" \
+if [ ! -f "$USER_HOME/.android/debug.keystore" ]; then
+	mkdir -p "$USER_HOME/.android"
+	keytool -genkey -v -keystore "$USER_HOME/.android/debug.keystore" \
 		-storepass android -alias androiddebugkey -keypass android \
 		-keyalg RSA -keysize 2048 -validity 10000 \
 		-dname "CN=Android Debug,O=Android,C=US"
 fi
 
-"$BUILD_TOOLS/apksigner.bat" sign \
-	--ks "$USERPROFILE/.android/debug.keystore" \
+APKSIGNER="$BUILD_TOOLS/apksigner${BIN_EXT}"
+if [ ! -f "$APKSIGNER" ]; then APKSIGNER="$BUILD_TOOLS/apksigner"; fi
+"$APKSIGNER" sign \
+	--ks "$USER_HOME/.android/debug.keystore" \
 	--ks-pass pass:android --key-pass pass:android \
 	--ks-key-alias androiddebugkey \
 	--out "dist/wt-${VERSION}.apk" dist/aligned.apk

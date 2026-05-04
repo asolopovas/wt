@@ -1,17 +1,42 @@
 version: "3"
 
 vars:
-  NDK_ROOT:
-    sh: echo "$LOCALAPPDATA/Android/Sdk/ndk/27.2.12479018"
-  NDK_TOOLCHAIN: "{{.NDK_ROOT}}/toolchains/llvm/prebuilt/windows-x86_64"
+  ANDROID_SDK:
+    sh: |
+      if [ -n "$ANDROID_SDK_ROOT" ]; then echo "$ANDROID_SDK_ROOT"
+      elif [ -n "$ANDROID_HOME" ]; then echo "$ANDROID_HOME"
+      elif [ "{{OS}}" = "windows" ] && [ -n "$LOCALAPPDATA" ]; then echo "$LOCALAPPDATA/Android/Sdk"
+      else echo "$HOME/Android/Sdk"
+      fi
+  HOST_TAG:
+    sh: |
+      case "{{OS}}" in
+        linux)   echo "linux-x86_64" ;;
+        darwin)  echo "darwin-x86_64" ;;
+        windows) echo "windows-x86_64" ;;
+        *)       echo "linux-x86_64" ;;
+      esac
+  BIN_EXT:
+    sh: '[ "{{OS}}" = "windows" ] && echo ".bat" || echo ""'
+  EXE_EXT:
+    sh: '[ "{{OS}}" = "windows" ] && echo ".exe" || echo ""'
+  NDK_ROOT: "{{.ANDROID_SDK}}/ndk/27.2.12479018"
+  NDK_TOOLCHAIN: "{{.NDK_ROOT}}/toolchains/llvm/prebuilt/{{.HOST_TAG}}"
   ANDROID_SYSROOT: "{{.NDK_TOOLCHAIN}}/sysroot"
   ANDROID_CC: "{{.NDK_TOOLCHAIN}}/bin/aarch64-linux-android28-clang"
   BUILD_TOOLS:
-    sh: echo "$LOCALAPPDATA/Android/Sdk/build-tools/36.1.0"
+    sh: |
+      sdk="$([ -n "$ANDROID_SDK_ROOT" ] && echo "$ANDROID_SDK_ROOT" || ([ -n "$ANDROID_HOME" ] && echo "$ANDROID_HOME" || ([ "{{OS}}" = "windows" ] && echo "$LOCALAPPDATA/Android/Sdk" || echo "$HOME/Android/Sdk")))"
+      if [ -d "$sdk/build-tools/36.1.0" ]; then echo "$sdk/build-tools/36.1.0"
+      elif [ -d "$sdk/build-tools" ]; then ls -d "$sdk/build-tools"/* | sort -V | tail -1
+      else echo "$sdk/build-tools/34.0.0"
+      fi
+  USER_HOME:
+    sh: '[ "{{OS}}" = "windows" ] && echo "$USERPROFILE" || echo "$HOME"'
 
 tasks:
   apk:
-    desc: "Build the signed Android APK (Windows host required)."
+    desc: "Build the signed Android APK."
     deps:
       - ffmpeg
       - llama-cli
@@ -19,13 +44,17 @@ tasks:
       - :fetch-vad
     cmds:
       - cmd: |
+          export ANDROID_SDK="{{.ANDROID_SDK}}"
           export NDK_ROOT="{{.NDK_ROOT}}"
           export NDK_TOOLCHAIN="{{.NDK_TOOLCHAIN}}"
           export ANDROID_SYSROOT="{{.ANDROID_SYSROOT}}"
           export BUILD_TOOLS="{{.BUILD_TOOLS}}"
+          export USER_HOME="{{.USER_HOME}}"
           export VERSION="{{.VERSION}}"
           export APP_NAME="{{.APP_NAME}}"
           export ROOT_DIR="{{.ROOT_DIR | toSlash}}"
+          export BIN_EXT="{{.BIN_EXT}}"
+          export EXE_EXT="{{.EXE_EXT}}"
           bash scripts/build-apk.sh
 
   install:
@@ -33,7 +62,6 @@ tasks:
     deps: [apk]
     cmds:
       - cmd: |
-          export MSYS_NO_PATHCONV=1
           install_out=$(adb install -r -d dist/wt-{{.VERSION}}.apk 2>&1)
           echo "$install_out"
           case "$install_out" in
@@ -46,8 +74,8 @@ tasks:
           esac
           adb logcat -c
           adb shell "am start -n com.asolopovas.wtranscribe/org.golang.app.GoNativeActivity"
-          python -c "import time; time.sleep(2)"
-          adb logcat -d | python -c "import sys,re,itertools;p=re.compile(r'wtranscribe|GoLog|dlopen|FATAL|panic|AndroidRuntime');sys.stdout.writelines(itertools.islice((l for l in sys.stdin if p.search(l)),30))"
+          sleep 2
+          adb logcat -d | grep -E 'wtranscribe|GoLog|dlopen|FATAL|panic|AndroidRuntime' | head -30 || true
 
   test:
     desc: "Build wt-test CLI for arm64, push to /data/local/tmp, run via adb. CLI_ARGS forwarded."
@@ -61,7 +89,6 @@ tasks:
           CC="{{.NDK_CC}}" \
           go build -tags android -o dist/bin/wt-test-arm64 ./cmd/wt-test
       - cmd: |
-          export MSYS_NO_PATHCONV=1
           adb push dist/bin/wt-test-arm64 /data/local/tmp/wt-test
           adb push "{{.ANDROID_SYSROOT}}/usr/lib/aarch64-linux-android/libc++_shared.so" /data/local/tmp/libc++_shared.so
           adb push "{{.NDK_TOOLCHAIN}}/lib/clang/18/lib/linux/aarch64/libomp.so" /data/local/tmp/libomp.so
@@ -88,29 +115,6 @@ tasks:
             go vet ./cmd/wt-gui/... ./cmd/wt-test/... ./internal/...
           fi
 
-  _disabled_vulkan_headers:
-    internal: true
-    run: once
-    vars:
-      VK_VER: "1.3.275"
-      VK_INCLUDE: "{{.ANDROID_SYSROOT}}/usr/include/vulkan"
-    status:
-      - test -f "{{.VK_INCLUDE}}/vulkan.hpp"
-      - test -f "{{.VK_INCLUDE}}/vulkan_hpp_macros.hpp"
-    cmds:
-      - cmd: |
-          vk_include="{{.VK_INCLUDE}}"
-          vk_ver="{{.VK_VER}}"
-          echo "Downloading Vulkan C++ headers v${vk_ver}..."
-          for f in vulkan.hpp vulkan_enums.hpp vulkan_funcs.hpp vulkan_handles.hpp \
-                   vulkan_hash.hpp vulkan_raii.hpp vulkan_structs.hpp \
-                   vulkan_to_string.hpp vulkan_format_traits.hpp \
-                   vulkan_static_assertions.hpp vulkan_shared.hpp \
-                   vulkan_hpp_macros.hpp vulkan_extension_inspection.hpp; do
-            curl -sL "https://raw.githubusercontent.com/KhronosGroup/Vulkan-Hpp/v${vk_ver}/vulkan/$f" \
-              -o "$vk_include/$f"
-          done
-
   ffmpeg:
     internal: true
     run: once
@@ -118,13 +122,8 @@ tasks:
       - test -f "{{.ROOT_DIR | toSlash}}/dist/ffmpeg/ffmpeg-android-arm64"
     cmds:
       - cmd: |
-          MSYS_BASH="C:/msys64/usr/bin/bash.exe"
-          if [ ! -f "$MSYS_BASH" ]; then
-            echo "ERROR: msys2 bash not found at $MSYS_BASH (install msys2 from https://www.msys2.org/)" >&2
-            exit 1
-          fi
-          "$MSYS_BASH" -lc "export ANDROID_NDK_HOME='{{.NDK_ROOT}}'; export PATH='/mingw64/bin:/usr/bin:'\"\$PATH\"; cd '{{.ROOT_DIR | toSlash}}' && bash scripts/build-ffmpeg-android.sh"
-
+          export ANDROID_NDK_HOME="{{.NDK_ROOT}}"
+          cd "{{.ROOT_DIR | toSlash}}" && bash scripts/build-ffmpeg-android.sh
 
   llama-cli:
     internal: true
@@ -138,9 +137,7 @@ tasks:
         if: '[ ! -d "{{.LLAMA_ROOT}}" ]'
       - cmd: |
           set -e
-          export PATH="/c/msys64/mingw64/bin:$PATH"
           cmake -B "{{.ANDROID_BUILD}}" -S "{{.LLAMA_ROOT}}" \
-            -DCMAKE_MAKE_PROGRAM="C:/msys64/mingw64/bin/mingw32-make.exe" \
             -DCMAKE_TOOLCHAIN_FILE="{{.NDK_ROOT}}/build/cmake/android.toolchain.cmake" \
             -DANDROID_ABI=arm64-v8a \
             -DANDROID_PLATFORM=android-28 \
@@ -154,8 +151,8 @@ tasks:
             -DLLAMA_BUILD_SERVER=ON \
             -DLLAMA_BUILD_EXAMPLES=ON \
             -DLLAMA_BUILD_TOOLS=ON \
-            -G "MinGW Makefiles"
-          cmake --build "{{.ANDROID_BUILD}}" --config Release --target llama-cli -j${NUMBER_OF_PROCESSORS:-$(nproc)}
+            -G "Unix Makefiles"
+          cmake --build "{{.ANDROID_BUILD}}" --config Release --target llama-cli -j$(nproc)
           mkdir -p dist/llama
           cp "{{.ANDROID_BUILD}}/bin/llama-cli" dist/llama/llama-cli-android-arm64
 
@@ -170,34 +167,21 @@ tasks:
     cmds:
       - cmd: git clone --depth 1 https://github.com/k2-fsa/sherpa-onnx.git {{.SHERPA_ROOT}}
         if: '[ ! -d "{{.SHERPA_ROOT}}" ]'
-      - cmd: rm -rf "{{.SHERPA_ROOT}}/build-android-arm64"
       - cmd: |
           set -e
-          MSYS_BASH="C:/msys64/usr/bin/bash.exe"
-          if [ ! -f "$MSYS_BASH" ]; then
-            echo "ERROR: msys2 bash not found at $MSYS_BASH (install msys2 from https://www.msys2.org/)" >&2
-            exit 1
-          fi
-          "$MSYS_BASH" -lc "
-            set -ex
-            export PATH=/mingw64/bin:/usr/bin:\$PATH
-            for tool in wget unzip make cmake; do
-              command -v \$tool >/dev/null 2>&1 || pacman -S --noconfirm --needed \$tool
-            done
-            export ANDROID_NDK='{{.NDK_ROOT}}'
-            export ANDROID_NDK_HOME='{{.NDK_ROOT}}'
-            export BUILD_SHARED_LIBS=OFF
-            export SHERPA_ONNX_ENABLE_BINARY=ON
-            export SHERPA_ONNX_ENABLE_JNI=OFF
-            export SHERPA_ONNX_ENABLE_TTS=OFF
-            export SHERPA_ONNX_ENABLE_C_API=OFF
-            export SHERPA_ONNX_ENABLE_SPEAKER_DIARIZATION=ON
-            export SHERPA_ONNX_ANDROID_PLATFORM=android-21
-            export CMAKE_GENERATOR='Unix Makefiles'
-            cd '{{.SHERPA_ROOT}}'
-            rm -rf build-android-arm64-v8a-static
-            bash build-android-arm64-v8a.sh
-          "
+          export ANDROID_NDK="{{.NDK_ROOT}}"
+          export ANDROID_NDK_HOME="{{.NDK_ROOT}}"
+          export BUILD_SHARED_LIBS=OFF
+          export SHERPA_ONNX_ENABLE_BINARY=ON
+          export SHERPA_ONNX_ENABLE_JNI=OFF
+          export SHERPA_ONNX_ENABLE_TTS=OFF
+          export SHERPA_ONNX_ENABLE_C_API=OFF
+          export SHERPA_ONNX_ENABLE_SPEAKER_DIARIZATION=ON
+          export SHERPA_ONNX_ANDROID_PLATFORM=android-21
+          export CMAKE_GENERATOR='Unix Makefiles'
+          cd '{{.SHERPA_ROOT}}'
+          rm -rf build-android-arm64-v8a-static
+          bash build-android-arm64-v8a.sh
           mkdir -p "{{.ROOT_DIR | toSlash}}/dist/sherpa"
           cp "{{.BUILD_OUT}}/install/bin/sherpa-onnx-offline-speaker-diarization" \
              "{{.ROOT_DIR | toSlash}}/dist/sherpa/sherpa-diar-android"
@@ -216,31 +200,19 @@ tasks:
         if: '[ ! -d "{{.SHERPA_ROOT}}" ]'
       - cmd: |
           set -e
-          MSYS_BASH="C:/msys64/usr/bin/bash.exe"
-          if [ ! -f "$MSYS_BASH" ]; then
-            echo "ERROR: msys2 bash not found at $MSYS_BASH" >&2
-            exit 1
-          fi
-          "$MSYS_BASH" -lc "
-            set -ex
-            export PATH=/mingw64/bin:/usr/bin:\$PATH
-            for tool in wget unzip make cmake; do
-              command -v \$tool >/dev/null 2>&1 || pacman -S --noconfirm --needed \$tool
-            done
-            export ANDROID_NDK='{{.NDK_ROOT}}'
-            export ANDROID_NDK_HOME='{{.NDK_ROOT}}'
-            export BUILD_SHARED_LIBS=ON
-            export SHERPA_ONNX_ENABLE_BINARY=ON
-            export SHERPA_ONNX_ENABLE_JNI=OFF
-            export SHERPA_ONNX_ENABLE_TTS=OFF
-            export SHERPA_ONNX_ENABLE_C_API=OFF
-            export SHERPA_ONNX_ENABLE_SPEAKER_DIARIZATION=OFF
-            export SHERPA_ONNX_ANDROID_PLATFORM=android-27
-            export CMAKE_GENERATOR='Unix Makefiles'
-            cd '{{.SHERPA_ROOT}}'
-            rm -rf build-android-arm64-v8a
-            bash build-android-arm64-v8a.sh
-          "
+          export ANDROID_NDK="{{.NDK_ROOT}}"
+          export ANDROID_NDK_HOME="{{.NDK_ROOT}}"
+          export BUILD_SHARED_LIBS=ON
+          export SHERPA_ONNX_ENABLE_BINARY=ON
+          export SHERPA_ONNX_ENABLE_JNI=OFF
+          export SHERPA_ONNX_ENABLE_TTS=OFF
+          export SHERPA_ONNX_ENABLE_C_API=OFF
+          export SHERPA_ONNX_ENABLE_SPEAKER_DIARIZATION=OFF
+          export SHERPA_ONNX_ANDROID_PLATFORM=android-27
+          export CMAKE_GENERATOR='Unix Makefiles'
+          cd '{{.SHERPA_ROOT}}'
+          rm -rf build-android-arm64-v8a
+          bash build-android-arm64-v8a.sh
           mkdir -p "{{.ROOT_DIR | toSlash}}/dist/sherpa"
           cp "{{.BUILD_OUT}}/install/bin/sherpa-onnx-offline" \
              "{{.ROOT_DIR | toSlash}}/dist/sherpa/sherpa-asr-android-nnapi"
