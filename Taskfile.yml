@@ -391,6 +391,11 @@ tasks:
           python -c "import time; time.sleep(2)"
           adb logcat -d | python -c "import sys,re,itertools;p=re.compile(r'wtranscribe|GoLog|dlopen|FATAL|panic|AndroidRuntime');sys.stdout.writelines(itertools.islice((l for l in sys.stdin if p.search(l)),30))"
 
+  waydroid:
+    desc: "Run APK in Waydroid LXC + libndk_translation (confirmed working with whisper/sherpa). ACTION=start|install|run|logcat|sherpa|status|stop|all (default all). One-time setup: 'sudo bash scripts/waydroid-setup.sh'."
+    cmds:
+      - cmd: bash scripts/waydroid-run.sh {{.ACTION | default "all"}}
+
   # =========================================================================
   # Internal: lint, test, models, release
   # =========================================================================
