@@ -1,9 +1,6 @@
 package transcriber
 
 import (
-	"encoding/json"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -11,7 +8,13 @@ import (
 
 var _ = time.Second
 
-var models = []string{"tiny", "base", "small", "medium", "turbo"}
+var testModelIDs = []string{
+	"sherpa-whisper-tiny.en",
+	"sherpa-whisper-base.en",
+	"sherpa-whisper-medium.en",
+	"sherpa-whisper-turbo",
+	"parakeet-tdt-0.6b-v3-int8",
+}
 
 func TestOutputFilename(t *testing.T) {
 	name := OutputFilename("test.opus", "turbo")
@@ -29,64 +32,11 @@ func TestOutputFilename(t *testing.T) {
 }
 
 func TestOutputFilename_DifferentModels(t *testing.T) {
-	for _, model := range models {
+	for _, model := range testModelIDs {
 		name := OutputFilename("audio.wav", model)
 		if !strings.Contains(name, "_"+model+"_") {
 			t.Errorf("filename %q does not contain model %q", name, model)
 		}
-	}
-}
-
-func TestWriteAndReadJSON(t *testing.T) {
-	tr := &Transcript{
-		Language:   "en",
-		DurationMs: 5000,
-		Utterances: []Utterance{
-			{Start: 0, End: 2500, Speaker: "A", Text: "Hello world."},
-			{Start: 2500, End: 5000, Speaker: "B", Text: "Hi there."},
-		},
-		Words: []Word{
-			{Text: "Hello", Start: 0, End: 1000, Speaker: "A", Confidence: 0.99},
-			{Text: "world.", Start: 1000, End: 2500, Speaker: "A", Confidence: 0.95},
-			{Text: "Hi", Start: 2500, End: 3500, Speaker: "B", Confidence: 0.98},
-			{Text: "there.", Start: 3500, End: 5000, Speaker: "B", Confidence: 0.97},
-		},
-	}
-
-	outPath := filepath.Join(t.TempDir(), "test_output.json")
-	actual, err := WriteJSON(outPath, tr)
-	if err != nil {
-		t.Fatalf("WriteJSON: %v", err)
-	}
-	if actual != outPath {
-		t.Errorf("WriteJSON returned %q, want %q", actual, outPath)
-	}
-
-	data, err := os.ReadFile(actual)
-	if err != nil {
-		t.Fatalf("ReadFile: %v", err)
-	}
-	var loaded Transcript
-	if err := json.Unmarshal(data, &loaded); err != nil {
-		t.Fatalf("Unmarshal: %v", err)
-	}
-
-	if loaded.Language != tr.Language {
-		t.Errorf("language = %q, want %q", loaded.Language, tr.Language)
-	}
-	if loaded.DurationMs != tr.DurationMs {
-		t.Errorf("duration_ms = %d, want %d", loaded.DurationMs, tr.DurationMs)
-	}
-	if len(loaded.Utterances) != len(tr.Utterances) {
-		t.Fatalf("utterance count = %d, want %d", len(loaded.Utterances), len(tr.Utterances))
-	}
-	for i, u := range loaded.Utterances {
-		if u != tr.Utterances[i] {
-			t.Errorf("utterance[%d] = %+v, want %+v", i, u, tr.Utterances[i])
-		}
-	}
-	if len(loaded.Words) != len(tr.Words) {
-		t.Fatalf("word count = %d, want %d", len(loaded.Words), len(tr.Words))
 	}
 }
 

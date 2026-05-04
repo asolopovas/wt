@@ -99,7 +99,7 @@ func modelsDirOverride() string {
 }
 
 func defaultModel() string {
-	return "tiny"
+	return "sherpa-whisper-tiny.en"
 }
 
 func affinityCPUs() int {

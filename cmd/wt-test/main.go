@@ -5,7 +5,6 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
@@ -16,14 +15,13 @@ import (
 )
 
 func main() {
-	modelSize := flag.String("m", "", "model size (tiny/base/small/medium/turbo)")
-	modelPath := flag.String("model", "", "explicit path to model file")
+	modelID := flag.String("m", "", "model id (sherpa-whisper-turbo, sherpa-whisper-tiny.en, ...)")
 	lang := flag.String("lang", "auto", "language code (auto/en/ru/...)")
 	threads := flag.Int("t", max(runtime.NumCPU()-2, 1), "threads")
 	diarizeOnly := flag.Bool("diarize-only", false, "run only the diarizer and exit")
 	diarize := flag.Bool("diarize", false, "after ASR, run diarizer + BuildTranscript and print utterances")
 	speakers := flag.Int("speakers", 0, "force number of speakers (0=auto)")
-	engine := flag.String("engine", "whisper", "ASR engine: whisper | whisper-onnx | parakeet | sensevoice | moonshine | zipformer")
+	engine := flag.String("engine", "whisper-onnx", "ASR engine: whisper-onnx | parakeet | sensevoice | moonshine | zipformer | canary | nemo-ctc")
 	flag.Parse()
 
 	if flag.NArg() < 1 {
@@ -49,12 +47,10 @@ func main() {
 		return
 	}
 
-	switch *engine {
-	case "whisper":
+	if *engine == "whisper" {
 		*engine = shared.EngineWhisperONNX
 	}
-	runSherpaEngine(*engine, audioPath, *modelSize, *lang, *threads, *diarize, *speakers)
-	_ = modelPath
+	runSherpaEngine(*engine, audioPath, *modelID, *lang, *threads, *diarize, *speakers)
 }
 
 func runSherpaEngine(engine, audioPath, modelID, lang string, threads int, withDiar bool, speakers int) {
@@ -120,6 +116,12 @@ func runSherpaEngine(engine, audioPath, modelID, lang string, threads int, withD
 			context.Background(), spec, samples, audioDur, "", hooks)
 	case shared.EngineWhisperONNX:
 		segs, detectedLang, rtf, err = transcriber.RunWhisperONNX(
+			context.Background(), spec, samples, audioDur, "", hooks)
+	case shared.EngineCanary:
+		segs, detectedLang, rtf, err = transcriber.RunCanary(
+			context.Background(), spec, samples, audioDur, "", hooks)
+	case shared.EngineNemoCTC:
+		segs, detectedLang, rtf, err = transcriber.RunNemoCTC(
 			context.Background(), spec, samples, audioDur, "", hooks)
 	default:
 		fatal("unknown sherpa sub-engine %q", engine)
@@ -236,37 +238,6 @@ func runDiarizeOnly(audioPath string, speakers int) {
 	}
 	memReport("final")
 	fmt.Printf("=== DONE ===\n")
-}
-
-func resolveModel(size, path string) string {
-	if path != "" || size != "" {
-		p, err := transcriber.ResolveModelPathLocal(size, path)
-		if err != nil {
-			fatal("%v", err)
-		}
-		return p
-	}
-
-	modelsDir := shared.ModelsDir()
-	entries, _ := os.ReadDir(modelsDir)
-	fmt.Printf("ModelsDir: %s\n", modelsDir)
-	for _, e := range entries {
-		if info, err := e.Info(); err == nil {
-			fmt.Printf("  %s (%d MB)\n", e.Name(), info.Size()/1024/1024)
-		}
-	}
-
-	for _, candidate := range []string{"ggml-small.bin", "ggml-medium.bin", "ggml-large-v3-turbo.bin"} {
-		p := filepath.Join(modelsDir, candidate)
-		if _, err := os.Stat(p); err == nil {
-			name := strings.TrimPrefix(strings.TrimSuffix(candidate, ".bin"), "ggml-")
-			fmt.Printf("Auto-selected: %s\n", name)
-			return p
-		}
-	}
-
-	fatal("no model found in %s — push one with: adb push model.bin /data/local/tmp/", modelsDir)
-	return ""
 }
 
 func memReport(label string) {

@@ -10,7 +10,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"sort"
 	"sync"
 
 	shared "github.com/asolopovas/wt/internal"
@@ -382,17 +381,6 @@ func verifySHA256(path, want string) error {
 		return fmt.Errorf("hash mismatch: got %s want %s", got, want)
 	}
 	return nil
-}
-
-func SortedByFamily(entries []Entry) []Entry {
-	out := append([]Entry{}, entries...)
-	sort.SliceStable(out, func(i, j int) bool {
-		if out[i].Family != out[j].Family {
-			return out[i].Family < out[j].Family
-		}
-		return out[i].SizeBytes < out[j].SizeBytes
-	})
-	return out
 }
 
 var ErrAlreadyInstalled = errors.New("already installed")

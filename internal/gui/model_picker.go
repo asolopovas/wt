@@ -125,12 +125,6 @@ func activeDiarizerDisplayName(opts []pickerOption, mgr *models.Manager) string 
 	return ""
 }
 
-func containsDisplayName(opts []pickerOption, name string) bool {
-	return slices.ContainsFunc(opts, func(o pickerOption) bool {
-		return o.DisplayName == name
-	})
-}
-
 func supportedLanguagesForActive(mgr *models.Manager) []string {
 	id := activeTranscriptionID(mgr)
 	if id == "" {

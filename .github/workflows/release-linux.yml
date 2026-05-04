@@ -28,7 +28,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            cmake gcc g++ libgl1-mesa-dev xorg-dev \
+            libgl1-mesa-dev xorg-dev \
             dpkg-dev fakeroot
 
       - name: Install Task
@@ -37,11 +37,11 @@ jobs:
           version: 3.x
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Cache whisper.cpp build
+      - name: Cache sherpa-onnx-cuda binaries
         uses: actions/cache@v4
         with:
-          path: third_party/whisper.cpp
-          key: whisper-cpp-linux-${{ hashFiles('Taskfile.yml') }}
+          path: third_party/sherpa-onnx-cuda
+          key: sherpa-onnx-cuda-linux-${{ hashFiles('Taskfile.yml') }}
 
       - name: Cache uv-linux
         uses: actions/cache@v4

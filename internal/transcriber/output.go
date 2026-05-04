@@ -1,11 +1,7 @@
 package transcriber
 
 import (
-	"bufio"
-	"encoding/json"
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -216,38 +212,4 @@ func joinWords(parts []string) string {
 		s = strings.ReplaceAll(s, " "+p, p)
 	}
 	return s
-}
-
-func WriteJSON(outputPath string, t *Transcript) (string, error) {
-	f, err := os.Create(outputPath)
-	if err != nil {
-		ext := filepath.Ext(outputPath)
-		base := strings.TrimSuffix(outputPath, ext)
-		stamp := time.Now().Format("06-01-02-150405")
-		outputPath = base + "-" + stamp + ext
-		f, err = os.Create(outputPath)
-		if err != nil {
-			return "", fmt.Errorf("creating output file: %w", err)
-		}
-	}
-
-	bw := bufio.NewWriterSize(f, 64*1024)
-	enc := json.NewEncoder(bw)
-	enc.SetIndent("", "  ")
-
-	if err := enc.Encode(t); err != nil {
-		_ = f.Close()
-		return "", fmt.Errorf("writing JSON: %w", err)
-	}
-
-	if err := bw.Flush(); err != nil {
-		_ = f.Close()
-		return "", fmt.Errorf("flushing buffer: %w", err)
-	}
-
-	if err := f.Close(); err != nil {
-		return "", fmt.Errorf("closing output file: %w", err)
-	}
-
-	return outputPath, nil
 }

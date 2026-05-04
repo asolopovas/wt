@@ -101,10 +101,8 @@ func (p *settingsPanel) build() {
 	mgr := models.NewManager()
 	selected := activeTranscriptionDisplayName(transcriptionPickerOptions(mgr), mgr)
 	if selected == "" {
-		if id, ok := whisperSizeToID[p.cfg.Model]; ok {
-			if e, ok2 := models.ByID(id); ok2 {
-				selected = e.DisplayName
-			}
+		if e, ok := models.ByID(p.cfg.Model); ok {
+			selected = e.DisplayName
 		}
 	}
 	if selected == "" || !slices.Contains(modelOpts, selected) {
@@ -308,7 +306,7 @@ func (p *settingsPanel) writeConfig() error {
 		return fmt.Errorf("loading config: %w", err)
 	}
 
-	cfg.Model = displayNameToWhisperSize(p.modelSelect.Selected, p.cfg.Model)
+	cfg.Model = displayNameToModelID(p.modelSelect.Selected, p.cfg.Model)
 	cfg.Language = p.Language()
 	cfg.Device = p.deviceSelect.Selected
 	cfg.Threads = p.Threads()
@@ -325,7 +323,7 @@ func (p *settingsPanel) writeConfig() error {
 }
 
 func (p *settingsPanel) ModelSize() string {
-	return displayNameToWhisperSize(p.modelSelect.Selected, p.cfg.Model)
+	return displayNameToModelID(p.modelSelect.Selected, p.cfg.Model)
 }
 
 func (p *settingsPanel) Language() string {

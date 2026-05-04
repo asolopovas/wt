@@ -24,7 +24,6 @@ type Config struct {
 	Threads         int    `yaml:"threads"`
 	Speakers        int    `yaml:"speakers,omitempty"`
 	NoDiarize       bool   `yaml:"no_diarize,omitempty"`
-	TDRZ            bool   `yaml:"tdrz,omitempty"`
 	CacheExpiryDays int    `yaml:"cache_expiry_days,omitempty"`
 
 	LogRetentionDays int `yaml:"log_retention_days,omitempty"`
@@ -181,9 +180,6 @@ func applyEnvOverrides(cfg *Config) {
 	}
 	if v, ok := envBool("WT_NO_DIARIZE"); ok {
 		cfg.NoDiarize = v
-	}
-	if v, ok := envBool("WT_TDRZ"); ok {
-		cfg.TDRZ = v
 	}
 	if v := os.Getenv("WT_CACHE_EXPIRY_DAYS"); v != "" {
 		if n, err := strconv.Atoi(v); err == nil && n >= 0 {

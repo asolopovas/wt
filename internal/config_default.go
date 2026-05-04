@@ -31,7 +31,7 @@ func appDir() string {
 }
 
 func defaultModel() string {
-	return "turbo"
+	return "sherpa-whisper-turbo"
 }
 
 func MediaDir() string {

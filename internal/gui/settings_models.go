@@ -32,15 +32,7 @@ type modelsSection struct {
 }
 
 func isCatalogEntryAllowed(e models.Entry) bool {
-	if e.Family != models.FamilyASR {
-		return true
-	}
-	for _, sz := range allowedModelSizes() {
-		if id, ok := whisperSizeToID[sz]; ok && id == e.ID {
-			return true
-		}
-	}
-	return false
+	return true
 }
 
 func newModelsSection(win fyne.Window) *modelsSection {
@@ -72,7 +64,7 @@ func newModelsSection(win fyne.Window) *modelsSection {
 }
 
 func (s *modelsSection) ensureDefaults() {
-	whisperID, hasWhisper := whisperSizeToID[defaultWhisperSize()]
+	defaultASR := defaultASRModelID()
 	var diarizer models.Entry
 	hasDiar := false
 	for _, e := range models.ByFamily(models.FamilyDiarizer) {
@@ -83,10 +75,8 @@ func (s *modelsSection) ensureDefaults() {
 		}
 	}
 	need := []models.Entry{}
-	if hasWhisper {
-		if e, ok := models.ByID(whisperID); ok && s.mgr.Status(whisperID) != models.StatusInstalled {
-			need = append(need, e)
-		}
+	if e, ok := models.ByID(defaultASR); ok && s.mgr.Status(defaultASR) != models.StatusInstalled {
+		need = append(need, e)
 	}
 	if hasDiar && s.mgr.Status(diarizer.ID) != models.StatusInstalled {
 		need = append(need, diarizer)

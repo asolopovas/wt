@@ -126,16 +126,6 @@ func AudioCacheKey(path string) (string, error) {
 	return hex.EncodeToString(hash[:12]) + ".wav", nil
 }
 
-func pcmToFloat32(buf []byte, numSamples int) []float32 {
-	const scale = 1.0 / float32(math.MaxInt16)
-	samples := make([]float32, numSamples)
-	for i := 0; i < numSamples; i++ {
-		sample := int16(binary.LittleEndian.Uint16(buf[i*2:]))
-		samples[i] = float32(sample) * scale
-	}
-	return samples
-}
-
 func streamPCMToFloat32(r io.Reader, numSamples int) ([]float32, error) {
 	const scale = 1.0 / float32(math.MaxInt16)
 	samples := make([]float32, numSamples)

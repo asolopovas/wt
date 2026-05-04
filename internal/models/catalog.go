@@ -7,7 +7,6 @@ import (
 type Family string
 
 const (
-	FamilyWhisper  Family = "whisper"
 	FamilyDiarizer Family = "diarizer"
 	FamilyLLM      Family = "llm"
 	FamilyASR      Family = "asr"
@@ -56,8 +55,7 @@ func (e Entry) FileSpecs() []FileSpec {
 }
 
 func Catalog() []Entry {
-	out := make([]Entry, 0, len(whisperEntries)+len(asrEntries)+len(diarizerEntries)+len(llmEntries))
-	out = append(out, whisperEntries...)
+	out := make([]Entry, 0, len(asrEntries)+len(diarizerEntries)+len(llmEntries))
 	out = append(out, asrEntries...)
 	out = append(out, diarizerEntries...)
 	out = append(out, llmEntries...)
@@ -82,8 +80,6 @@ func ByFamily(f Family) []Entry {
 	}
 	return out
 }
-
-var whisperEntries = []Entry{}
 
 var (
 	diarSegPyannote30URL = "https://huggingface.co/csukuangfj/sherpa-onnx-pyannote-segmentation-3-0/resolve/main/model.onnx"

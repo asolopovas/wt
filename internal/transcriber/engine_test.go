@@ -12,8 +12,9 @@ func TestResolveEngine(t *testing.T) {
 		in   string
 		want string
 	}{
-		{"empty defaults to whisper", "", shared.EngineWhisper},
-		{"explicit whisper", "whisper", shared.EngineWhisper},
+		{"empty defaults to whisper-onnx", "", shared.EngineWhisperONNX},
+		{"legacy whisper alias", "whisper", shared.EngineWhisperONNX},
+		{"explicit whisper-onnx", "whisper-onnx", shared.EngineWhisperONNX},
 		{"explicit zipformer", "zipformer", shared.EngineZipformer},
 		{"unknown passes through for dispatcher to reject", "bogus", "bogus"},
 	}

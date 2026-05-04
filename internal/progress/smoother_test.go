@@ -22,22 +22,6 @@ func TestSmoother_ReportIgnoresNonMonotonic(t *testing.T) {
 	}
 }
 
-func TestSmoother_ObservedRTFRequiresTwoSamples(t *testing.T) {
-	s := NewSmoother(60, 1)
-	if got := s.ObservedRTF(); got != 0 {
-		t.Errorf("with no samples ObservedRTF=%v want 0", got)
-	}
-	time.Sleep(10 * time.Millisecond)
-	s.Report(10)
-	time.Sleep(10 * time.Millisecond)
-	s.Report(20)
-	time.Sleep(10 * time.Millisecond)
-	s.Report(30)
-	if got := s.ObservedRTF(); got <= 0 {
-		t.Errorf("after multiple samples ObservedRTF=%v want >0", got)
-	}
-}
-
 func TestSmoother_SnapshotMonotonic(t *testing.T) {
 	s := NewSmoother(60, 1)
 	s.Report(50)

@@ -40,34 +40,31 @@ var (
 	downloadIcon      = assets.DownloadIcon
 )
 
-var whisperSizeToID = map[string]string{
-	"tiny":  "whisper-tiny",
-	"small": "whisper-small",
-	"turbo": "whisper-turbo",
+func defaultASRModelID() string {
+	if runtime.GOOS == "android" {
+		return "sherpa-whisper-tiny.en"
+	}
+	return "sherpa-whisper-turbo"
 }
 
-func displayNameToWhisperSize(displayName, fallback string) string {
-	for size, id := range whisperSizeToID {
-		if e, ok := models.ByID(id); ok && e.DisplayName == displayName {
-			return size
+func defaultASRDisplayName() string {
+	if e, ok := models.ByID(defaultASRModelID()); ok {
+		return e.DisplayName
+	}
+	return defaultASRModelID()
+}
+
+func displayNameToModelID(displayName, fallback string) string {
+	mgr := models.NewManager()
+	for _, opt := range transcriptionPickerOptions(mgr) {
+		if opt.DisplayName == displayName {
+			return opt.ID
 		}
 	}
-
-	if _, ok := whisperSizeToID[displayName]; ok {
+	if _, ok := models.ByID(displayName); ok {
 		return displayName
 	}
 	return fallback
-}
-
-func allowedModelSizes() []string {
-	return []string{"tiny", "small", "turbo"}
-}
-
-func defaultWhisperSize() string {
-	if runtime.GOOS == "android" {
-		return "tiny"
-	}
-	return "turbo"
 }
 
 func dropdownModels(currentSelection string) []string {
@@ -77,20 +74,9 @@ func dropdownModels(currentSelection string) []string {
 		opts = append(opts, currentSelection)
 	}
 	if len(opts) == 0 {
-		opts = []string{defaultWhisperDisplayName()}
+		opts = []string{defaultASRDisplayName()}
 	}
 	return opts
-}
-
-func defaultWhisperDisplayName() string {
-	id := "whisper-turbo"
-	if runtime.GOOS == "android" {
-		id = "whisper-tiny"
-	}
-	if e, ok := models.ByID(id); ok {
-		return e.DisplayName
-	}
-	return id
 }
 
 func dropdownDiarizers(currentSelection string) []string {

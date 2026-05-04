@@ -140,12 +140,3 @@ func (s *Smoother) Elapsed() time.Duration {
 	defer s.mu.Unlock()
 	return time.Since(s.startTime)
 }
-
-func (s *Smoother) ObservedRTF() float64 {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.totalSamples < 2 {
-		return 0
-	}
-	return s.rtf
-}

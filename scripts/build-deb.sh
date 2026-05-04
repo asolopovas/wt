@@ -25,14 +25,18 @@ cp dist/deps/uv-linux "$root/opt/wt/uv"
 cp scripts/setup-linux-user.sh "$root/opt/wt/wt-setup"
 chmod +x "$root/opt/wt/uv" "$root/opt/wt/wt-setup" "$root/opt/wt/$BINARY" "$root/opt/wt/$BINARY-gui"
 
-# Bundled models (whisper turbo + Silero VAD)
+# Bundled models (sherpa-whisper-turbo ONNX + Silero VAD)
 src_models="${XDG_CONFIG_HOME:-$HOME/.config}/wt/models"
-for f in ggml-large-v3-turbo.bin ggml-silero-v6.2.0.bin; do
+if [ -d "$src_models/sherpa-whisper-turbo" ]; then
+	echo "  bundling sherpa-whisper-turbo/"
+	mkdir -p "$root/opt/wt/models/sherpa-whisper-turbo"
+	cp -r "$src_models/sherpa-whisper-turbo/." "$root/opt/wt/models/sherpa-whisper-turbo/"
+else
+	echo "  WARN: $src_models/sherpa-whisper-turbo missing (run 'task models-import' first)"
+fi
+for f in ggml-silero-v6.2.0.bin; do
 	if [ -f "$src_models/$f" ]; then
-		echo "  bundling $f"
 		cp "$src_models/$f" "$root/opt/wt/models/$f"
-	else
-		echo "  WARN: $src_models/$f missing (run 'task models-import' first)"
 	fi
 done
 
@@ -72,11 +76,12 @@ Maintainer: A. Solopovas <info@lyntouch.com>
 Installed-Size: ${inst_size}
 Depends: libc6, libgcc-s1, libstdc++6
 Recommends: ffmpeg, nvidia-driver-535 | nvidia-driver-550 | nvidia-driver-560 | nvidia-driver-570
-Description: Whisper.cpp CLI + GUI with NeMo speaker diarization
- wt transcribes audio using whisper.cpp (CUDA-accelerated when an NVIDIA GPU
- is present) and performs speaker diarization via NVIDIA NeMo Sortformer.
- After install, run 'wt-setup' once to provision the per-user Python venv
- with NeMo (one-time, ~2 GB) and link bundled models into your config dir.
+Description: Whisper-ONNX CLI + GUI with NeMo speaker diarization
+ wt transcribes audio using sherpa-onnx (ONNX Runtime, CUDA-accelerated when
+ an NVIDIA GPU is present) and performs speaker diarization via NVIDIA NeMo
+ Sortformer. After install, run 'wt-setup' once to provision the per-user
+ Python venv with NeMo (one-time, ~2 GB) and link bundled models into your
+ config dir.
 EOF
 
 cat >"$root/DEBIAN/postinst" <<'EOF'
@@ -92,7 +97,7 @@ echo
 echo "wt installed. To finish setup, each user must run once:"
 echo "  wt-setup"
 echo "(creates ~/.config/wt/python with nemo_toolkit[asr], ~2 GB download,"
-echo " and links bundled whisper models into ~/.config/wt/models)"
+echo " and links bundled ASR models into ~/.config/wt/models)"
 EOF
 chmod 0755 "$root/DEBIAN/postinst"
 

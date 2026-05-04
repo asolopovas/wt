@@ -5,10 +5,6 @@ import (
 	"time"
 )
 
-func FormatDuration(d time.Duration) string {
-	return strconv.FormatFloat(d.Seconds(), 'f', 3, 64)
-}
-
 func FormatHMS(d time.Duration) string {
 	total := int(d.Seconds())
 	h := total / 3600

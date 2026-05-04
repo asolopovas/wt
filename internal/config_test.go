@@ -9,8 +9,8 @@ import (
 
 func TestDefaults(t *testing.T) {
 	cfg := Defaults()
-	if cfg.Model != "turbo" {
-		t.Errorf("expected model 'turbo', got %q", cfg.Model)
+	if cfg.Model != "sherpa-whisper-turbo" {
+		t.Errorf("expected model sherpa-whisper-turbo, got %q", cfg.Model)
 	}
 	if cfg.Device != "auto" {
 		t.Errorf("expected device 'auto', got %q", cfg.Device)
@@ -58,11 +58,9 @@ func TestApplyEnvOverrides(t *testing.T) {
 	t.Setenv("WT_THREADS", "8")
 	t.Setenv("WT_SPEAKERS", "3")
 	t.Setenv("WT_NO_DIARIZE", "true")
-	t.Setenv("WT_TDRZ", "false")
 	t.Setenv("WT_CACHE_EXPIRY_DAYS", "7")
 
 	cfg := Defaults()
-	cfg.TDRZ = true
 	applyEnvOverrides(&cfg)
 
 	if cfg.Model != "small" {
@@ -82,9 +80,6 @@ func TestApplyEnvOverrides(t *testing.T) {
 	}
 	if !cfg.NoDiarize {
 		t.Errorf("NoDiarize: got false, want true")
-	}
-	if cfg.TDRZ {
-		t.Errorf("TDRZ: got true, want false (env should override)")
 	}
 	if cfg.CacheExpiryDays != 7 {
 		t.Errorf("CacheExpiryDays: got %d, want 7", cfg.CacheExpiryDays)
@@ -121,7 +116,6 @@ func TestSaveAndLoad(t *testing.T) {
 		Model:   "sherpa-whisper-base.en",
 		Device:  "cpu",
 		Threads: 4,
-		TDRZ:    true,
 	}
 
 	if err := os.MkdirAll(filepath.Dir(FilePath()), 0o755); err != nil {
@@ -143,8 +137,5 @@ func TestSaveAndLoad(t *testing.T) {
 	}
 	if loaded.Threads != cfg.Threads {
 		t.Errorf("Threads: got %d, want %d", loaded.Threads, cfg.Threads)
-	}
-	if loaded.TDRZ != cfg.TDRZ {
-		t.Errorf("TDRZ: got %v, want %v", loaded.TDRZ, cfg.TDRZ)
 	}
 }

@@ -9,12 +9,8 @@ import (
 	"time"
 
 	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/dialog"
-	"fyne.io/fyne/v2/storage"
 
 	shared "github.com/asolopovas/wt/internal"
-	"github.com/asolopovas/wt/internal/gui/decor"
 	"github.com/asolopovas/wt/internal/transcriber/cache"
 )
 
@@ -45,31 +41,6 @@ func extensionSet(extensions []string) map[string]bool {
 		set[ext] = true
 	}
 	return set
-}
-
-func buildLogPanel(content fyne.CanvasObject, leftHeader fyne.CanvasObject, copyBtn, clearLogBtn *pointerButton, extraBtns ...*pointerButton) fyne.CanvasObject {
-	if leftHeader == nil {
-		leftHeader = newCaptionText("SYSTEM LOG")
-	}
-
-	right := make([]fyne.CanvasObject, 0, len(extraBtns)+2)
-	for _, b := range extraBtns {
-		if b == nil {
-			continue
-		}
-		right = append(right, b)
-	}
-	if copyBtn != nil {
-		right = append(right, copyBtn)
-	}
-	if clearLogBtn != nil {
-		right = append(right, clearLogBtn)
-	}
-	header := decor.NewPanelHeader(leftHeader, right...)
-
-	themed := container.NewThemeOverride(content, &logEntryTheme{})
-	contentArea := container.NewStack(newPanelBackground(), themed)
-	return container.NewBorder(header, nil, nil, nil, contentArea)
 }
 
 func appendLogInit(p *Panel) {
@@ -257,31 +228,6 @@ func (p *Panel) onCopyLog() {
 		return
 	}
 	fyne.CurrentApp().Clipboard().SetContent(p.LogEntry.Text)
-}
-
-func (p *Panel) onShareLog() {
-	if p.LogEntry == nil {
-		return
-	}
-	content := p.LogEntry.Text
-	if strings.TrimSpace(content) == "" {
-		return
-	}
-	defaultName := "wt-log-" + time.Now().Format("20060102-150405") + ".txt"
-	saveDialog := dialog.NewFileSave(func(w fyne.URIWriteCloser, err error) {
-		if err != nil || w == nil {
-			return
-		}
-		defer func() { _ = w.Close() }()
-		_, _ = w.Write([]byte(content))
-	}, p.window)
-	saveDialog.SetFileName(defaultName)
-	if home, herr := os.UserHomeDir(); herr == nil {
-		if uri, lerr := storage.ListerForURI(storage.NewFileURI(filepath.Clean(home))); lerr == nil {
-			saveDialog.SetLocation(uri)
-		}
-	}
-	saveDialog.Show()
 }
 
 func (p *Panel) AppendLog(msg string) {

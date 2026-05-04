@@ -56,7 +56,14 @@ func TestTranscriptionPickerOptions_IncludesWhisperAndASR(t *testing.T) {
 		"Parakeet TDT 0.6B v2 (English)",
 	}
 	for _, want := range mustContain {
-		if !containsDisplayName(opts, want) {
+		found := false
+		for _, o := range opts {
+			if o.DisplayName == want {
+				found = true
+				break
+			}
+		}
+		if !found {
 			t.Errorf("dropdown missing %q; got %v", want, got)
 		}
 	}

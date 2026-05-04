@@ -252,14 +252,6 @@ func (p *Panel) runTranscription(files []string) {
 		fmt.Sprintf("%d/%d done, %d failed, %.1fs", total-errCount, total, errCount, elapsed))
 }
 
-func (p *Panel) ensureModelDir(modelSize string) error {
-	_ = p.makeDownloadProgress(modelSize)
-	if _, err := transcriber.ResolveModelPathLocal(modelSize, ""); err != nil {
-		return fmt.Errorf("model %q not found locally; download via Settings → Models", modelSize)
-	}
-	return nil
-}
-
 func (p *Panel) transcribeFile(path, modelSize, deviceLabel, language string, threads, speakers int, noDiarize bool) error {
 	absPath, err := filepath.Abs(path)
 	if err != nil {

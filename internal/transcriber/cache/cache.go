@@ -120,14 +120,6 @@ func DeletePartial(key string) {
 	_ = os.Remove(partialPath(key))
 }
 
-func HasPartial(key string) bool {
-	if key == "" {
-		return false
-	}
-	_, err := os.Stat(partialPath(key))
-	return err == nil
-}
-
 type Entry struct {
 	Key        string    `json:"key"`
 	SourcePath string    `json:"source_path"`
