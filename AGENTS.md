@@ -40,8 +40,8 @@ docs/                          Topic-scoped rules (see below)
 
 ## Always (cross-cutting)
 
-- **`task check` before every commit — zero exceptions.** One task covers everything: clean-comments, gofumpt/`golangci-lint fmt`, golangci-lint (errcheck, govet, staticcheck, unused, ineffassign + project config), `deadcode`, `govulncheck`, and full `go test`. Every reported issue must be fixed (or explicitly suppressed in `.golangci.yml` with justification) before committing. Never commit with `task check` red. The granular tools below are documented for ad-hoc debugging, but `task check` is the gate — there is no separate `lint` or `format` task.
-- **No comments in any generated code** — Go, bash, YAML, Python, JS, etc. No file headers, no inline `#`/`//`, no docstrings, no "why" notes. Shebangs (`#!/usr/bin/env bash`) are not comments and stay. Rules and rationale go in `docs/*.md` or commit messages, never in source. Run `go run ./scripts/clean-comments ./cmd ./internal && gofmt -w ./cmd/ ./internal/` before every commit.
-- **Eliminate dead code on every change** — after any non-trivial Go edit, run `deadcode ./cmd/wt/... ./cmd/wt-gui/... ./cmd/wt-test/...` and remove every reported function, method, type, or constant. Install once with `go install golang.org/x/tools/cmd/deadcode@latest`. If `deadcode` errors with `requires newer Go version`, bootstrap via `GOTOOLCHAIN=auto go run golang.org/x/tools/cmd/deadcode@latest ./cmd/...`. Never leave unreachable symbols, stale aliases, or orphan helpers behind — they accumulate, mislead future readers, and break refactors. The same rule applies to dead imports (`goimports -w`) and dead test files (delete tests for removed code rather than skipping with `t.Skip` long-term).
-- Never write screenshots/logs/binary debug files into the repo or any tracked dir. Use system tempdir or `_tmp/` (gitignored). The Read tool can't access `C:\tmp` — copy into `_tmp/` first. Clean up afterwards.
-- GUI compile-checks **only** through `task build ONLY=gui` (`CGO_LDFLAGS` differs across toolchains).
+- Run `task check` before every commit (runs clean-comments, format, lint, deadcode, govulncheck, tests); fix every issue it reports.
+- No comments in any generated code (Go, bash, YAML, Python, JS); shebangs stay. Put rationale in `docs/*.md` or commit messages.
+- Remove dead code, imports, and tests for removed code on every change.
+- Never write screenshots/logs/binary debug files into tracked dirs; use system tempdir or `_tmp/` (gitignored).
+- GUI compile-checks only through `task build ONLY=gui`.
