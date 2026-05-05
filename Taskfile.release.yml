@@ -42,7 +42,7 @@ tasks:
       - cmd: '{{if eq OS "windows"}}C:/msys64/usr/bin/bash.exe{{else}}bash{{end}} scripts/release-publish.sh "{{.STABLE_VERSION}}"'
 
   dev:
-    desc: "Dev release: build host + android with version dev-YYYY-MM-DD-HH-MM-SS, publish to 'dev' prerelease tag."
+    desc: "Dev release: build host + android (+ Windows VM if reachable) with version dev-YYYY-MM-DD-HH-MM-SS, publish to 'dev' prerelease tag."
     preconditions:
       - sh: command -v gh >/dev/null 2>&1
         msg: "gh CLI not found."
@@ -54,7 +54,26 @@ tasks:
         vars: { VERSION: "{{.DEV_VERSION}}" }
       - task: :android:apk
         vars: { VERSION: "{{.DEV_VERSION}}" }
+      - task: windows-vm
+        vars: { VERSION: "{{.DEV_VERSION}}" }
       - cmd: bash scripts/release-dev.sh "{{.DEV_VERSION}}"
+
+  windows-vm:
+    desc: "Build Windows installer inside ~/os/windows-vm via SSH alias 'windows-vm'; output copied to dist/."
+    cmds:
+      - cmd: |
+          set -e
+          ver="{{.VERSION}}"
+          if ! ssh -o ConnectTimeout=5 -o BatchMode=yes windows-vm true 2>/dev/null; then
+            echo "⚠  windows-vm SSH unreachable — skipping Windows build."
+            echo "   One-time setup: cd ~/os/windows-vm && make rdp, then run shared/enable-ssh.ps1 elevated."
+            exit 0
+          fi
+          echo "→ Building Windows artifacts in VM (version $ver)"
+          ssh windows-vm bash -lc "'set -e; cd /c && { [ -d wt ] && (cd wt && git fetch --tags && git reset --hard origin/main) || git clone https://github.com/asolopovas/wt.git wt; }; cd /c/wt && rm -f dist/wt-setup-*.exe dist/bin/wt.exe dist/bin/wt-gui.exe && task build VERSION=$ver'"
+          mkdir -p dist
+          scp 'windows-vm:/c/wt/dist/wt-setup-*.exe' dist/
+          ls -lh dist/wt-setup-*.exe
 
   bump:
     desc: "Auto-increment patch version + create tag. Pass NEW=X.Y.Z to override."
