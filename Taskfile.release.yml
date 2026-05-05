@@ -51,7 +51,13 @@ tasks:
         sh: 'echo "dev-$(date +%Y-%m-%d-%H-%M-%S)"'
     cmds:
       - task: :build
+        vars: { VERSION: "{{.DEV_VERSION}}", ONLY: host }
+      - task: :linux-deb
         vars: { VERSION: "{{.DEV_VERSION}}" }
+        platforms: [linux]
+      - task: :installer-exe
+        vars: { VERSION: "{{.DEV_VERSION}}" }
+        platforms: [windows]
       - task: :android:apk
         vars: { VERSION: "{{.DEV_VERSION}}" }
       - task: windows-vm
@@ -70,10 +76,11 @@ tasks:
             exit 0
           fi
           echo "→ Building Windows artifacts in VM (version $ver)"
-          ssh windows-vm bash -lc "'set -e; cd /c && { [ -d wt ] && (cd wt && git fetch --tags && git reset --hard origin/main) || git clone https://github.com/asolopovas/wt.git wt; }; cd /c/wt && rm -f dist/wt-setup-*.exe dist/bin/wt.exe dist/bin/wt-gui.exe && task build VERSION=$ver'"
+          ssh windows-vm bash -lc "'set -e; cd /c && { [ -d wt ] || git clone https://github.com/asolopovas/wt.git wt; }; cd /c/wt && git fetch --prune --force --tags origin && git reset --hard origin/main && rm -f dist/wt-setup-*.exe dist/bin/wt.exe dist/bin/wt-gui.exe && task build VERSION=$ver'"
           mkdir -p dist
-          scp 'windows-vm:/c/wt/dist/wt-setup-*.exe' dist/
-          ls -lh dist/wt-setup-*.exe
+          fname=$(ssh windows-vm 'ls /c/wt/dist/wt-setup-*.exe | head -1 | xargs -n1 basename')
+          scp "windows-vm:/C:/wt/dist/$fname" dist/
+          ls -lh "dist/$fname"
 
   bump:
     desc: "Auto-increment patch version + create tag. Pass NEW=X.Y.Z to override."

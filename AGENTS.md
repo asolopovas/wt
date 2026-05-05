@@ -152,3 +152,28 @@ _tmp/                              Local scratch (gitignored)
 - GUI compile-checks **only** through `task build ONLY=gui` (CGO_LDFLAGS differ between MinGW and CUDA/MSVC).
 - New Java class → drop in `scripts/android-service/com/asolopovas/wtranscribe/`, extend the `javac` + `d8` invocations in `scripts/build-apk.sh`, declare in `cmd/wt-gui/AndroidManifest.xml.in`.
 - New sherpa / llama-cli launcher must check Android `lib*.so` path before `exec.LookPath`.
+
+### Windows builds via the local VM (`~/os/windows-vm`)
+The Windows installer (`dist/wt-setup-*.exe`) is produced inside a Tiny11
+Docker VM — see `~/os/windows-vm/AGENTS.md` for the full runbook. From
+the wt repo you only need:
+
+- `ssh windows-vm` — SSH alias resolves to `localhost:2222`, user `andrius`,
+  default shell is Git-Bash. Configured in `~/.ssh/config`.
+- `cd ~/os/windows-vm && make wt-build` — clones/pulls wt into `C:\wt`
+  inside the VM, runs `task build:windows`, scps the resulting
+  `wt-setup-*.exe` back to `~/os/windows-vm/shared/`.
+- `task release` (this repo) calls into `windows-vm` automatically when
+  it needs the Windows artifact; SSH must be reachable.
+
+If `ssh windows-vm` fails:
+1. `cd ~/os/windows-vm && make status` — is the container up?
+2. `make ssh-key` — sync `~/.ssh/id_rsa.pub` into `shared/authorized_keys`.
+3. `make ssh-enable` — prints the one-time elevated-PowerShell command
+   to bootstrap sshd on an existing install (OEM `install.bat` only fires
+   on a fresh install). The VNC-bridge automation for that step is
+   documented in `~/os/windows-vm/AGENTS.md`.
+
+Never hard-code Windows paths or `localhost:2222` into Taskfiles — always
+go through the `windows-vm` SSH alias so the connection details live in
+one place (`~/.ssh/config` + `~/os/windows-vm/`).
