@@ -28,6 +28,7 @@ type DialogAction struct {
 type DialogConfig struct {
 	Parent      fyne.Window
 	Title       string
+	TitleRight  fyne.CanvasObject
 	Body        fyne.CanvasObject
 	Actions     []DialogAction
 	WidthFrac   float32
@@ -78,7 +79,14 @@ func ShowDialog(cfg DialogConfig) func() {
 	topGap := VGap(cfg.TopInset)
 	top := topGap
 	if cfg.Title != "" {
-		top = container.NewVBox(topGap, container.NewHBox(NewSectionHeader(cfg.Title)))
+		header := NewSectionHeader(cfg.Title)
+		var row fyne.CanvasObject
+		if cfg.TitleRight != nil {
+			row = container.NewBorder(nil, nil, header, cfg.TitleRight, nil)
+		} else {
+			row = container.NewHBox(header)
+		}
+		top = container.NewVBox(topGap, row)
 	}
 
 	bodyContainer := container.NewBorder(top, bottom, nil, nil, cfg.Body)

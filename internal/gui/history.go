@@ -333,14 +333,15 @@ func (h *historyPanel) renameEntry(e cache.Entry) {
 
 	toolbar := container.NewHBox(autoBtn, layout.NewSpacer(), cutBtn, copyBtn, pasteBtn)
 
-	form := container.New(&tightVBox{gap: spaceSM}, entrySized, toolbar, status)
+	form := container.New(&tightVBox{gap: spaceSM}, entrySized, toolbar)
 
 	showDialog(dialogConfig{
-		Parent:    h.window,
-		Title:     "RENAME",
-		Body:      form,
-		AnchorTop: true,
-		WidthFrac: 0.85,
+		Parent:     h.window,
+		Title:      "RENAME",
+		TitleRight: status,
+		Body:       form,
+		AnchorTop:  true,
+		WidthFrac:  0.85,
 		Actions: []dialogAction{
 			{Label: "CANCEL", Kind: kindSecondary},
 			{Label: "SAVE", Kind: kindPrimary, OnTap: func() {

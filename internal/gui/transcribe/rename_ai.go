@@ -83,7 +83,7 @@ func (p *Panel) promptRename(originalName, suggested string, regenerate func() (
 	toolbarKids = append(toolbarKids, layout.NewSpacer(), cutBtn, copyBtn, pasteBtn)
 	toolbar := container.NewHBox(toolbarKids...)
 
-	body := container.NewVBox(entryScroll, toolbar, status)
+	body := container.NewVBox(entryScroll, toolbar)
 
 	ch := make(chan renameDecision, 1)
 	send := func(d renameDecision) {
@@ -102,12 +102,13 @@ func (p *Panel) promptRename(originalName, suggested string, regenerate func() (
 
 	fyne.Do(func() {
 		showDialog(dialogConfig{
-			Parent:    p.window,
-			Title:     "RENAME",
-			Body:      body,
-			Actions:   actions,
-			WidthFrac: 0.85,
-			AnchorTop: true,
+			Parent:     p.window,
+			Title:      "RENAME",
+			TitleRight: status,
+			Body:       body,
+			Actions:    actions,
+			WidthFrac:  0.85,
+			AnchorTop:  true,
 		})
 	})
 
