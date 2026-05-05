@@ -83,11 +83,14 @@ func ShowDialog(cfg DialogConfig) func() {
 		var row fyne.CanvasObject
 		if cfg.TitleRight != nil {
 			title := canvas.NewText(cfg.Title, TextMuted)
-			title.TextSize = TextCaption
+			title.TextSize = TextRow
 			title.TextStyle = MonoBoldStyle
 			row = container.New(layout.NewHBoxLayout(), title, layout.NewSpacer(), cfg.TitleRight)
 		} else {
-			row = container.NewHBox(NewSectionHeader(cfg.Title))
+			title := canvas.NewText(cfg.Title, TextMuted)
+			title.TextSize = TextRow
+			title.TextStyle = MonoBoldStyle
+			row = container.NewHBox(title)
 		}
 		top = container.NewVBox(topGap, row)
 	}
