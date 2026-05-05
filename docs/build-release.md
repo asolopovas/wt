@@ -1,35 +1,32 @@
 # Build & Release
 
-## Taskfile dispatch
+## Taskfile
 
-- Internal tasks (`internal: true`) — call via `task: X` cmd entries. **Never** `cmd: 'task X'` (spawns new process, sees flag, exits 202). Same for compound shells: split `task X && go test ...` into separate `task:` + `cmd:` steps.
-- Vars on `task: <name>` invocations don't propagate through nested `task:` calls in Task v3. Every leaf touching `{{.VERSION}}` needs its own `vars: { VERSION: { sh: awk -F"\x27" '/^  VERSION:/{print $2; exit}' Taskfile.yml } }`.
-- `_release-stable` must call `installer-exe` / `linux-deb` explicitly. Otherwise `bump → install → build` leaves them as up-to-date no-ops.
+- Internal tasks: call via `task: X` cmd entries, never `cmd: 'task X'`. Don't combine with `&&`; split into separate steps.
+- `{{.VERSION}}` doesn't propagate through nested `task:` calls. Re-declare per leaf: `vars: { VERSION: { sh: awk -F"\x27" '/^  VERSION:/{print $2; exit}' Taskfile.yml } }`.
+- `_release-stable` must call `installer-exe` / `linux-deb` explicitly.
+- `task release` re-reads `VERSION` from `Taskfile.yml` post-bump.
 
-## QUICK install (`task install QUICK=1`)
+## QUICK install
 
-Linux QUICK requires the full `.deb` installed once first (postinst sets up `/opt/wt`, `/usr/bin` symlinks, per-user `wt-setup` venv). Error out clearly if missing — don't bootstrap from QUICK.
+`task install QUICK=1` requires the full `.deb` installed once first on Linux. Error out if missing.
 
 ## Version rendering
 
-- Centralize in `appinfo.DisplayVersion(version, buildDate)`. **Never inline** `if buildDate != "" {…}` in callers.
-- Both wt CLI and wt-gui need `-X main.BuildDate=$GIT_DATE` linker flag.
-
-## Release
-
-`task release` re-reads `VERSION` from `Taskfile.yml` post-bump because `{{.VERSION}}` captures at parse time. Don't rely on the parse-time value in release tasks.
+- Use `appinfo.DisplayVersion(version, buildDate)`; never inline buildDate checks.
+- Both `wt` and `wt-gui` need `-X main.BuildDate=$GIT_DATE`.
 
 ## Shell quirks (mvdan/sh)
 
-- **Never** `grep ... | sed -E "s/.../\1/"` in Task `sh:` vars — mangles `\1`. Use `awk -F"\x27" '/pattern/{print $2}'`.
-- mvdan/sh panics on fd≥10 redirects (`exec 9>>file`) — use cp-retry loop instead of fd-based lock probing on Windows.
+- Never `grep | sed -E "s/.../\1/"` in `sh:` vars; use `awk -F"\x27" '/pattern/{print $2}'`.
+- No fd≥10 redirects; use cp-retry loops on Windows.
 
 ## Windows
 
-- DLL handles held briefly after `taskkill` — install must wait+retry `cp` (whisper.dll especially); a single sleep is insufficient.
+- DLL handles linger after `taskkill`; install must wait+retry `cp` (whisper.dll especially).
 
 ## Cross-compile sherpa-onnx for Android
 
-- **Never via direct cmake** — upstream `cmake/onnxruntime.cmake` only handles Linux/macOS/Windows hosts. Always invoke `build-android-<abi>.sh` via msys2 bash.
-- With static onnxruntime archive (`BUILD_SHARED_LIBS=OFF`), keep `SHERPA_ONNX_ANDROID_PLATFORM=android-21`. API ≥27 pulls `nnapi_provider_factory.h` which static prebuilts lack. Binary remains forward-compatible with 28+.
-- `build-android-arm64-v8a.sh` emits to `build-android-arm64-v8a/` (shared) or `-static/` — `BUILD_OUT` Taskfile var must match.
+- Always use `build-android-<abi>.sh` via msys2 bash, never direct cmake.
+- Keep `SHERPA_ONNX_ANDROID_PLATFORM=android-21` with static onnxruntime.
+- `BUILD_OUT` must match the script's output dir (`build-android-arm64-v8a/` or `-static/`).
