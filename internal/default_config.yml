@@ -23,23 +23,23 @@ models:
   - url: "https://huggingface.co/csukuangfj/sherpa-onnx-moonshine-tiny-en-int8/resolve/main/preprocess.onnx"
     relPath: sherpa-onnx-moonshine-tiny-en-int8/preprocess.onnx
     sizeBytes: 6800738
-    sha256: ''
+    sha256: f33addce61a143460fe753b5ee5b7db255e5140b5b779c065b94f6c83ff0bf4e
   - url: "https://huggingface.co/csukuangfj/sherpa-onnx-moonshine-tiny-en-int8/resolve/main/encode.int8.onnx"
     relPath: sherpa-onnx-moonshine-tiny-en-int8/encode.int8.onnx
     sizeBytes: 18249187
-    sha256: ''
+    sha256: 8774dfba578de027ec6595c2c654a0836434489bc963a0db124a7f181f571acb
   - url: "https://huggingface.co/csukuangfj/sherpa-onnx-moonshine-tiny-en-int8/resolve/main/uncached_decode.int8.onnx"
     relPath: sherpa-onnx-moonshine-tiny-en-int8/uncached_decode.int8.onnx
     sizeBytes: 53216096
-    sha256: ''
+    sha256: 216737000dd5881a17aa043f6bbd286add33e4c3b0ae257153e2ec15438bdc41
   - url: "https://huggingface.co/csukuangfj/sherpa-onnx-moonshine-tiny-en-int8/resolve/main/cached_decode.int8.onnx"
     relPath: sherpa-onnx-moonshine-tiny-en-int8/cached_decode.int8.onnx
     sizeBytes: 45264830
-    sha256: ''
+    sha256: 2aff28bba6a03d8dcf5c9feac45462629bae37317442299f28115ad09da773f6
   - url: "https://huggingface.co/csukuangfj/sherpa-onnx-moonshine-tiny-en-int8/resolve/main/tokens.txt"
     relPath: sherpa-onnx-moonshine-tiny-en-int8/tokens.txt
     sizeBytes: 436688
-    sha256: ''
+    sha256: 1165c2aeb9f72f457a83be2d459a09054f27490acd9b41bd43794dfd25e296ea
   sizeBytes: 123967539
   androidDefault: true
 - id: sherpa-whisper-turbo
@@ -71,15 +71,15 @@ models:
   - url: "https://huggingface.co/csukuangfj/sherpa-onnx-whisper-turbo/resolve/main/turbo-encoder.int8.onnx"
     relPath: sherpa-whisper-turbo/turbo-encoder.int8.onnx
     sizeBytes: 674716297
-    sha256: ''
+    sha256: b02dcdf54f348741e93fe732b67d933c8dcb6735655f710640143081db38878b
   - url: "https://huggingface.co/csukuangfj/sherpa-onnx-whisper-turbo/resolve/main/turbo-decoder.int8.onnx"
     relPath: sherpa-whisper-turbo/turbo-decoder.int8.onnx
     sizeBytes: 361080764
-    sha256: ''
+    sha256: 20accd02388482eb3a46bd615631adfdc85e1eb2c7db9ea3f02a40ffe6b81547
   - url: "https://huggingface.co/csukuangfj/sherpa-onnx-whisper-turbo/resolve/main/turbo-tokens.txt"
     relPath: sherpa-whisper-turbo/turbo-tokens.txt
     sizeBytes: 816730
-    sha256: ''
+    sha256: b34b360dbb493e781e479794586d661700670d65564001f23024971d1f2fa126
   sizeBytes: 1036613791
   defaultActive: true
 - id: parakeet-tdt-0.6b-v3-int8
@@ -118,19 +118,19 @@ models:
   - url: "https://huggingface.co/csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8/resolve/main/encoder.int8.onnx"
     relPath: sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8/encoder.int8.onnx
     sizeBytes: 652184281
-    sha256: ''
+    sha256: acfc2b4456377e15d04f0243af540b7fe7c992f8d898d751cf134c3a55fd2247
   - url: "https://huggingface.co/csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8/resolve/main/decoder.int8.onnx"
     relPath: sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8/decoder.int8.onnx
     sizeBytes: 11845275
-    sha256: ''
+    sha256: 179e50c43d1a9de79c8a24149a2f9bac6eb5981823f2a2ed88d655b24248db4e
   - url: "https://huggingface.co/csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8/resolve/main/joiner.int8.onnx"
     relPath: sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8/joiner.int8.onnx
     sizeBytes: 6355277
-    sha256: ''
+    sha256: 3164c13fc2821009440d20fcb5fdc78bff28b4db2f8d0f0b329101719c0948b3
   - url: "https://huggingface.co/csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8/resolve/main/tokens.txt"
     relPath: sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8/tokens.txt
     sizeBytes: 93939
-    sha256: ''
+    sha256: d58544679ea4bc6ac563d1f545eb7d474bd6cfa467f0a6e2c1dc1c7d37e3c35d
   sizeBytes: 670478772
 - id: gigaam-v3-ru
   family: asr
@@ -144,11 +144,11 @@ models:
   - url: "https://huggingface.co/csukuangfj/sherpa-onnx-nemo-ctc-giga-am-v3-russian-2025-12-16/resolve/main/model.int8.onnx"
     relPath: sherpa-onnx-nemo-ctc-giga-am-v3-russian-2025-12-16/model.int8.onnx
     sizeBytes: 224721476
-    sha256: ''
+    sha256: f86ebfa0429ced91be6054fc344827e9c6c2572f3c318416cd974b06f66437ec
   - url: "https://huggingface.co/csukuangfj/sherpa-onnx-nemo-ctc-giga-am-v3-russian-2025-12-16/resolve/main/tokens.txt"
     relPath: sherpa-onnx-nemo-ctc-giga-am-v3-russian-2025-12-16/tokens.txt
     sizeBytes: 196
-    sha256: ''
+    sha256: 17cc514451bcceac9c280068c71502f8448f99e9fb1456b8d0761651fd0392f2
   sizeBytes: 224721672
 - id: sense-voice-zh-en-ja-ko-yue-int8
   family: asr
@@ -167,11 +167,11 @@ models:
   - url: "https://huggingface.co/csukuangfj/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17/resolve/main/model.int8.onnx"
     relPath: sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17/model.int8.onnx
     sizeBytes: 239233841
-    sha256: ''
+    sha256: c71f0ce00bec95b07744e116345e33d8cbbe08cef896382cf907bf4b51a2cd51
   - url: "https://huggingface.co/csukuangfj/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17/resolve/main/tokens.txt"
     relPath: sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17/tokens.txt
     sizeBytes: 315894
-    sha256: ''
+    sha256: f449eb28dc567533d7fa59be34e2abca8784f771850c78a47fb731a31429a1dc
   sizeBytes: 239549735
 - id: diar-titanet-large
   family: diarizer
@@ -185,11 +185,11 @@ models:
   - url: "https://huggingface.co/csukuangfj/sherpa-onnx-pyannote-segmentation-3-0/resolve/main/model.onnx"
     relPath: sherpa-onnx-pyannote-segmentation-3-0/model.onnx
     sizeBytes: 5992913
-    sha256: ''
+    sha256: 220ad67ca923bef2fa91f2390c786097bf305bceb5e261d4af67b38e938e1079
   - url: "https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-recongition-models/nemo_en_titanet_large.onnx"
     relPath: titanet_large.onnx
     sizeBytes: 101405493
-    sha256: ''
+    sha256: d51abcf31717ef28162f26acb9d44dd4127c3d44c9b8624f699f3425daca8e77
   sizeBytes: 107398406
 - id: diar-multilingual
   family: diarizer
@@ -202,11 +202,11 @@ models:
   - url: "https://huggingface.co/csukuangfj/sherpa-onnx-pyannote-segmentation-3-0/resolve/main/model.onnx"
     relPath: sherpa-onnx-pyannote-segmentation-3-0/model.onnx
     sizeBytes: 5992913
-    sha256: ''
+    sha256: 220ad67ca923bef2fa91f2390c786097bf305bceb5e261d4af67b38e938e1079
   - url: "https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-recongition-models/3dspeaker_speech_campplus_sv_zh_en_16k-common_advanced.onnx"
     relPath: 3dspeaker_campplus_zh_en_advanced.onnx
     sizeBytes: 28281164
-    sha256: ''
+    sha256: aa3cfc16963a10586a9393f5035d6d6b57e98d358b347f80c2a30bf4f00ceba2
   sizeBytes: 34274077
 - id: qwen3-0.6b-q4km
   family: llm
@@ -218,7 +218,7 @@ models:
   - url: "https://huggingface.co/unsloth/Qwen3-0.6B-GGUF/resolve/main/Qwen3-0.6B-Q4_K_M.gguf"
     relPath: qwen3-0.6b-q4km.gguf
     sizeBytes: 396705472
-    sha256: ''
+    sha256: ac2d97712095a558e31573f62f466a3f9d93990898b0ec79d7c974c1780d524a
   sizeBytes: 396705472
 - id: qwen3-1.7b-q4km
   family: llm
@@ -229,5 +229,6 @@ models:
   - url: "https://huggingface.co/unsloth/Qwen3-1.7B-GGUF/resolve/main/Qwen3-1.7B-Q4_K_M.gguf"
     relPath: qwen3-1.7b-q4km.gguf
     sizeBytes: 1107409472
-    sha256: ''
+    sha256: b139949c5bd74937ad8ed8c8cf3d9ffb1e99c866c823204dc42c0d91fa181897
   sizeBytes: 1107409472
+
