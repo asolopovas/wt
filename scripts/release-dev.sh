@@ -5,8 +5,8 @@ ver="${1:?version required}"
 sha="$(git rev-parse --short HEAD)"
 branch="$(git rev-parse --abbrev-ref HEAD)"
 [ "$branch" = "HEAD" ] && branch="main"
-tag="rolling"
-rolldir="dist/rolling"
+tag="dev"
+devdir="dist/dev"
 
 echo "Updating $tag to $sha (branch $branch, version $ver)"
 
@@ -14,21 +14,21 @@ git push origin HEAD
 git tag -f "$tag" HEAD
 git push origin "$tag" --force
 
-rm -rf "$rolldir"
-mkdir -p "$rolldir"
+rm -rf "$devdir"
+mkdir -p "$devdir"
 
 artifacts=()
 if [ -f "dist/wt-setup-$ver.exe" ]; then
-	cp "dist/wt-setup-$ver.exe" "$rolldir/wt-setup-$branch.exe"
-	artifacts+=("$rolldir/wt-setup-$branch.exe")
+	cp "dist/wt-setup-$ver.exe" "$devdir/wt-setup-$branch.exe"
+	artifacts+=("$devdir/wt-setup-$branch.exe")
 fi
 if [ -f "dist/wt-$ver.apk" ]; then
-	cp "dist/wt-$ver.apk" "$rolldir/wt-$branch.apk"
-	artifacts+=("$rolldir/wt-$branch.apk")
+	cp "dist/wt-$ver.apk" "$devdir/wt-$branch.apk"
+	artifacts+=("$devdir/wt-$branch.apk")
 fi
 if [ -f "dist/wt_${ver}_amd64.deb" ]; then
-	cp "dist/wt_${ver}_amd64.deb" "$rolldir/wt-${branch}_amd64.deb"
-	artifacts+=("$rolldir/wt-${branch}_amd64.deb")
+	cp "dist/wt_${ver}_amd64.deb" "$devdir/wt-${branch}_amd64.deb"
+	artifacts+=("$devdir/wt-${branch}_amd64.deb")
 fi
 
 if [ "${#artifacts[@]}" -eq 0 ]; then
@@ -44,9 +44,9 @@ fi
 
 echo "Creating $tag release..."
 gh release create "$tag" \
-	--title "Rolling ($branch @ $sha)" \
+	--title "Dev ($branch @ $sha)" \
 	--prerelease \
-	--notes "Rolling build of $branch. Commit \`$sha\`, version $ver. Updated automatically; not a stable release."
+	--notes "Dev build of $branch. Commit \`$sha\`, version $ver. Updated automatically; not a stable release."
 
 bash "$(dirname "$0")/gh-release-upload.sh" "$tag" "${artifacts[@]}"
-echo "Rolling release: https://github.com/asolopovas/wt/releases/tag/$tag"
+echo "Dev release: https://github.com/asolopovas/wt/releases/tag/$tag"

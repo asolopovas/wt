@@ -2,40 +2,59 @@ version: "3"
 
 tasks:
   default:
-    desc: "Default release: stable on a tag, rolling otherwise."
+    desc: "Default = dev release (no version bump). BUMP=1 → bump patch + stable tagged release."
     cmds:
       - task: stable
-        if: '[ -z "{{.ROLLING}}" ]'
-      - task: rolling
-        if: '[ -n "{{.ROLLING}}" ]'
+        if: '[ -n "{{.BUMP}}" ]'
+      - task: dev
+        if: '[ -z "{{.BUMP}}" ]'
 
   stable:
-    desc: "Build everything + push tag + create GH release. Requires HEAD on a vX.Y.Z tag."
+    desc: "Build everything + push tag + create GH release. BUMP=1 bumps patch first; otherwise HEAD must be on a vX.Y.Z tag."
+    cmds:
+      - task: bump
+        if: '[ -n "{{.BUMP}}" ]'
+      - task: stable:run
+
+  stable:run:
+    internal: true
     preconditions:
       - sh: command -v gh >/dev/null 2>&1
         msg: "gh CLI not found. Install via: winget install GitHub.cli"
       - sh: '[ -z "$(git status --porcelain)" ]'
         msg: "Working tree has uncommitted changes; commit or stash first."
       - sh: "git describe --tags --exact-match HEAD >/dev/null 2>&1"
-        msg: "HEAD is not on a release tag. Run `git tag vX.Y.Z` (or `task release:bump`) first."
+        msg: "HEAD is not on a release tag. Run `task release BUMP=1` (or `task release:bump`) first."
+    vars:
+      STABLE_VERSION:
+        sh: 'git describe --tags --exact-match HEAD | sed s/^v//'
     cmds:
       - task: :build
+        vars: { VERSION: "{{.STABLE_VERSION}}" }
       - task: :installer-exe
+        vars: { VERSION: "{{.STABLE_VERSION}}" }
         platforms: [windows]
       - task: :linux-deb
+        vars: { VERSION: "{{.STABLE_VERSION}}" }
         platforms: [linux]
       - task: :android:apk
-      - cmd: '{{if eq OS "windows"}}C:/msys64/usr/bin/bash.exe{{else}}bash{{end}} scripts/release-publish.sh "{{.VERSION}}"'
+        vars: { VERSION: "{{.STABLE_VERSION}}" }
+      - cmd: '{{if eq OS "windows"}}C:/msys64/usr/bin/bash.exe{{else}}bash{{end}} scripts/release-publish.sh "{{.STABLE_VERSION}}"'
 
-  rolling:
-    desc: "Update the rolling prerelease tag with current artifacts."
+  dev:
+    desc: "Dev release: build host + android with version dev-YYYY-MM-DD-HH-MM-SS, publish to 'dev' prerelease tag."
     preconditions:
       - sh: command -v gh >/dev/null 2>&1
         msg: "gh CLI not found."
+    vars:
+      DEV_VERSION:
+        sh: 'echo "dev-$(date +%Y-%m-%d-%H-%M-%S)"'
     cmds:
       - task: :build
+        vars: { VERSION: "{{.DEV_VERSION}}" }
       - task: :android:apk
-      - cmd: bash scripts/release-rolling.sh "{{.VERSION}}"
+        vars: { VERSION: "{{.DEV_VERSION}}" }
+      - cmd: bash scripts/release-dev.sh "{{.DEV_VERSION}}"
 
   bump:
     desc: "Auto-increment patch version + create tag. Pass NEW=X.Y.Z to override."
@@ -57,4 +76,3 @@ tasks:
           fi
           echo "Tagging v$new"
           git tag "v$new"
-          echo "Now run: task release"

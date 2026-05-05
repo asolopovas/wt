@@ -12,12 +12,12 @@ task build  [ONLY=cli|gui|android]                Build binaries (+ installer/.d
 task install [TARGET=android] [QUICK=1]           Replace local install (or push APK + launch). QUICK = redeploy bins only.
 task test    [SHORT=1|INTEGRATION=1]              Default = full; SHORT skips cgo; INTEGRATION = diarizer suite
 task check   [ANDROID=1]                          Single quality gate (see "Quality gate" below)
-task release [ROLLING=1]                          Default bumps + publishes; ROLLING updates `rolling` prerelease
+task release [BUMP=1]                             Default = dev prerelease (no bump); BUMP=1 = bump patch + stable GH release
 task clean   [DEEP=1]                             Clean dist/ (+ third_party builds)
 task models  FETCH=samples|import                 Fetch diarization samples / import models
 ```
 
-Sub-taskfiles: `Taskfile.android.yml` (APK build, ADB install, lint), `Taskfile.release.yml` (publish, rolling).
+Sub-taskfiles: `Taskfile.android.yml` (APK build, ADB install, lint), `Taskfile.release.yml` (dev + stable publish).
 
 ## Quality gate — `task check`
 

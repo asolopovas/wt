@@ -9,7 +9,7 @@ Ships as a CLI (`wt`), a desktop GUI (`wt-gui`), and an Android APK. Models down
 ## Download
 
 - [Latest release](https://github.com/asolopovas/wt/releases/latest) (stable, versioned)
-- [Rolling release](https://github.com/asolopovas/wt/releases/tag/rolling) (current `main`, prerelease)
+- [Dev release](https://github.com/asolopovas/wt/releases/tag/dev) (current `main`, prerelease, version `dev-YYYY-MM-DD-HH-MM-SS`)
 
 Each release includes:
 
@@ -178,7 +178,7 @@ task test INTEGRATION=1          # diarization integration tests
 task check [ANDROID=1]           # single quality gate (run before every commit): format + golangci-lint + deadcode + govulncheck + tests
 task models FETCH=samples        # fetch diarization test samples
 task models FETCH=import         # import sherpa models from Windows mounts (WSL)
-task release [ROLLING=1]         # bump + GH release (or update rolling prerelease)
+task release [BUMP=1]            # default = dev prerelease (no version bump); BUMP=1 = bump patch + stable GH release
 task clean [DEEP=1]              # clean dist/ (+ third_party builds with DEEP)
 ```
 
