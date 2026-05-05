@@ -289,22 +289,33 @@ func (h *historyPanel) renameEntry(e cache.Entry) {
 		entry.TypedShortcut(&fyne.ShortcutPaste{Clipboard: clipboard})
 	})
 	pasteBtn.Importance = widget.LowImportance
-	toolbar := container.NewHBox(layout.NewSpacer(), cutBtn, copyBtn, pasteBtn)
-
-	caption := newCaptionText("NAME")
-	var hint fyne.CanvasObject
-	if ext != "" {
-		hintText := canvas.NewText("Extension "+ext+" is preserved automatically.", colMuted)
-		hintText.TextSize = textCaption
-		hint = hintText
-	} else {
-		hint = layout.NewSpacer()
-	}
 
 	status := canvas.NewText("", colMuted)
 	status.TextSize = textCaption
 
-	form := container.New(&tightVBox{gap: spaceSM}, caption, entrySized, toolbar, hint, status)
+	autoBtn := newPointerButton("AUTO-RENAME", func() {
+		status.Text = "Generating…"
+		status.Refresh()
+		go func() {
+			stem, serr := h.suggestStemForEntry(e)
+			fyne.Do(func() {
+				if serr != nil {
+					status.Text = "Auto-rename failed: " + serr.Error()
+				} else {
+					entry.SetText(stem)
+					status.Text = ""
+				}
+				status.Refresh()
+			})
+		}()
+	})
+	autoBtn.Importance = widget.LowImportance
+
+	toolbar := container.NewHBox(autoBtn, layout.NewSpacer(), cutBtn, copyBtn, pasteBtn)
+
+	caption := newCaptionText("NAME")
+
+	form := container.New(&tightVBox{gap: spaceSM}, caption, entrySized, toolbar, status)
 
 	showDialog(dialogConfig{
 		Parent:    h.window,
@@ -314,22 +325,6 @@ func (h *historyPanel) renameEntry(e cache.Entry) {
 		WidthFrac: 0.85,
 		Actions: []dialogAction{
 			{Label: "CANCEL", Kind: kindSecondary},
-			{Label: "AUTO-RENAME", Kind: kindSecondary, KeepOpen: true, OnTap: func() {
-				status.Text = "Generating…"
-				status.Refresh()
-				go func() {
-					stem, serr := h.suggestStemForEntry(e)
-					fyne.Do(func() {
-						if serr != nil {
-							status.Text = "Auto-rename failed: " + serr.Error()
-						} else {
-							entry.SetText(stem)
-							status.Text = ""
-						}
-						status.Refresh()
-					})
-				}()
-			}},
 			{Label: "SAVE", Kind: kindPrimary, OnTap: func() {
 				newStem := strings.TrimSpace(entry.Text)
 				if newStem == "" || newStem == stem {
