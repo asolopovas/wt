@@ -299,8 +299,9 @@ func (h *historyPanel) renameEntry(e cache.Entry) {
 	pasteBtn.Importance = widget.LowImportance
 
 	status := widget.NewLabel("")
-	status.Wrapping = fyne.TextWrapWord
+	status.Truncation = fyne.TextTruncateEllipsis
 	status.TextStyle = fyne.TextStyle{Italic: true}
+	status.Alignment = fyne.TextAlignTrailing
 
 	setStatus := func(msg string) {
 		status.SetText(msg)

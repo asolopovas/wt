@@ -53,8 +53,9 @@ func (p *Panel) promptRename(originalName, suggested string, regenerate func() (
 	pasteBtn.Importance = widget.LowImportance
 
 	status := widget.NewLabel("")
-	status.Wrapping = fyne.TextWrapWord
+	status.Truncation = fyne.TextTruncateEllipsis
 	status.TextStyle = fyne.TextStyle{Italic: true}
+	status.Alignment = fyne.TextAlignTrailing
 
 	var autoBtn fyne.CanvasObject
 	if regenerate != nil {
