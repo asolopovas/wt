@@ -248,10 +248,11 @@ func (m *Manager) Get(ctx context.Context, id string, prog func(Progress)) error
 			}
 			prog(Progress{ID: id, Downloaded: base + downloaded, Total: completed + ft + (totalAll - completed - fileTotal)})
 		})
-		if err := shared.DownloadFile(dst, s.URL, cb); err != nil {
-			log.Printf("[models] %s: FAILED file %d/%d %s: %v", id, i+1, len(specs), filepath.Base(dst), err)
-			shared.LogError(fmt.Sprintf("  %s: failed downloading %s: %v", display, filepath.Base(dst), err))
-			return fmt.Errorf("downloading %s: %w", id, err)
+		dlErr := downloadWithResume(ctx, dst, s.URL, cb, display)
+		if dlErr != nil {
+			log.Printf("[models] %s: FAILED file %d/%d %s: %v", id, i+1, len(specs), filepath.Base(dst), dlErr)
+			shared.LogError(fmt.Sprintf("  %s: failed downloading %s: %v", display, filepath.Base(dst), dlErr))
+			return fmt.Errorf("downloading %s: %w", id, dlErr)
 		}
 		if s.SHA256 != "" {
 			if err := verifySHA256(dst, s.SHA256); err != nil {
@@ -283,6 +284,43 @@ func (m *Manager) Get(ctx context.Context, id string, prog func(Progress)) error
 		_ = m.SetActive(id)
 	}
 	return nil
+}
+
+func downloadWithResume(ctx context.Context, dst, url string, cb shared.DownloadProgress, display string) error {
+	const maxOuterAttempts = 6
+	var lastErr error
+	for attempt := 1; attempt <= maxOuterAttempts; attempt++ {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		partSize := int64(0)
+		if st, statErr := os.Stat(dst + ".part"); statErr == nil {
+			partSize = st.Size()
+		}
+		if attempt == 1 {
+			if partSize > 0 {
+				shared.LogInfo(fmt.Sprintf("  %s: resuming %s from %.0f MB", display, filepath.Base(dst), float64(partSize)/(1024*1024)))
+			}
+		} else {
+			shared.LogInfo(fmt.Sprintf("  %s: retrying %s (attempt %d/%d, resuming from %.0f MB)", display, filepath.Base(dst), attempt, maxOuterAttempts, float64(partSize)/(1024*1024)))
+		}
+		err := shared.DownloadFile(dst, url, cb)
+		if err == nil {
+			return nil
+		}
+		lastErr = err
+		log.Printf("[models] download attempt %d/%d for %s failed: %v", attempt, maxOuterAttempts, filepath.Base(dst), err)
+		backoff := time.Duration(attempt*attempt) * 2 * time.Second
+		if backoff > 60*time.Second {
+			backoff = 60 * time.Second
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(backoff):
+		}
+	}
+	return lastErr
 }
 
 func installedManifestPath(e Entry) string {
