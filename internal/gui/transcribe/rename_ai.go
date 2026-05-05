@@ -16,25 +16,14 @@ import (
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
+	shared "github.com/asolopovas/wt/internal"
+	"github.com/asolopovas/wt/internal/gui/decor"
 	"github.com/asolopovas/wt/internal/gui/platsvc"
 	"github.com/asolopovas/wt/internal/llm"
 	"github.com/asolopovas/wt/internal/namer"
 	"github.com/asolopovas/wt/internal/transcriber"
 	"github.com/asolopovas/wt/internal/transcriber/cache"
 )
-
-func setCanvasText(t *canvas.Text, s string) {
-	t.Text = s
-	t.Refresh()
-}
-
-func truncErr(err error) string {
-	msg := err.Error()
-	if len(msg) > 40 {
-		msg = msg[:40] + "…"
-	}
-	return msg
-}
 
 type renameDecision struct {
 	keep    bool
@@ -66,23 +55,25 @@ func (p *Panel) promptRename(originalName, suggested string, regenerate func() (
 	})
 	pasteBtn.Importance = widget.LowImportance
 
-	status := canvas.NewText("", colMuted)
+	status := canvas.NewText("", decor.StatusActive)
 	status.TextSize = textCaption
-	status.TextStyle = fyne.TextStyle{Italic: true, Monospace: true}
+	status.TextStyle = monoBoldStyle
 	status.Alignment = fyne.TextAlignTrailing
 
 	var autoBtn fyne.CanvasObject
 	if regenerate != nil {
 		btn := newSecondaryButton("AUTO-RENAME", func() {
-			setCanvasText(status, "Generating…")
+			decor.SetStatusText(status, decor.NotifyActive, "GENERATING…")
 			go func() {
 				suggestion, err := regenerate()
 				fyne.Do(func() {
 					if err != nil {
-						setCanvasText(status, "Failed: "+truncErr(err))
+						decor.SetStatusText(status, decor.NotifyError, "FAILED (SEE LOG)")
+						shared.LogError(fmt.Sprintf("Auto-rename failed: %v", err))
 					} else {
 						entry.SetText(suggestion)
-						setCanvasText(status, "")
+						status.Text = ""
+						status.Refresh()
 					}
 				})
 			}()

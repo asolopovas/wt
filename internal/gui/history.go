@@ -298,35 +298,30 @@ func (h *historyPanel) renameEntry(e cache.Entry) {
 	})
 	pasteBtn.Importance = widget.LowImportance
 
-	status := canvas.NewText("", colMuted)
+	status := canvas.NewText("", decor.StatusActive)
 	status.TextSize = textCaption
-	status.TextStyle = fyne.TextStyle{Italic: true, Monospace: true}
+	status.TextStyle = decor.MonoBoldStyle
 	status.Alignment = fyne.TextAlignTrailing
 
-	setStatus := func(msg string) {
-		status.Text = msg
-		status.Refresh()
-	}
-
 	autoBtn := newPointerButton("AUTO-RENAME", func() {
-		setStatus("Generating…")
+		decor.SetStatusText(status, decor.NotifyActive, "GENERATING…")
 		go func() {
 			stem, serr := h.suggestStemForEntry(e)
 			fyne.Do(func() {
 				switch {
 				case serr == nil:
 					entry.SetText(stem)
-					setStatus("")
+					status.Text = ""
+					status.Refresh()
 				case errors.Is(serr, llm.ErrNoLLMInstalled):
-					setStatus("Downloading LLM… try again shortly.")
+					decor.SetStatusText(status, decor.NotifyActive, "DOWNLOADING LLM…")
 					go h.ensureLLMDownload()
+				case os.IsNotExist(serr):
+					shared.LogError(fmt.Sprintf("Auto-rename failed: %v", serr))
+					decor.SetStatusText(status, decor.NotifyError, "NO TRANSCRIPT")
 				default:
 					shared.LogError(fmt.Sprintf("Auto-rename failed: %v", serr))
-					msg := serr.Error()
-					if len(msg) > 80 {
-						msg = msg[:80] + "…"
-					}
-					setStatus("Auto-rename failed: " + msg + " (see wt.log)")
+					decor.SetStatusText(status, decor.NotifyError, "FAILED (SEE LOG)")
 				}
 			})
 		}()
@@ -413,7 +408,7 @@ func (h *historyPanel) suggestStemForEntry(e cache.Entry) (string, error) {
 	jsonPath := cache.TranscriptPathForKey(e.Key)
 	text, err := namer.ExtractTranscriptText(jsonPath)
 	if err != nil {
-		return "", fmt.Errorf("reading transcript: %w", err)
+		return "", err
 	}
 	if strings.TrimSpace(text) == "" {
 		return "", fmt.Errorf("transcript is empty")
