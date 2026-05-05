@@ -34,7 +34,7 @@ Public sideload path: `internal/config_android.go:platformModelsDirOverride`. Ne
 
 ## ASR engine selection on Android
 
-Prefer sherpa-onnx engines over whisper.cpp on Android — ONNX Runtime is ~7× faster on Exynos 2400 at identical accuracy. Recommended catalog IDs:
+All Android ASR runs through sherpa-onnx engines (the whisper.cpp engine was dropped — ONNX Runtime is ~7× faster on Exynos 2400 at identical accuracy). Recommended catalog IDs:
 
 - Default: `sherpa-whisper-turbo` (best quality).
 - Fast: `parakeet-tdt-0.6b-v2-int8` (near-turbo accuracy at ~3× the speed).

@@ -10,7 +10,7 @@ if [ ! -d "$dest" ]; then
 	exit 1
 fi
 
-for proc in "$binary-gui.exe" "$binary.exe" whisper-go-gui.exe whisper-go.exe llama-cli.exe; do
+for proc in "$binary-gui.exe" "$binary.exe" llama-cli.exe; do
 	taskkill //F //IM "$proc" 2>/dev/null || true
 done
 

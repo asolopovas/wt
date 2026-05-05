@@ -5,10 +5,10 @@ wt incorporates or links to the following third-party software.
 Each is listed with its license. The full license texts follow below.
 
 
-1. whisper.cpp / ggml
+1. llama.cpp / ggml
    License: MIT
    Copyright (c) 2023-2026 The ggml authors
-   Source: https://github.com/ggml-org/whisper.cpp
+   Source: https://github.com/ggml-org/llama.cpp
 
 2. go-audio/wav
    License: Apache License 2.0
@@ -33,7 +33,7 @@ Each is listed with its license. The full license texts follow below.
 
 
 ================================================================================
-MIT License (whisper.cpp / ggml)
+MIT License (llama.cpp / ggml)
 ================================================================================
 
 Copyright (c) 2023-2026 The ggml authors

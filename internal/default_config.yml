@@ -46,8 +46,7 @@ models:
   family: asr
   engine: whisper-onnx
   displayName: "Whisper large-v3-turbo (ONNX, multilingual)"
-  description: "OpenAI Whisper large-v3-turbo via ONNX Runtime. Same accuracy as ggml-large-v3-turbo, ~7x faster on Android (60s vs 440s for 2min audio on Galaxy S24+). 99 languages. Recommended Android\
-    \ default for best quality."
+  description: "OpenAI Whisper large-v3-turbo via ONNX Runtime. ~7x faster than the ggml reference on Android (60s vs 440s for 2min audio on Galaxy S24+). 99 languages. Recommended Android default for best quality."
   languages:
   - auto
   - en

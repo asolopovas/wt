@@ -73,11 +73,10 @@ Type: files; Name: "{app}\diarize.py"
 
 [Code]
 const
-  ModelUrlBase = 'https://huggingface.co/ggerganov/whisper.cpp/resolve/main/';
   RequiredCudaVersion = '12.9';
 
 var
-  CfgModel, CfgLanguage, CfgDevice, CfgThreads: string;
+  CfgLanguage, CfgDevice, CfgThreads: string;
   CfgSpeakers, CfgNoDiarize: string;
   SetupLogPath: string;
   OutputMemo: TNewMemo;
@@ -206,27 +205,11 @@ end;
 
 procedure LoadExistingConfig();
 begin
-  CfgModel := ReadConfigValue('model');
   CfgLanguage := ReadConfigValue('language');
   CfgDevice := ReadConfigValue('device');
   CfgThreads := ReadConfigValue('threads');
   CfgSpeakers := ReadConfigValue('speakers');
   CfgNoDiarize := ReadConfigValue('no_diarize');
-end;
-
-function ModelFileName(const Model: string): string;
-begin
-       if Model = 'tiny'      then Result := 'ggml-tiny.bin'
-  else if Model = 'tiny.en'   then Result := 'ggml-tiny.en.bin'
-  else if Model = 'base'      then Result := 'ggml-base.bin'
-  else if Model = 'base.en'   then Result := 'ggml-base.en.bin'
-  else if Model = 'small'     then Result := 'ggml-small.bin'
-  else if Model = 'small.en'  then Result := 'ggml-small.en.bin'
-  else if Model = 'medium'    then Result := 'ggml-medium.bin'
-  else if Model = 'medium.en' then Result := 'ggml-medium.en.bin'
-  else if Model = 'large-v3'  then Result := 'ggml-large-v3.bin'
-  else if Model = 'turbo'     then Result := 'ggml-large-v3-turbo.bin'
-  else Result := 'ggml-large-v3-turbo.bin';
 end;
 
 function HasNvidiaGpu(): Boolean;
@@ -304,12 +287,6 @@ begin
   ShowLogControls(False);
 end;
 
-function GetModel(Param: string): string;
-begin
-  if CfgModel <> '' then Result := CfgModel
-  else Result := 'turbo';
-end;
-
 function GetLanguage(Param: string): string;
 begin
   if CfgLanguage <> '' then Result := CfgLanguage
@@ -354,7 +331,6 @@ begin
 
   Content := '# wt configuration' + #13#10 +
              '# See: https://github.com/asolopovas/wt' + #13#10 + #13#10 +
-             'model: ' + GetModel('') + #13#10 +
              'language: ' + Lang + #13#10 +
              'device: ' + GetDevice('') + #13#10 +
              'threads: ' + GetThreads('') + #13#10 +
@@ -362,7 +338,7 @@ begin
              'no_diarize: ' + GetNoDiarize('') + #13#10;
 
   SaveStringToFile(ConfigPath, Content, False);
-  Log('Settings: model=' + GetModel('') + ' language=' + GetLanguage('') +
+  Log('Settings: language=' + GetLanguage('') +
       ' device=' + GetDevice('') + ' threads=' + GetThreads(''));
   LogOk('Config saved to ' + ConfigPath);
   MemoLog('  Config saved to ' + ConfigPath);
@@ -509,41 +485,6 @@ begin
   AdvanceProgress();
 end;
 
-procedure DownloadModel();
-var
-  ModelDir, ModelPath, ModelUrl, TmpPath: string;
-  EC: Integer;
-begin
-  ModelDir := ExpandConstant('{%APPDATA}\wt\models');
-  ForceDirectories(ModelDir);
-  ModelPath := ModelDir + '\' + ModelFileName(GetModel(''));
-
-  if FileExists(ModelPath) then begin
-    LogOk('Model ''' + GetModel('') + ''' already downloaded: ' + ModelPath);
-    MemoLog('  Model ''' + GetModel('') + ''' already downloaded');
-    AdvanceProgress();
-    exit;
-  end;
-
-  ModelUrl := ModelUrlBase + ModelFileName(GetModel(''));
-  TmpPath := ModelPath + '.downloading';
-
-  SetStepStatus('Downloading ' + GetModel('') + ' model...');
-  EC := RunStreamed('Downloading model ' + GetModel(''), 'curl',
-    '-L --silent --show-error --fail -o "' + TmpPath + '" "' + ModelUrl + '"');
-
-  if (EC = 0) and FileExists(TmpPath) then begin
-    RenameFile(TmpPath, ModelPath);
-    LogOk('Model saved to ' + ModelPath);
-    MemoLog('  Model saved to ' + ModelPath);
-  end else begin
-    LogError('Model download failed (curl exit code ' + IntToStr(EC) + ')');
-    MemoLog('  ERROR: Model download failed');
-    DeleteFile(TmpPath);
-  end;
-  AdvanceProgress();
-end;
-
 procedure DownloadVADModel();
 var
   ModelDir, ModelPath, ModelUrl, TmpPath: string;
@@ -591,7 +532,7 @@ begin
   Log('App directory: ' + ExpandConstant('{app}'));
   Log('Log file: ' + SetupLogPath);
 
-  TotalSteps := 6;
+  TotalSteps := 5;
   CurrentStep := 0;
   if Assigned(OverallProgress) then begin
     OverallProgress.Max := TotalSteps;
@@ -613,7 +554,6 @@ begin
   InstallFFmpeg();
   InstallCuda();
   InstallPythonEnv();
-  DownloadModel();
   DownloadVADModel();
 
   Log('=========================================');

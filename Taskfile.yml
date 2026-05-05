@@ -441,23 +441,14 @@ tasks:
           done
 
   models:import:
-    desc: "Copy whisper + sherpa models from a Windows install (Linux/WSL only)."
+    desc: "Copy sherpa models from a Windows install (Linux/WSL only)."
     platforms: [linux]
     cmds:
       - cmd: |
           set -e
           dest="${XDG_CONFIG_HOME:-$HOME/.config}/{{.BINARY}}/models"
           mkdir -p "$dest"
-          src_whisper="/mnt/c/Users/asolo/.whisper-go/models"
           src_sherpa="/mnt/c/Users/asolo/AppData/Local/wt/models"
-          for f in ggml-large-v3-turbo.bin ggml-silero-v6.2.0.bin; do
-            if [ -f "$src_whisper/$f" ] && [ ! -f "$dest/$f" ]; then
-              echo "Copying $f..."
-              cp "$src_whisper/$f" "$dest/$f"
-            else
-              echo "skip $f"
-            fi
-          done
           if [ -f "$src_sherpa/titanet_large.onnx" ] && [ ! -f "$dest/titanet_large.onnx" ]; then
             cp "$src_sherpa/titanet_large.onnx" "$dest/"
           fi

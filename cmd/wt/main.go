@@ -36,7 +36,7 @@ func main() {
 
 	app := &cli.Command{
 		Name:      "wt",
-		Usage:     "Transcribe audio files using sherpa-onnx (whisper, parakeet, moonshine, sensevoice, canary, gigaam)",
+		Usage:     "Transcribe audio files using sherpa-onnx (whisper-onnx, parakeet, moonshine, sensevoice, canary, nemo-ctc)",
 		Version:   appinfo.DisplayVersion(Version, BuildDate),
 		ArgsUsage: "<audio files...>",
 		Description: fmt.Sprintf(
@@ -65,7 +65,7 @@ func main() {
 			},
 			&cli.StringFlag{
 				Name:  "model",
-				Usage: "path to GGML model file; downloads to ~/.wt/models/ if empty",
+				Usage: "catalog ID or directory of an ASR model; downloads to <config-dir>/models/ if empty",
 			},
 			&cli.IntFlag{
 				Name:    "threads",
