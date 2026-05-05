@@ -6,6 +6,15 @@
     "CGO_CFLAGS": "-IC:/Users/asolo/src/wt/third_party/whisper.cpp/include -IC:/Users/asolo/src/wt/third_party/whisper.cpp/ggml/include",
     "CGO_LDFLAGS": "-LC:/Users/asolo/src/wt/third_party/whisper.cpp/build/src -LC:/Users/asolo/src/wt/third_party/whisper.cpp/build/ggml/src -lwhisper -lggml -lggml-base -lggml-cpu -lm -lstdc++"
   },
+  "search.exclude": {
+    "third_party": true,
+    "dist": true,
+    "bindings": true
+  },
+  "files.watcherExclude": {
+    "**/third_party/**": true,
+    "**/dist/**": true
+  },
   "gopls": {
     "build.env": {
       "GOOS": "windows",
