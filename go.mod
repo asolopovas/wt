@@ -2,6 +2,8 @@ module github.com/asolopovas/wt
 
 go 1.26.1
 
+toolchain go1.26.2
+
 require gopkg.in/yaml.v3 v3.0.1
 
 require (
@@ -54,7 +56,7 @@ require (
 	github.com/xuri/nfp v0.0.2-0.20250530014748-2ddeb826f9a9 // indirect
 	github.com/yuin/goldmark v1.7.8 // indirect
 	golang.org/x/crypto v0.48.0 // indirect
-	golang.org/x/image v0.37.0 // indirect
+	golang.org/x/image v0.38.0 // indirect
 	golang.org/x/net v0.50.0 // indirect
 	golang.org/x/sys v0.42.0 // indirect
 	golang.org/x/term v0.40.0 // indirect

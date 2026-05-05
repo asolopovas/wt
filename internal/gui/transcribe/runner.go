@@ -166,11 +166,12 @@ func (p *Panel) runTranscription(files []string) {
 	p.debugLog(fmt.Sprintf("  Device    : %s", deviceLabelLog))
 	p.debugLog(fmt.Sprintf("  Language  : %s", language))
 	p.debugLog(fmt.Sprintf("  Threads   : %d", threads))
-	if noDiarize {
+	switch {
+	case noDiarize:
 		p.debugLog("  Diarizer  : off")
-	} else if !diarizer.SupportsExternalBackend() {
+	case !diarizer.SupportsExternalBackend():
 		p.debugLog("  Diarizer  : unavailable on this platform")
-	} else {
+	default:
 		p.debugLog(fmt.Sprintf("  Speakers  : %d (0 = auto)", speakers))
 	}
 	if used, total := sysstats.MemUsageMB(); total > 0 {
@@ -233,11 +234,12 @@ func (p *Panel) runTranscription(files []string) {
 
 	elapsed := time.Since(runStart).Seconds()
 	var summary string
-	if errCount > 0 {
+	switch {
+	case errCount > 0:
 		summary = fmt.Sprintf("Done: %d/%d transcribed, %d failed.", total-errCount, total, errCount)
-	} else if total == 1 {
+	case total == 1:
 		summary = "Transcription complete."
-	} else {
+	default:
 		summary = fmt.Sprintf("All %d files transcribed.", total)
 	}
 	p.AppendLog(summary)

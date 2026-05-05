@@ -219,5 +219,9 @@ func isDirective(text string) bool {
 	if strings.HasPrefix(body, "export ") {
 		return true
 	}
+	trim := strings.TrimLeft(body, " \t")
+	if trim == "nolint" || strings.HasPrefix(trim, "nolint:") || strings.HasPrefix(trim, "nolint ") {
+		return true
+	}
 	return false
 }

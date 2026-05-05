@@ -82,11 +82,6 @@ func NewManager() *Manager {
 	return sharedManager
 }
 
-func resetSharedManagerForTest() {
-	sharedManagerOnce = sync.Once{}
-	sharedManager = nil
-}
-
 func (m *Manager) Status(id string) Status {
 	e, ok := ByID(id)
 	if !ok {

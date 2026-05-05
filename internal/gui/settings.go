@@ -20,8 +20,6 @@ import (
 	"github.com/asolopovas/wt/internal/transcriber/cache"
 )
 
-var languages = allLanguageCodes()
-
 var speakerOptions = []string{
 	"auto", "2", "3", "4",
 }

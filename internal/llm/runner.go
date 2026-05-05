@@ -151,8 +151,12 @@ func (r *Runner) Generate(ctx context.Context, opts Options) (string, error) {
 		}
 	}
 
-	return "", fmt.Errorf("no JSON object in llm output (waitErr=%v): stderr=%s; stdout=%s",
-		waitErr, stderrTail(stderrStr, 6), stdoutTail(out, 400))
+	if waitErr != nil {
+		return "", fmt.Errorf("no JSON object in llm output: stderr=%s; stdout=%s: %w",
+			stderrTail(stderrStr, 6), stdoutTail(out, 400), waitErr)
+	}
+	return "", fmt.Errorf("no JSON object in llm output: stderr=%s; stdout=%s",
+		stderrTail(stderrStr, 6), stdoutTail(out, 400))
 }
 
 func llmTimeout() time.Duration {

@@ -141,7 +141,7 @@ func streamPCMToFloat32(r io.Reader, numSamples int) ([]float32, error) {
 			want = len(buf)
 		}
 		n, err := io.ReadFull(r, buf[:want])
-		if err != nil && !(errors.Is(err, io.ErrUnexpectedEOF) && n > 0) {
+		if err != nil && (!errors.Is(err, io.ErrUnexpectedEOF) || n <= 0) {
 			return nil, fmt.Errorf("reading PCM data: %w", err)
 		}
 		n -= n % 2

@@ -84,7 +84,7 @@ func (s *LimitSelect) Tapped(_ *fyne.PointEvent) {
 	)
 	list.HideSeparators = true
 	for i := range options {
-		list.SetItemHeight(widget.ListItemID(i), LimitSelectRowHeight)
+		list.SetItemHeight(i, LimitSelectRowHeight)
 	}
 	list.OnSelected = func(id widget.ListItemID) {
 		if id < 0 || id >= len(options) {

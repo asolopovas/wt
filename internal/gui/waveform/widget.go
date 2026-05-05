@@ -461,7 +461,7 @@ func formatMS(sec float64) string {
 	s := int((d % time.Minute) / time.Second)
 	if m >= 60 {
 		h := m / 60
-		m = m % 60
+		m %= 60
 		return formatN(h) + ":" + pad2(m) + ":" + pad2(s)
 	}
 	return formatN(m) + ":" + pad2(s)

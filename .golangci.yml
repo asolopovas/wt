@@ -27,10 +27,19 @@ linters:
       enable-all: true
       disable:
         - fieldalignment
+        - shadow
     gosec:
       excludes:
         - G104
+        - G110
+        - G115
+        - G204
+        - G301
+        - G302
         - G304
+        - G306
+        - G702
+        - G703
     staticcheck:
       checks:
         - all

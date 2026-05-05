@@ -79,7 +79,7 @@ func ExtractTranscriptText(path string) (string, error) {
 func extractJSON(data []byte) (string, error) {
 	var raw map[string]any
 	if err := json.Unmarshal(data, &raw); err != nil {
-		return string(data), nil
+		return string(data), nil //nolint:nilerr
 	}
 	var b strings.Builder
 	if utts, ok := raw["utterances"].([]any); ok {

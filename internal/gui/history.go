@@ -290,11 +290,13 @@ func (h *historyPanel) renameEntry(e cache.Entry) {
 	toolbar := container.NewHBox(layout.NewSpacer(), cutBtn, copyBtn, pasteBtn)
 
 	caption := newCaptionText("NAME")
-	var hint fyne.CanvasObject = layout.NewSpacer()
+	var hint fyne.CanvasObject
 	if ext != "" {
 		hintText := canvas.NewText("Extension "+ext+" is preserved automatically.", colMuted)
 		hintText.TextSize = textCaption
 		hint = hintText
+	} else {
+		hint = layout.NewSpacer()
 	}
 
 	form := container.New(&tightVBox{gap: spaceSM}, caption, entrySized, toolbar, hint)
