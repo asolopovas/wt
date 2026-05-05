@@ -298,13 +298,14 @@ func (h *historyPanel) renameEntry(e cache.Entry) {
 	})
 	pasteBtn.Importance = widget.LowImportance
 
-	status := widget.NewLabel("")
-	status.Truncation = fyne.TextTruncateEllipsis
-	status.TextStyle = fyne.TextStyle{Italic: true}
+	status := canvas.NewText("", colMuted)
+	status.TextSize = textCaption
+	status.TextStyle = fyne.TextStyle{Italic: true, Monospace: true}
 	status.Alignment = fyne.TextAlignTrailing
 
 	setStatus := func(msg string) {
-		status.SetText(msg)
+		status.Text = msg
+		status.Refresh()
 	}
 
 	autoBtn := newPointerButton("AUTO-RENAME", func() {

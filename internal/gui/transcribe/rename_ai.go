@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/theme"
@@ -21,6 +22,19 @@ import (
 	"github.com/asolopovas/wt/internal/transcriber"
 	"github.com/asolopovas/wt/internal/transcriber/cache"
 )
+
+func setCanvasText(t *canvas.Text, s string) {
+	t.Text = s
+	t.Refresh()
+}
+
+func truncErr(err error) string {
+	msg := err.Error()
+	if len(msg) > 40 {
+		msg = msg[:40] + "…"
+	}
+	return msg
+}
 
 type renameDecision struct {
 	keep    bool
@@ -52,23 +66,23 @@ func (p *Panel) promptRename(originalName, suggested string, regenerate func() (
 	})
 	pasteBtn.Importance = widget.LowImportance
 
-	status := widget.NewLabel("")
-	status.Truncation = fyne.TextTruncateEllipsis
-	status.TextStyle = fyne.TextStyle{Italic: true}
+	status := canvas.NewText("", colMuted)
+	status.TextSize = textCaption
+	status.TextStyle = fyne.TextStyle{Italic: true, Monospace: true}
 	status.Alignment = fyne.TextAlignTrailing
 
 	var autoBtn fyne.CanvasObject
 	if regenerate != nil {
 		btn := newSecondaryButton("AUTO-RENAME", func() {
-			status.SetText("Regenerating…")
+			setCanvasText(status, "Generating…")
 			go func() {
 				suggestion, err := regenerate()
 				fyne.Do(func() {
 					if err != nil {
-						status.SetText("Auto-rename failed: " + err.Error())
+						setCanvasText(status, "Failed: "+truncErr(err))
 					} else {
 						entry.SetText(suggestion)
-						status.SetText("")
+						setCanvasText(status, "")
 					}
 				})
 			}()

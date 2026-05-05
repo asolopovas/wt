@@ -6,6 +6,7 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 )
@@ -82,7 +83,7 @@ func ShowDialog(cfg DialogConfig) func() {
 		header := NewSectionHeader(cfg.Title)
 		var row fyne.CanvasObject
 		if cfg.TitleRight != nil {
-			row = container.NewBorder(nil, nil, header, cfg.TitleRight, nil)
+			row = container.New(layout.NewHBoxLayout(), header, layout.NewSpacer(), cfg.TitleRight)
 		} else {
 			row = container.NewHBox(header)
 		}
