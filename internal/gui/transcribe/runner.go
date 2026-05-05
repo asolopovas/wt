@@ -35,15 +35,18 @@ func formatETA(secs float64) string {
 	if secs < 0 {
 		secs = 0
 	}
-	total := int(secs)
+	total := int(secs + 0.5)
 	h := total / 3600
 	m := (total % 3600) / 60
 	s := total % 60
-	return fmt.Sprintf("%02d:%02d:%02d", h, m, s)
+	if h > 0 {
+		return fmt.Sprintf("%d:%02d:%02d", h, m, s)
+	}
+	return fmt.Sprintf("%d:%02d", m, s)
 }
 
 func formatProgressTime(elapsedSec, etaSec float64) string {
-	return fmt.Sprintf("%s/%s", formatETA(elapsedSec), formatETA(etaSec))
+	return fmt.Sprintf("%s elapsed · %s left", formatETA(elapsedSec), formatETA(etaSec))
 }
 
 func (p *Panel) onTranscribe() {
