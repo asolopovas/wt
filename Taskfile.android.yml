@@ -41,7 +41,6 @@ tasks:
       - ffmpeg
       - llama-cli
       - sherpa-bin
-      - :fetch-vad
     cmds:
       - cmd: |
           export ANDROID_SDK="{{.ANDROID_SDK}}"

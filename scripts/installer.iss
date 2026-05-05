@@ -485,41 +485,6 @@ begin
   AdvanceProgress();
 end;
 
-procedure DownloadVADModel();
-var
-  ModelDir, ModelPath, ModelUrl, TmpPath: string;
-  EC: Integer;
-begin
-  ModelDir := ExpandConstant('{%APPDATA}\wt\models');
-  ForceDirectories(ModelDir);
-  ModelPath := ModelDir + '\ggml-silero-v6.2.0.bin';
-
-  if FileExists(ModelPath) then begin
-    LogOk('VAD model already downloaded: ' + ModelPath);
-    MemoLog('  VAD model already downloaded');
-    AdvanceProgress();
-    exit;
-  end;
-
-  ModelUrl := 'https://huggingface.co/ggml-org/whisper-vad/resolve/main/ggml-silero-v6.2.0.bin';
-  TmpPath := ModelPath + '.downloading';
-
-  SetStepStatus('Downloading VAD model...');
-  EC := RunStreamed('Downloading VAD model', 'curl',
-    '-L --silent --show-error --fail -o "' + TmpPath + '" "' + ModelUrl + '"');
-
-  if (EC = 0) and FileExists(TmpPath) then begin
-    RenameFile(TmpPath, ModelPath);
-    LogOk('VAD model saved to ' + ModelPath);
-    MemoLog('  VAD model saved to ' + ModelPath);
-  end else begin
-    LogError('VAD model download failed (curl exit code ' + IntToStr(EC) + ')');
-    MemoLog('  ERROR: VAD model download failed');
-    DeleteFile(TmpPath);
-  end;
-  AdvanceProgress();
-end;
-
 procedure CurStepChanged(CurStep: TSetupStep);
 begin
   if CurStep <> ssPostInstall then exit;
@@ -532,7 +497,7 @@ begin
   Log('App directory: ' + ExpandConstant('{app}'));
   Log('Log file: ' + SetupLogPath);
 
-  TotalSteps := 5;
+  TotalSteps := 4;
   CurrentStep := 0;
   if Assigned(OverallProgress) then begin
     OverallProgress.Max := TotalSteps;
@@ -554,7 +519,6 @@ begin
   InstallFFmpeg();
   InstallCuda();
   InstallPythonEnv();
-  DownloadVADModel();
 
   Log('=========================================');
   Log('Setup complete.');

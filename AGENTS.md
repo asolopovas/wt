@@ -66,7 +66,6 @@ internal/
     wav.go                         WAV header parsing
     job.go                         JobSpec
     cache/                         Result cache (probe + store)
-    assets/                        Embedded VAD model (silero v6.2.0)
 
   llm/                             llama-cli subprocess (rename, summarize)
     runner.go                      Subprocess runner

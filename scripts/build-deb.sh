@@ -25,7 +25,7 @@ cp dist/deps/uv-linux "$root/opt/wt/uv"
 cp scripts/setup-linux-user.sh "$root/opt/wt/wt-setup"
 chmod +x "$root/opt/wt/uv" "$root/opt/wt/wt-setup" "$root/opt/wt/$BINARY" "$root/opt/wt/$BINARY-gui"
 
-# Bundled models (sherpa-whisper-turbo ONNX + Silero VAD)
+# Bundled models (sherpa-whisper-turbo ONNX)
 src_models="${XDG_CONFIG_HOME:-$HOME/.config}/wt/models"
 if [ -d "$src_models/sherpa-whisper-turbo" ]; then
 	echo "  bundling sherpa-whisper-turbo/"
@@ -34,12 +34,6 @@ if [ -d "$src_models/sherpa-whisper-turbo" ]; then
 else
 	echo "  WARN: $src_models/sherpa-whisper-turbo missing (run 'task models-import' first)"
 fi
-for f in ggml-silero-v6.2.0.bin; do
-	if [ -f "$src_models/$f" ]; then
-		cp "$src_models/$f" "$root/opt/wt/models/$f"
-	fi
-done
-
 # Docs
 cp LICENSE "$root/usr/share/doc/wt/copyright" 2>/dev/null || true
 cp THIRD-PARTY-LICENSES.txt "$root/usr/share/doc/wt/" 2>/dev/null || true

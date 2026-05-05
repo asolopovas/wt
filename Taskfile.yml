@@ -183,7 +183,7 @@ tasks:
         if: '[ "{{.FETCH}}" != "samples" ] && [ "{{.FETCH}}" != "import" ]'
 
   build:linux:
-    deps: [sherpa-cuda-bin, fetch-deps, fetch-vad]
+    deps: [sherpa-cuda-bin, fetch-deps]
     sources:
       - cmd/**/*.go
       - internal/**/*.go
@@ -224,7 +224,7 @@ tasks:
         if: '[ -z "{{.ONLY}}" ]'
 
   build:windows:
-    deps: [fetch-deps, fetch-vad]
+    deps: [fetch-deps]
     sources:
       - cmd/**/*.go
       - internal/**/*.go
@@ -267,15 +267,6 @@ tasks:
       - task: build:windows
         vars: { ONLY: host }
       - cmd: bash scripts/install-host-windows.sh "{{.VERSION}}" "{{.BINARY}}"
-
-  fetch-vad:
-    internal: true
-    run: once
-    desc: Download Silero VAD model for embedding into the binary
-    sources: [scripts/fetch-vad.sh]
-    generates: [internal/transcriber/assets/ggml-silero-v6.2.0.bin]
-    cmds:
-      - bash scripts/fetch-vad.sh
 
   sherpa-cuda-bin:
     internal: true
