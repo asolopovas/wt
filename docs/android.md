@@ -32,7 +32,7 @@ Public sideload path: `internal/config_android.go:platformModelsDirOverride`. Ne
 
 ## ASR engine selection
 
-Use sherpa-onnx engines, not whisper.cpp (ONNX path is ~7× faster on Android).
+Use sherpa-onnx engines
 
 - Default Android ASR: `sherpa-whisper-turbo`.
 - Fast: `parakeet-tdt-0.6b-v2-int8`.
