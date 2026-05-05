@@ -15,6 +15,7 @@ import (
 
 	shared "github.com/asolopovas/wt/internal"
 	"github.com/asolopovas/wt/internal/diarizer"
+	"github.com/asolopovas/wt/internal/models"
 )
 
 func sherpaBinaryName() string {
@@ -745,16 +746,21 @@ func RunWhisperONNX(ctx context.Context, spec JobSpec, samples []float32, audioD
 	return segs, detected, rtf, nil
 }
 
-const moonshineBundleName = "sherpa-onnx-moonshine-base-en-int8"
+const moonshineBundleName = "sherpa-onnx-moonshine-tiny-en-int8"
 
-func moonshineModelDir() string {
+func moonshineModelDir(modelID string) string {
 	if v := os.Getenv("WT_MOONSHINE_DIR"); v != "" {
 		return v
 	}
-	name := moonshineBundleName
 	if v := os.Getenv("WT_MOONSHINE_BUNDLE"); v != "" {
-		name = v
+		return filepath.Join(shared.ModelsDir(), v)
 	}
+	if modelID != "" {
+		if dir := models.DirForID(modelID); dir != "" && fileExists(filepath.Join(dir, "preprocess.onnx")) {
+			return dir
+		}
+	}
+	name := moonshineBundleName
 	flat := filepath.Join(shared.ModelsDir(), name)
 	if fileExists(filepath.Join(flat, "preprocess.onnx")) {
 		return flat
@@ -766,8 +772,8 @@ type moonshineModelPaths struct {
 	Preprocessor, Encoder, UncachedDecoder, CachedDecoder, Tokens string
 }
 
-func resolveMoonshineModels() (moonshineModelPaths, error) {
-	dir := moonshineModelDir()
+func resolveMoonshineModels(modelID string) (moonshineModelPaths, error) {
+	dir := moonshineModelDir(modelID)
 	p := moonshineModelPaths{
 		Preprocessor:    filepath.Join(dir, "preprocess.onnx"),
 		Encoder:         filepath.Join(dir, "encode.int8.onnx"),
@@ -796,17 +802,17 @@ func RunMoonshine(ctx context.Context, spec JobSpec, samples []float32, audioDur
 	if err != nil {
 		return nil, "", 0, fmt.Errorf("moonshine engine: %w", err)
 	}
-	models, err := resolveMoonshineModels()
+	mpaths, err := resolveMoonshineModels(spec.ModelSize)
 	if err != nil {
 		return nil, "", 0, fmt.Errorf("moonshine engine: %w", err)
 	}
 	argsForWAV := func(wavPath string) []string {
 		return []string{
-			"--moonshine-preprocessor=" + models.Preprocessor,
-			"--moonshine-encoder=" + models.Encoder,
-			"--moonshine-uncached-decoder=" + models.UncachedDecoder,
-			"--moonshine-cached-decoder=" + models.CachedDecoder,
-			"--tokens=" + models.Tokens,
+			"--moonshine-preprocessor=" + mpaths.Preprocessor,
+			"--moonshine-encoder=" + mpaths.Encoder,
+			"--moonshine-uncached-decoder=" + mpaths.UncachedDecoder,
+			"--moonshine-cached-decoder=" + mpaths.CachedDecoder,
+			"--tokens=" + mpaths.Tokens,
 			fmt.Sprintf("--num-threads=%d", sherpaThreads(spec)),
 			"--provider=" + sherpaProvider(),
 			wavPath,

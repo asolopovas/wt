@@ -11,6 +11,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -426,6 +427,89 @@ func (m *Manager) Delete(id string) error {
 	}
 	m.mu.Unlock()
 	return m.saveActive()
+}
+
+type Orphan struct {
+	Path      string
+	SizeBytes int64
+}
+
+func (m *Manager) Orphans() []Orphan {
+	known := map[string]bool{}
+	for _, e := range Catalog() {
+		for _, p := range PathsFor(e) {
+			known[filepath.Clean(p)] = true
+		}
+		known[filepath.Clean(installedManifestPath(e))] = true
+		known[filepath.Clean(filepath.Dir(installedManifestPath(e)))] = true
+		for _, p := range PathsFor(e) {
+			known[filepath.Clean(filepath.Dir(p))] = true
+		}
+	}
+	roots := []string{shared.ModelsDir(), filepath.Join(externalRoot(), "llm")}
+	seen := map[string]bool{}
+	var out []Orphan
+	for _, root := range roots {
+		if seen[root] {
+			continue
+		}
+		seen[root] = true
+		entries, err := os.ReadDir(root)
+		if err != nil {
+			continue
+		}
+		for _, ent := range entries {
+			abs := filepath.Join(root, ent.Name())
+			if known[filepath.Clean(abs)] {
+				continue
+			}
+			size := dirOrFileSize(abs)
+			out = append(out, Orphan{Path: abs, SizeBytes: size})
+		}
+	}
+	return out
+}
+
+func (m *Manager) RemoveOrphan(path string) error {
+	cleaned := filepath.Clean(path)
+	protected := map[string]bool{}
+	for _, root := range []string{shared.ModelsDir(), filepath.Join(externalRoot(), "llm")} {
+		protected[filepath.Clean(root)] = true
+	}
+	if protected[cleaned] {
+		return fmt.Errorf("refusing to delete root: %s", cleaned)
+	}
+	inside := false
+	for root := range protected {
+		rel, err := filepath.Rel(root, cleaned)
+		if err == nil && !strings.HasPrefix(rel, "..") && rel != "." {
+			inside = true
+			break
+		}
+	}
+	if !inside {
+		return fmt.Errorf("refusing to delete outside models dir: %s", cleaned)
+	}
+	return os.RemoveAll(cleaned)
+}
+
+func dirOrFileSize(path string) int64 {
+	st, err := os.Stat(path)
+	if err != nil {
+		return 0
+	}
+	if !st.IsDir() {
+		return st.Size()
+	}
+	var total int64
+	_ = filepath.Walk(path, func(_ string, info os.FileInfo, walkErr error) error {
+		if walkErr != nil || info == nil || info.IsDir() {
+			return nil //nolint:nilerr // best-effort sizing
+		}
+		total += info.Size()
+		return nil
+	})
+	return total
 }
 
 func (m *Manager) DiskUsage() int64 {

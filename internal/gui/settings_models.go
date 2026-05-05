@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"image/color"
+	"path/filepath"
 	"strings"
 	"sync"
 
@@ -54,7 +55,10 @@ func newModelsSection(win fyne.Window) *modelsSection {
 	addBtn := widget.NewButtonWithIcon("ADD", theme.ContentAddIcon(), s.openDownloadDialog)
 	addBtn.Importance = widget.LowImportance
 
-	right := container.NewHBox(s.diskLabel, addBtn)
+	cleanBtn := widget.NewButtonWithIcon("CLEAN", theme.DeleteIcon(), s.openCleanupDialog)
+	cleanBtn.Importance = widget.LowImportance
+
+	right := container.NewHBox(s.diskLabel, cleanBtn, addBtn)
 	head := container.NewBorder(nil, nil, header, right, nil)
 	s.rows = container.New(&tightVBox{gap: 0})
 	s.container = container.NewVBox(head, vGap(spaceSM), s.rows)
@@ -208,10 +212,12 @@ func (s *modelsSection) buildRow(e models.Entry) fyne.CanvasObject {
 	s.mu.Unlock()
 
 	info := s.modelInfoBlock(e, status, isActive, downloading)
+	infoBtn := newIconTap(theme.InfoIcon(), 18, func() { s.showModelDetails(e) })
 
 	if downloading {
 		cancel := newIconTap(theme.CancelIcon(), 18, func() { s.cancel(e.ID) })
-		return container.NewBorder(nil, nil, nil, cancel, info)
+		trail := container.NewHBox(infoBtn, cancel)
+		return container.NewBorder(nil, nil, nil, trail, info)
 	}
 
 	del := newIconTap(theme.DeleteIcon(), 18, func() {
@@ -226,7 +232,8 @@ func (s *modelsSection) buildRow(e models.Entry) fyne.CanvasObject {
 			})
 	})
 
-	row := container.NewBorder(nil, nil, nil, del, info)
+	trail := container.NewHBox(infoBtn, del)
+	row := container.NewBorder(nil, nil, nil, trail, info)
 	if isActive {
 		return row
 	}
@@ -293,6 +300,67 @@ func (r *tappableRow) Tapped(_ *fyne.PointEvent) {
 	if r.onTap != nil {
 		r.onTap()
 	}
+}
+
+func (s *modelsSection) openCleanupDialog() {
+	orphans := s.mgr.Orphans()
+	if len(orphans) == 0 {
+		info := widget.NewLabel("No orphan files in the Models directory.")
+		info.Wrapping = fyne.TextWrapWord
+		showDialog(dialogConfig{
+			Parent:  s.window,
+			Title:   "CLEANUP",
+			Body:    info,
+			Actions: []dialogAction{{Label: "OK", Kind: kindPrimary}},
+		})
+		return
+	}
+
+	var total int64
+	rows := container.NewVBox()
+	for _, o := range orphans {
+		total += o.SizeBytes
+		name := canvas.NewText(filepath.Base(o.Path), decor.TextPrimary)
+		name.TextSize = textCaption
+		name.TextStyle = fyne.TextStyle{Monospace: true}
+		size := canvas.NewText(humanBytes(o.SizeBytes), decor.TextMuted)
+		size.TextSize = textCaption
+		size.TextStyle = fyne.TextStyle{Monospace: true}
+		rows.Add(container.NewBorder(nil, nil, name, size, nil))
+	}
+
+	header := canvas.NewText(fmt.Sprintf("%d item(s) · %s reclaimable", len(orphans), humanBytes(total)), decor.TextMuted)
+	header.TextSize = textCaption
+	header.TextStyle = fyne.TextStyle{Monospace: true}
+
+	body := container.NewVBox(header, vGap(spaceMD), rows)
+	scroll := container.NewVScroll(body)
+	scroll.SetMinSize(fyne.NewSize(280, 320))
+
+	showDialog(dialogConfig{
+		Parent: s.window,
+		Title:  "CLEANUP UNUSED",
+		Body:   scroll,
+		Actions: []dialogAction{
+			{Label: "CANCEL", Kind: kindSecondary},
+			{Label: "DELETE", Kind: kindPrimary, OnTap: func() {
+				go func() {
+					var firstErr error
+					for _, o := range orphans {
+						if err := s.mgr.RemoveOrphan(o.Path); err != nil && firstErr == nil {
+							firstErr = err
+						}
+					}
+					fyne.Do(func() {
+						if firstErr != nil {
+							showError(s.window, firstErr)
+						}
+						s.refresh()
+					})
+				}()
+			}},
+		},
+	})
 }
 
 func (s *modelsSection) openDownloadDialog() {
@@ -369,14 +437,83 @@ func (s *modelsSection) buildDownloadRow(e models.Entry) fyne.CanvasObject {
 	s.mu.Unlock()
 
 	info := s.modelInfoBlock(e, status, false, downloading)
+	infoBtn := newIconTap(theme.InfoIcon(), 18, func() { s.showModelDetails(e) })
 
 	if downloading {
 		cancel := newIconTap(theme.CancelIcon(), 18, func() { s.cancel(e.ID) })
-		return container.NewBorder(nil, nil, nil, cancel, info)
+		trail := container.NewHBox(infoBtn, cancel)
+		return container.NewBorder(nil, nil, nil, trail, info)
 	}
 
 	dl := newIconTap(downloadIcon, 18, func() { s.startDownload(e) })
-	return container.NewBorder(nil, nil, nil, dl, info)
+	trail := container.NewHBox(infoBtn, dl)
+	return container.NewBorder(nil, nil, nil, trail, info)
+}
+
+func (s *modelsSection) showModelDetails(e models.Entry) {
+	lines := []string{}
+
+	familyLabel := strings.ToUpper(e.Family)
+	switch models.Family(e.Family) {
+	case models.FamilyASR:
+		familyLabel = "Transcription"
+	case models.FamilyDiarizer:
+		familyLabel = "Diarization"
+	case models.FamilyLLM:
+		familyLabel = "Language model"
+	}
+	lines = append(lines, "Type:    "+familyLabel)
+	if e.Engine != "" {
+		lines = append(lines, "Engine:  "+e.Engine)
+	}
+	lines = append(lines, "Size:    "+humanBytes(e.SizeBytes))
+	if e.RAMHintMB > 0 {
+		lines = append(lines, fmt.Sprintf("RAM:     ~%d MB", e.RAMHintMB))
+	}
+	if len(e.Languages) > 0 {
+		lines = append(lines, "Langs:   "+strings.Join(e.Languages, ", "))
+	}
+
+	desc := strings.TrimSpace(e.Description)
+	if desc == "" {
+		desc = "No description available for this model."
+	}
+
+	meta := canvas.NewText(strings.Join(lines, "\n"), decor.TextMuted)
+	meta.TextSize = textCaption
+	meta.TextStyle = fyne.TextStyle{Monospace: true}
+
+	body := widget.NewLabel(desc)
+	body.Wrapping = fyne.TextWrapWord
+
+	content := container.NewVBox(
+		multilineMonoBlock(strings.Join(lines, "\n")),
+		vGap(spaceMD),
+		body,
+	)
+	scroll := container.NewVScroll(content)
+	scroll.SetMinSize(fyne.NewSize(280, 240))
+
+	showDialog(dialogConfig{
+		Parent: s.window,
+		Title:  strings.ToUpper(modelShortName(e.DisplayName)),
+		Body:   scroll,
+		Actions: []dialogAction{
+			{Label: "CLOSE", Kind: kindPrimary},
+		},
+	})
+}
+
+func multilineMonoBlock(text string) fyne.CanvasObject {
+	lines := strings.Split(text, "\n")
+	objs := make([]fyne.CanvasObject, 0, len(lines))
+	for _, ln := range lines {
+		t := canvas.NewText(ln, decor.TextMuted)
+		t.TextSize = textCaption
+		t.TextStyle = fyne.TextStyle{Monospace: true}
+		objs = append(objs, t)
+	}
+	return container.NewVBox(objs...)
 }
 
 func modelStatusGlyph(st models.Status, active, downloading bool) (string, color.Color) {

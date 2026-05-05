@@ -144,6 +144,10 @@ _tmp/                              Local scratch (gitignored)
 
 ### Filesystem
 - Never write screenshots, logs, or binary debug artifacts into tracked dirs. Use `os.TempDir()` or `_tmp/` (gitignored).
+- **Runtime log for troubleshooting** (`wt.log`, rotated by `internal/logfile.go` via lumberjack):
+  - Android: `/storage/emulated/0/Documents/WTranscribe/wt.log` — pull with `adb -s <serial> shell cat /storage/emulated/0/Documents/WTranscribe/wt.log` (and `config.yml` lives next to it). Also surfaced in Settings → VIEW LOG.
+  - Desktop: `<os.UserCacheDir>/wt/imports/wt.log` (Linux: `~/.cache/wt/imports/wt.log`, macOS: `~/Library/Caches/wt/imports/wt.log`, Windows: `%LOCALAPPDATA%\wt\imports\wt.log`).
+  - `adb logcat` only captures Android system + native loader output; for app-level errors (engine resolve failures, model paths, runner phases) always read `wt.log` first.
 - Model storage paths come from `internal/models/paths.go` + `external_*.go`, with `internal/config_android.go` owning the `/storage/emulated/0/Documents/WTranscribe` override on Android. Never hard-code `/sdcard/...` or `~/.cache/...` in other Go files. (Doc/adb examples are fine.)
 - Android in-process code never globs `/data/app/*/...` — see `docs/android.md` for the `/proc/self/maps` discovery pattern.
 
