@@ -623,27 +623,6 @@ func humanBytes(n int64) string {
 	}
 }
 
-type fixedHeightLayout struct {
-	height float32
-}
-
-func (l *fixedHeightLayout) Layout(objs []fyne.CanvasObject, size fyne.Size) {
-	for _, o := range objs {
-		o.Move(fyne.NewPos(0, 0))
-		o.Resize(fyne.NewSize(size.Width, l.height))
-	}
-}
-
-func (l *fixedHeightLayout) MinSize(objs []fyne.CanvasObject) fyne.Size {
-	var w float32
-	for _, o := range objs {
-		if m := o.MinSize().Width; m > w {
-			w = m
-		}
-	}
-	return fyne.NewSize(w, l.height)
-}
-
 type fixedWidthLayoutModels struct {
 	width float32
 }

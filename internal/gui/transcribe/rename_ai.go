@@ -38,8 +38,6 @@ func (p *Panel) promptRename(originalName, suggested string, regenerate func() (
 
 	entry := widget.NewEntry()
 	entry.SetText(suggested)
-	entryScroll := container.NewHScroll(entry)
-	entryScroll.SetMinSize(fyne.NewSize(0, entry.MinSize().Height))
 
 	clipboard := fyne.CurrentApp().Clipboard()
 	cutBtn := newPointerButtonWithIcon("", theme.ContentCutIcon(), func() {
@@ -78,8 +76,7 @@ func (p *Panel) promptRename(originalName, suggested string, regenerate func() (
 				})
 			}()
 		})
-		btn.Importance = widget.LowImportance
-		autoBtn = btn
+		autoBtn = decor.WrapAction(btn)
 	}
 
 	toolbarKids := []fyne.CanvasObject{}
@@ -89,7 +86,7 @@ func (p *Panel) promptRename(originalName, suggested string, regenerate func() (
 	toolbarKids = append(toolbarKids, layout.NewSpacer(), cutBtn, copyBtn, pasteBtn)
 	toolbar := container.NewHBox(toolbarKids...)
 
-	body := container.NewVBox(entryScroll, toolbar)
+	body := container.NewVBox(entry, toolbar)
 
 	ch := make(chan renameDecision, 1)
 	send := func(d renameDecision) {

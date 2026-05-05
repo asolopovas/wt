@@ -281,8 +281,6 @@ func (h *historyPanel) renameEntry(e cache.Entry) {
 	entry.SetText(stem)
 
 	entryThemed := container.NewThemeOverride(entry, &renameEntryTheme{parent: fyne.CurrentApp().Settings().Theme()})
-	entryScroll := container.NewHScroll(entryThemed)
-	entrySized := container.New(&fixedHeightLayout{height: 56}, entryScroll)
 
 	clipboard := fyne.CurrentApp().Clipboard()
 	cutBtn := newPointerButtonWithIcon("", theme.ContentCutIcon(), func() {
@@ -326,11 +324,9 @@ func (h *historyPanel) renameEntry(e cache.Entry) {
 			})
 		}()
 	})
-	autoBtn.Importance = widget.LowImportance
+	toolbar := container.NewHBox(decor.WrapAction(autoBtn), layout.NewSpacer(), cutBtn, copyBtn, pasteBtn)
 
-	toolbar := container.NewHBox(autoBtn, layout.NewSpacer(), cutBtn, copyBtn, pasteBtn)
-
-	form := container.New(&tightVBox{gap: spaceSM}, entrySized, toolbar)
+	form := container.New(&tightVBox{gap: spaceSM}, entryThemed, toolbar)
 
 	showDialog(dialogConfig{
 		Parent:     h.window,

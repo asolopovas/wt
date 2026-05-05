@@ -84,7 +84,7 @@ func (t *whisperTheme) Size(name fyne.ThemeSizeName) float32 {
 	case theme.SizeNamePadding:
 		return spaceMD
 	case theme.SizeNameInnerPadding:
-		return spaceXL
+		return spaceLG
 	case theme.SizeNameText:
 		return textLabel
 	case theme.SizeNameHeadingText:
