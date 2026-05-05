@@ -76,9 +76,10 @@ tasks:
     desc: "Build binaries (+ installer/.deb). ONLY=cli|gui|android. android → APK."
     cmds:
       - task: android:apk
+        vars: { VERSION: "{{.VERSION}}" }
         if: '[ "{{.ONLY}}" = "android" ]'
       - task: "build:{{OS}}"
-        vars: { ONLY: "{{.ONLY}}" }
+        vars: { ONLY: "{{.ONLY}}", VERSION: "{{.VERSION}}" }
         if: '[ "{{.ONLY}}" != "android" ]'
 
   install:
@@ -221,6 +222,7 @@ tasks:
           fi
       - cp scripts/diarize.py "{{.ROOT_DIR | toSlash}}/dist/bin/diarize.py"
       - task: linux-deb
+        vars: { VERSION: "{{.VERSION}}" }
         if: '[ -z "{{.ONLY}}" ]'
 
   build:windows:
@@ -251,6 +253,7 @@ tasks:
           fi
       - cp scripts/diarize.py "{{.ROOT_DIR | toSlash}}/dist/bin/diarize.py"
       - task: installer-exe
+        vars: { VERSION: "{{.VERSION}}" }
         if: '[ -z "{{.ONLY}}" ]'
 
   install:linux:

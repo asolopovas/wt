@@ -60,7 +60,6 @@ fi
 fyne package --os android/arm64 \
 	--appID com.asolopovas.wtranscribe \
 	--name "$APP_NAME" \
-	--appVersion "$VERSION" \
 	--icon "$ROOT_DIR/winres/icon.png" \
 	--src "$ROOT_DIR/cmd/wt-gui"
 

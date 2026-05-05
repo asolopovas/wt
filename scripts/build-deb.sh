@@ -6,6 +6,11 @@ VERSION="$1"
 BINARY="$2"
 ROOT_DIR="$3"
 
+case "$VERSION" in
+	dev-*) DEB_VERSION="0.0.0~$(echo "${VERSION#dev-}" | tr -d -)" ;;
+	*)    DEB_VERSION="$VERSION" ;;
+esac
+
 if ! command -v dpkg-deb >/dev/null 2>&1; then
 	echo "ERROR: dpkg-deb not found (install: sudo apt install dpkg-dev fakeroot)" >&2
 	exit 1
@@ -62,7 +67,7 @@ EOF
 inst_size=$(du -sk "$root/opt" | cut -f1)
 cat >"$root/DEBIAN/control" <<EOF
 Package: wt
-Version: ${VERSION}
+Version: ${DEB_VERSION}
 Section: sound
 Priority: optional
 Architecture: amd64
