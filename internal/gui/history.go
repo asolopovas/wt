@@ -17,6 +17,7 @@ import (
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
+	shared "github.com/asolopovas/wt/internal"
 	"github.com/asolopovas/wt/internal/gui/decor"
 	"github.com/asolopovas/wt/internal/gui/player"
 	"github.com/asolopovas/wt/internal/gui/transcribe"
@@ -317,7 +318,12 @@ func (h *historyPanel) renameEntry(e cache.Entry) {
 					setStatus("Downloading LLM… try again shortly.")
 					go h.ensureLLMDownload()
 				default:
-					setStatus("Auto-rename failed.")
+					shared.LogError(fmt.Sprintf("Auto-rename failed: %v", serr))
+					msg := serr.Error()
+					if len(msg) > 80 {
+						msg = msg[:80] + "…"
+					}
+					setStatus("Auto-rename failed: " + msg + " (see wt.log)")
 				}
 			})
 		}()
