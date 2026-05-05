@@ -2,10 +2,12 @@ package gui
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"fyne.io/fyne/v2"
@@ -18,10 +20,14 @@ import (
 	"github.com/asolopovas/wt/internal/gui/decor"
 	"github.com/asolopovas/wt/internal/gui/player"
 	"github.com/asolopovas/wt/internal/gui/transcribe"
+	"github.com/asolopovas/wt/internal/llm"
+	"github.com/asolopovas/wt/internal/models"
 	"github.com/asolopovas/wt/internal/namer"
 	"github.com/asolopovas/wt/internal/transcriber"
 	"github.com/asolopovas/wt/internal/transcriber/cache"
 )
+
+var llmDownloadOnce sync.Mutex
 
 const startTimeLayout = "2006-01-02 15:04:05"
 
@@ -290,22 +296,29 @@ func (h *historyPanel) renameEntry(e cache.Entry) {
 	})
 	pasteBtn.Importance = widget.LowImportance
 
-	status := canvas.NewText("", colMuted)
-	status.TextSize = textCaption
+	status := widget.NewLabel("")
+	status.Wrapping = fyne.TextWrapWord
+	status.TextStyle = fyne.TextStyle{Italic: true}
+
+	setStatus := func(msg string) {
+		status.SetText(msg)
+	}
 
 	autoBtn := newPointerButton("AUTO-RENAME", func() {
-		status.Text = "Generating…"
-		status.Refresh()
+		setStatus("Generating…")
 		go func() {
 			stem, serr := h.suggestStemForEntry(e)
 			fyne.Do(func() {
-				if serr != nil {
-					status.Text = "Auto-rename failed: " + serr.Error()
-				} else {
+				switch {
+				case serr == nil:
 					entry.SetText(stem)
-					status.Text = ""
+					setStatus("")
+				case errors.Is(serr, llm.ErrNoLLMInstalled):
+					setStatus("Downloading LLM… try again shortly.")
+					go h.ensureLLMDownload()
+				default:
+					setStatus("Auto-rename failed.")
 				}
-				status.Refresh()
 			})
 		}()
 	})
@@ -359,6 +372,33 @@ func (h *historyPanel) renameEntry(e cache.Entry) {
 		c.Focus(entry)
 		entry.TypedShortcut(&fyne.ShortcutSelectAll{})
 	})
+}
+
+func (h *historyPanel) ensureLLMDownload() {
+	if !llmDownloadOnce.TryLock() {
+		return
+	}
+	defer llmDownloadOnce.Unlock()
+
+	mgr := models.NewManager()
+	var target models.Entry
+	found := false
+	for _, e := range models.ByFamily(models.FamilyLLM) {
+		if e.DefaultActive {
+			target = e
+			found = true
+			break
+		}
+	}
+	if !found {
+		return
+	}
+	if mgr.Status(target.ID) == models.StatusInstalled {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+	defer cancel()
+	_ = mgr.Get(ctx, target.ID, nil)
 }
 
 func (h *historyPanel) suggestStemForEntry(e cache.Entry) (string, error) {

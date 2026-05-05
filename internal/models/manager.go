@@ -216,6 +216,11 @@ func (m *Manager) Get(ctx context.Context, id string, prog func(Progress)) error
 	defer m.releaseSlot(id)
 
 	log.Printf("[models] %s: downloading %d file(s), %.1f MB total", id, len(specs), float64(totalAll)/(1024*1024))
+	display := e.DisplayName
+	if display == "" {
+		display = id
+	}
+	shared.LogInfo(fmt.Sprintf("Downloading model: %s (%s, %d file(s), %.0f MB)", display, id, len(specs), float64(totalAll)/(1024*1024)))
 	start := time.Now()
 	var completed int64
 	for i, s := range specs {
@@ -245,6 +250,7 @@ func (m *Manager) Get(ctx context.Context, id string, prog func(Progress)) error
 		})
 		if err := shared.DownloadFile(dst, s.URL, cb); err != nil {
 			log.Printf("[models] %s: FAILED file %d/%d %s: %v", id, i+1, len(specs), filepath.Base(dst), err)
+			shared.LogError(fmt.Sprintf("  %s: failed downloading %s: %v", display, filepath.Base(dst), err))
 			return fmt.Errorf("downloading %s: %w", id, err)
 		}
 		if s.SHA256 != "" {
@@ -255,6 +261,7 @@ func (m *Manager) Get(ctx context.Context, id string, prog func(Progress)) error
 			}
 		}
 		log.Printf("[models] %s: file %d/%d %s done (%.1fs)", id, i+1, len(specs), filepath.Base(dst), time.Since(fileStart).Seconds())
+		shared.LogInfo(fmt.Sprintf("  %s: %s (%.0f MB) %.0fs", display, filepath.Base(dst), float64(s.SizeBytes)/(1024*1024), time.Since(fileStart).Seconds()))
 		completed += s.SizeBytes
 	}
 
@@ -263,6 +270,7 @@ func (m *Manager) Get(ctx context.Context, id string, prog func(Progress)) error
 		return fmt.Errorf("writing model.json for %s: %w", id, err)
 	}
 	log.Printf("[models] %s: installed in %.1fs", id, time.Since(start).Seconds())
+	shared.LogInfo(fmt.Sprintf("Installed model: %s in %.0fs", display, time.Since(start).Seconds()))
 
 	if prog != nil {
 		prog(Progress{ID: id, Downloaded: totalAll, Total: totalAll, Done: true})

@@ -69,12 +69,19 @@ func newModelsSection(win fyne.Window) *modelsSection {
 
 func (s *modelsSection) ensureDefaults() {
 	defaultASR := defaultASRModelID()
-	var diarizer models.Entry
-	hasDiar := false
+	var diarizer, llmDefault models.Entry
+	hasDiar, hasLLM := false, false
 	for _, e := range models.ByFamily(models.FamilyDiarizer) {
 		if e.DefaultActive {
 			diarizer = e
 			hasDiar = true
+			break
+		}
+	}
+	for _, e := range models.ByFamily(models.FamilyLLM) {
+		if e.DefaultActive {
+			llmDefault = e
+			hasLLM = true
 			break
 		}
 	}
@@ -84,6 +91,9 @@ func (s *modelsSection) ensureDefaults() {
 	}
 	if hasDiar && s.mgr.Status(diarizer.ID) != models.StatusInstalled {
 		need = append(need, diarizer)
+	}
+	if hasLLM && s.mgr.Status(llmDefault.ID) != models.StatusInstalled {
+		need = append(need, llmDefault)
 	}
 	if len(need) == 0 {
 		return
