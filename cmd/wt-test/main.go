@@ -21,7 +21,7 @@ func main() {
 	diarizeOnly := flag.Bool("diarize-only", false, "run only the diarizer and exit")
 	diarize := flag.Bool("diarize", false, "after ASR, run diarizer + BuildTranscript and print utterances")
 	speakers := flag.Int("speakers", 0, "force number of speakers (0=auto)")
-	engine := flag.String("engine", "whisper-onnx", "ASR engine: whisper-onnx | parakeet | sensevoice | moonshine | zipformer | canary | nemo-ctc")
+	engine := flag.String("engine", "whisper-onnx", "ASR engine: whisper-onnx | parakeet | sensevoice | zipformer | canary | nemo-ctc")
 	flag.Parse()
 
 	if flag.NArg() < 1 {
@@ -66,7 +66,7 @@ func runSherpaEngine(engine, audioPath, modelID, lang string, threads int, withD
 	} else {
 		fmt.Printf("Provider: cpu (default)\n")
 	}
-	for _, ev := range []string{"WT_PARAKEET_DIR", "WT_SENSEVOICE_DIR", "WT_ZIPFORMER_DIR", "WT_MOONSHINE_DIR"} {
+	for _, ev := range []string{"WT_PARAKEET_DIR", "WT_SENSEVOICE_DIR", "WT_ZIPFORMER_DIR"} {
 		if d := os.Getenv(ev); d != "" {
 			fmt.Printf("ModelDir: %s (from %s)\n", d, ev)
 		}
@@ -112,10 +112,6 @@ func runSherpaEngine(engine, audioPath, modelID, lang string, threads int, withD
 		)
 	case shared.EngineZipformer:
 		segs, detectedLang, rtf, err = transcriber.RunZipformer(
-			context.Background(), spec, samples, audioDur, "", hooks,
-		)
-	case shared.EngineMoonshine:
-		segs, detectedLang, rtf, err = transcriber.RunMoonshine(
 			context.Background(), spec, samples, audioDur, "", hooks,
 		)
 	case shared.EngineWhisperONNX:

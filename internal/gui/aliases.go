@@ -1,7 +1,6 @@
 package gui
 
 import (
-	"runtime"
 	"slices"
 
 	"fyne.io/fyne/v2"
@@ -41,9 +40,6 @@ var (
 )
 
 func defaultASRModelID() string {
-	if runtime.GOOS == "android" {
-		return "moonshine-tiny-en-int8"
-	}
 	return "sherpa-whisper-turbo"
 }
 

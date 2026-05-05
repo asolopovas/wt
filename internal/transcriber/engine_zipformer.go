@@ -15,7 +15,6 @@ import (
 
 	shared "github.com/asolopovas/wt/internal"
 	"github.com/asolopovas/wt/internal/diarizer"
-	"github.com/asolopovas/wt/internal/models"
 )
 
 func sherpaBinaryName() string {
@@ -744,83 +743,4 @@ func RunWhisperONNX(ctx context.Context, spec JobSpec, samples []float32, audioD
 		detected = spec.Language
 	}
 	return segs, detected, rtf, nil
-}
-
-const moonshineBundleName = "sherpa-onnx-moonshine-tiny-en-int8"
-
-func moonshineModelDir(modelID string) string {
-	if v := os.Getenv("WT_MOONSHINE_DIR"); v != "" {
-		return v
-	}
-	if v := os.Getenv("WT_MOONSHINE_BUNDLE"); v != "" {
-		return filepath.Join(shared.ModelsDir(), v)
-	}
-	if modelID != "" {
-		if dir := models.DirForID(modelID); dir != "" && fileExists(filepath.Join(dir, "preprocess.onnx")) {
-			return dir
-		}
-	}
-	name := moonshineBundleName
-	flat := filepath.Join(shared.ModelsDir(), name)
-	if fileExists(filepath.Join(flat, "preprocess.onnx")) {
-		return flat
-	}
-	return filepath.Join(shared.ModelsDir(), "moonshine", name)
-}
-
-type moonshineModelPaths struct {
-	Preprocessor, Encoder, UncachedDecoder, CachedDecoder, Tokens string
-}
-
-func resolveMoonshineModels(modelID string) (moonshineModelPaths, error) {
-	dir := moonshineModelDir(modelID)
-	p := moonshineModelPaths{
-		Preprocessor:    filepath.Join(dir, "preprocess.onnx"),
-		Encoder:         filepath.Join(dir, "encode.int8.onnx"),
-		UncachedDecoder: filepath.Join(dir, "uncached_decode.int8.onnx"),
-		CachedDecoder:   filepath.Join(dir, "cached_decode.int8.onnx"),
-		Tokens:          filepath.Join(dir, "tokens.txt"),
-	}
-	missing := []string{}
-	for _, f := range []string{p.Preprocessor, p.Encoder, p.UncachedDecoder, p.CachedDecoder, p.Tokens} {
-		if _, err := os.Stat(f); err != nil {
-			missing = append(missing, filepath.Base(f))
-		}
-	}
-	if len(missing) > 0 {
-		return p, fmt.Errorf("moonshine models missing in %s: %s", dir, strings.Join(missing, ", "))
-	}
-	return p, nil
-}
-
-func (j *Job) runMoonshine(ctx context.Context, spec JobSpec, samples []float32, audioDurSec float64, rawKey string) ([]diarizer.TranscriptSegment, string, float64, error) {
-	return RunMoonshine(ctx, spec, samples, audioDurSec, rawKey, j.Hooks)
-}
-
-func RunMoonshine(ctx context.Context, spec JobSpec, samples []float32, audioDurSec float64, rawKey string, hooks Hooks) ([]diarizer.TranscriptSegment, string, float64, error) {
-	bin, err := findSherpaASRBinary()
-	if err != nil {
-		return nil, "", 0, fmt.Errorf("moonshine engine: %w", err)
-	}
-	mpaths, err := resolveMoonshineModels(spec.ModelSize)
-	if err != nil {
-		return nil, "", 0, fmt.Errorf("moonshine engine: %w", err)
-	}
-	argsForWAV := func(wavPath string) []string {
-		return []string{
-			"--moonshine-preprocessor=" + mpaths.Preprocessor,
-			"--moonshine-encoder=" + mpaths.Encoder,
-			"--moonshine-uncached-decoder=" + mpaths.UncachedDecoder,
-			"--moonshine-cached-decoder=" + mpaths.CachedDecoder,
-			"--tokens=" + mpaths.Tokens,
-			fmt.Sprintf("--num-threads=%d", sherpaThreads(spec)),
-			"--provider=" + sherpaProvider(),
-			wavPath,
-		}
-	}
-	segs, _, rtf, err := runSherpaEngineChunked(ctx, "moonshine", bin, argsForWAV, hooks, samples, audioDurSec, rawKey)
-	if err != nil {
-		return nil, "", 0, err
-	}
-	return segs, "en", rtf, nil
 }

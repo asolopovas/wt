@@ -36,7 +36,7 @@ func main() {
 
 	app := &cli.Command{
 		Name:      "wt",
-		Usage:     "Transcribe audio files using sherpa-onnx (whisper-onnx, parakeet, moonshine, sensevoice, canary, nemo-ctc)",
+		Usage:     "Transcribe audio files using sherpa-onnx (whisper-onnx, parakeet, sensevoice, canary, nemo-ctc)",
 		Version:   appinfo.DisplayVersion(Version, BuildDate),
 		ArgsUsage: "<audio files...>",
 		Description: fmt.Sprintf(
@@ -88,10 +88,6 @@ func main() {
 				Usage:   "show detailed debug information",
 			},
 			&cli.BoolFlag{
-				Name:  "live",
-				Usage: "enable live microphone transcription",
-			},
-			&cli.BoolFlag{
 				Name:  "no-rename",
 				Usage: "skip auto-renaming source + transcript via active LLM",
 			},
@@ -106,7 +102,6 @@ func main() {
 				cmd.Int("threads"),
 				cmd.Int("speakers"),
 				cmd.Bool("no-diarize"),
-				cmd.Bool("live"),
 				cmd.Bool("no-rename"),
 				cmd.Args().Slice(),
 			)
@@ -119,11 +114,7 @@ func main() {
 	}
 }
 
-func run(lang, modelSize, modelPath string, threads, speakers int, noDiarize, live, noRename bool, args []string) error {
-	if live {
-		return transcriber.Live(lang, modelSize, modelPath, threads)
-	}
-
+func run(lang, modelSize, modelPath string, threads, speakers int, noDiarize, noRename bool, args []string) error {
 	if len(args) == 0 {
 		return nil
 	}

@@ -22,7 +22,6 @@ func setupTestModels(t *testing.T) *models.Manager {
 	mgr := models.NewManager()
 
 	wantInstalled := []string{
-		"moonshine-tiny-en-int8",
 		"sherpa-whisper-turbo",
 		"parakeet-tdt-0.6b-v3-int8",
 		"sense-voice-zh-en-ja-ko-yue-int8",
@@ -51,7 +50,6 @@ func TestTranscriptionPickerOptions_IncludesWhisperAndASR(t *testing.T) {
 
 	got := pickerLabels(opts)
 	mustContain := []string{
-		"Moonshine tiny (English, fast)",
 		"Whisper large-v3-turbo (ONNX, multilingual)",
 		"Parakeet TDT 0.6B v3 (25 EU langs)",
 	}

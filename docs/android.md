@@ -37,9 +37,8 @@ Public sideload path: `internal/config_android.go:platformModelsDirOverride`. Ne
 All Android ASR runs through sherpa-onnx (ONNX Runtime). Recommended catalog IDs:
 
 - Default: `sherpa-whisper-turbo` (best quality).
-- Fast: `parakeet-tdt-0.6b-v2-int8` (near-turbo accuracy at ~3× the speed).
-- Budget / streaming: `moonshine-tiny-en-int8` (English only).
-- Multilingual: `sherpa-whisper-tiny` (99 langs) or `sense-voice-zh-en-ja-ko-yue-int8` (5 Asian langs).
+- Fast: `parakeet-tdt-0.6b-v3-int8` (25 EU langs, near-turbo accuracy at ~3× the speed).
+- Multilingual: `sense-voice-zh-en-ja-ko-yue-int8` (5 Asian langs).
 
 The `whisper-onnx` engine (`internal/transcriber/engine_zipformer.go:RunWhisperONNX`) routes Whisper through `sherpa-onnx-offline --whisper-encoder=...`. Engine details and the 30 s sherpa-whisper limit live in `docs/asr.md`.
 

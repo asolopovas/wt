@@ -14,7 +14,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-const CurrentConfigVersion = 1
+const CurrentConfigVersion = 2
 
 type Config struct {
 	Version          int     `yaml:"version"`
@@ -58,7 +58,6 @@ type ModelFile struct {
 const (
 	EngineWhisperONNX = "whisper-onnx"
 	EngineZipformer   = "zipformer"
-	EngineMoonshine   = "moonshine"
 	EngineParakeet    = "parakeet"
 	EngineSenseVoice  = "sensevoice"
 	EngineCanary      = "canary"
@@ -124,12 +123,17 @@ func Defaults() Config {
 }
 
 func upgradeConfig(cfg *Config) (changed bool) {
-	for cfg.Version < CurrentConfigVersion {
+	if cfg.Version < CurrentConfigVersion {
+		cfg.Models = Defaults().Models
 		cfg.Version = CurrentConfigVersion
 		changed = true
 	}
-	if cfg.Engine == "whisper" {
+	if cfg.Engine == "whisper" || cfg.Engine == "moonshine" {
 		cfg.Engine = EngineWhisperONNX
+		changed = true
+	}
+	if cfg.Model == "moonshine-tiny-en-int8" {
+		cfg.Model = ""
 		changed = true
 	}
 	if len(cfg.Models) == 0 {

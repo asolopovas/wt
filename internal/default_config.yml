@@ -1,4 +1,4 @@
-version: 1
+version: 2
 language: auto
 device: auto
 engine: whisper-onnx
@@ -11,37 +11,6 @@ model: ''
 diarizer: ''
 llm: ''
 models:
-- id: moonshine-tiny-en-int8
-  family: asr
-  engine: moonshine
-  displayName: "Moonshine tiny (English, fast)"
-  description: "Useful Sensors Moonshine 27M, INT8. Fastest engine on Android (RTF ~0.03 on Galaxy S24+). English only. Recommended Android default for English-only speech."
-  languages:
-  - en
-  ramHintMB: 250
-  files:
-  - url: "https://huggingface.co/csukuangfj/sherpa-onnx-moonshine-tiny-en-int8/resolve/main/preprocess.onnx"
-    relPath: sherpa-onnx-moonshine-tiny-en-int8/preprocess.onnx
-    sizeBytes: 6800738
-    sha256: f33addce61a143460fe753b5ee5b7db255e5140b5b779c065b94f6c83ff0bf4e
-  - url: "https://huggingface.co/csukuangfj/sherpa-onnx-moonshine-tiny-en-int8/resolve/main/encode.int8.onnx"
-    relPath: sherpa-onnx-moonshine-tiny-en-int8/encode.int8.onnx
-    sizeBytes: 18249187
-    sha256: 8774dfba578de027ec6595c2c654a0836434489bc963a0db124a7f181f571acb
-  - url: "https://huggingface.co/csukuangfj/sherpa-onnx-moonshine-tiny-en-int8/resolve/main/uncached_decode.int8.onnx"
-    relPath: sherpa-onnx-moonshine-tiny-en-int8/uncached_decode.int8.onnx
-    sizeBytes: 53216096
-    sha256: 216737000dd5881a17aa043f6bbd286add33e4c3b0ae257153e2ec15438bdc41
-  - url: "https://huggingface.co/csukuangfj/sherpa-onnx-moonshine-tiny-en-int8/resolve/main/cached_decode.int8.onnx"
-    relPath: sherpa-onnx-moonshine-tiny-en-int8/cached_decode.int8.onnx
-    sizeBytes: 45264830
-    sha256: 2aff28bba6a03d8dcf5c9feac45462629bae37317442299f28115ad09da773f6
-  - url: "https://huggingface.co/csukuangfj/sherpa-onnx-moonshine-tiny-en-int8/resolve/main/tokens.txt"
-    relPath: sherpa-onnx-moonshine-tiny-en-int8/tokens.txt
-    sizeBytes: 436688
-    sha256: 1165c2aeb9f72f457a83be2d459a09054f27490acd9b41bd43794dfd25e296ea
-  sizeBytes: 123967539
-  androidDefault: true
 - id: sherpa-whisper-turbo
   family: asr
   engine: whisper-onnx

@@ -59,7 +59,7 @@ internal/
     ffmpeg_android.go              Android-bundled ffmpeg path resolution
     engine.go                      Job + dispatcher (runASR)
     engine_chunk.go                Chunked driver (mandatory; never one-shot)
-    engine_zipformer.go            sherpa-onnx engines (whisper-onnx/zipformer/parakeet/sensevoice/moonshine/canary/nemo-ctc; gigaam-v3-ru routes through nemo-ctc)
+    engine_zipformer.go            sherpa-onnx engines (whisper-onnx/zipformer/parakeet/sensevoice/canary/nemo-ctc; gigaam-v3-ru routes through nemo-ctc)
     model.go                       Model resolve, catalog → on-disk paths
     live.go                        Live (mic) mode
     csv.go, format.go, output.go   Coalescing + output formatting
