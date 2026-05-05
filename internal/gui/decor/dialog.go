@@ -140,8 +140,17 @@ func showAnchoredDialog(cfg DialogConfig, bodyContainer fyne.CanvasObject) func(
 	}
 	pop.Resize(fyne.NewSize(w, h))
 
+	actualW := pop.MinSize().Width
+	if actualW < w {
+		actualW = w
+	}
+	if actualW > areaSize.Width {
+		actualW = areaSize.Width
+		pop.Resize(fyne.NewSize(actualW, h))
+	}
+
 	topMargin := float32(SpaceXL)
-	x := areaPos.X + (areaSize.Width-w)/2
+	x := areaPos.X + (areaSize.Width-actualW)/2
 	if x < 0 {
 		x = 0
 	}

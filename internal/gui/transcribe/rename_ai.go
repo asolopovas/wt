@@ -11,6 +11,8 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/layout"
+	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/asolopovas/wt/internal/gui/platsvc"
@@ -29,17 +31,62 @@ func (p *Panel) promptRename(originalName, suggested string, regenerate func() (
 	if p.window == nil {
 		return renameDecision{newName: suggested}
 	}
+	_ = originalName
 
-	info := widget.NewLabel("Original: " + originalName)
-	info.Wrapping = fyne.TextWrapWord
+	caption := widget.NewLabel("NAME")
+	caption.TextStyle = fyne.TextStyle{Bold: true, Monospace: true}
 
 	entry := widget.NewEntry()
 	entry.SetText(suggested)
+	entryScroll := container.NewHScroll(entry)
+	entryScroll.SetMinSize(fyne.NewSize(0, entry.MinSize().Height))
 
-	hint := "Edit the suggested name, regenerate with AUTO-RENAME, or keep the original."
-	caption := newCaptionText(hint)
+	clipboard := fyne.CurrentApp().Clipboard()
+	cutBtn := newPointerButtonWithIcon("", theme.ContentCutIcon(), func() {
+		entry.TypedShortcut(&fyne.ShortcutCut{Clipboard: clipboard})
+	})
+	cutBtn.Importance = widget.LowImportance
+	copyBtn := newPointerButtonWithIcon("", theme.ContentCopyIcon(), func() {
+		entry.TypedShortcut(&fyne.ShortcutCopy{Clipboard: clipboard})
+	})
+	copyBtn.Importance = widget.LowImportance
+	pasteBtn := newPointerButtonWithIcon("", theme.ContentPasteIcon(), func() {
+		entry.TypedShortcut(&fyne.ShortcutPaste{Clipboard: clipboard})
+	})
+	pasteBtn.Importance = widget.LowImportance
 
-	body := container.NewVBox(info, entry, caption)
+	status := widget.NewLabel("")
+	status.Wrapping = fyne.TextWrapWord
+	status.TextStyle = fyne.TextStyle{Italic: true}
+
+	var autoBtn fyne.CanvasObject
+	if regenerate != nil {
+		btn := newSecondaryButton("AUTO-RENAME", func() {
+			status.SetText("Regenerating…")
+			go func() {
+				suggestion, err := regenerate()
+				fyne.Do(func() {
+					if err != nil {
+						status.SetText("Auto-rename failed: " + err.Error())
+					} else {
+						entry.SetText(suggestion)
+						status.SetText("")
+					}
+				})
+			}()
+		})
+		btn.Importance = widget.LowImportance
+		autoBtn = btn
+	}
+
+	toolbarKids := []fyne.CanvasObject{}
+	if autoBtn != nil {
+		toolbarKids = append(toolbarKids, autoBtn)
+	}
+	toolbarKids = append(toolbarKids, layout.NewSpacer(), cutBtn, copyBtn, pasteBtn)
+	toolbar := container.NewHBox(toolbarKids...)
+
+	body := container.NewVBox(caption, entryScroll, toolbar, status)
 
 	ch := make(chan renameDecision, 1)
 	send := func(d renameDecision) {
@@ -51,36 +98,18 @@ func (p *Panel) promptRename(originalName, suggested string, regenerate func() (
 
 	actions := []dialogAction{
 		{Label: "KEEP ORIGINAL", Kind: kindSecondary, OnTap: func() { send(renameDecision{keep: true}) }},
+		{Label: "SAVE", Kind: kindPrimary, OnTap: func() {
+			send(renameDecision{newName: strings.TrimSpace(entry.Text)})
+		}},
 	}
-	if regenerate != nil {
-		actions = append(actions, dialogAction{Label: "AUTO-RENAME", Kind: kindSecondary, KeepOpen: true, OnTap: func() {
-			caption.Text = "Regenerating…"
-			caption.Refresh()
-			go func() {
-				suggestion, err := regenerate()
-				fyne.Do(func() {
-					if err != nil {
-						caption.Text = "Regenerate failed: " + err.Error()
-					} else {
-						entry.SetText(suggestion)
-						caption.Text = hint
-					}
-					caption.Refresh()
-				})
-			}()
-		}})
-	}
-	actions = append(actions, dialogAction{Label: "RENAME", Kind: kindPrimary, OnTap: func() {
-		send(renameDecision{newName: strings.TrimSpace(entry.Text)})
-	}})
 
 	fyne.Do(func() {
 		showDialog(dialogConfig{
 			Parent:    p.window,
-			Title:     "AUTO-RENAME FILE?",
+			Title:     "RENAME",
 			Body:      body,
 			Actions:   actions,
-			WidthFrac: 0.6,
+			WidthFrac: 0.85,
 			AnchorTop: true,
 		})
 	})

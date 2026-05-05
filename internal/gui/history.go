@@ -281,7 +281,8 @@ func (h *historyPanel) renameEntry(e cache.Entry) {
 	entry.SetText(stem)
 
 	entryThemed := container.NewThemeOverride(entry, &renameEntryTheme{parent: fyne.CurrentApp().Settings().Theme()})
-	entrySized := container.New(&fixedHeightLayout{height: 56}, entryThemed)
+	entryScroll := container.NewHScroll(entryThemed)
+	entrySized := container.New(&fixedHeightLayout{height: 56}, entryScroll)
 
 	clipboard := fyne.CurrentApp().Clipboard()
 	cutBtn := newPointerButtonWithIcon("", theme.ContentCutIcon(), func() {
