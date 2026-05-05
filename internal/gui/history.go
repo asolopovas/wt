@@ -190,7 +190,8 @@ func (h *historyPanel) showRowMenu(e cache.Entry, recorded time.Time, anchor fyn
 	}
 
 	if !e.Pending {
-		items = append(items,
+		items = append(
+			items,
 			fyne.NewMenuItem("Export", func() {
 				h.transcribe.ExportTranscript([]transcribe.ExportItem{{
 					CachePath:  cache.TranscriptPathForKey(e.Key),
@@ -223,7 +224,8 @@ func (h *historyPanel) showRowMenu(e cache.Entry, recorded time.Time, anchor fyn
 		)
 	}
 
-	items = append(items,
+	items = append(
+		items,
 		fyne.NewMenuItem("Rename", func() {
 			h.renameEntry(e)
 		}),

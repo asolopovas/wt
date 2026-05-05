@@ -69,6 +69,7 @@ tmp_vad/
 # Tool caches
 .task/
 .ruff_cache/
+.pi-lens/
 fyne_metadata_init.go
 screen.png
 screens-debug/

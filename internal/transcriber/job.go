@@ -105,7 +105,6 @@ func (h Hooks) resume(p ResumePrompt) ResumeChoice {
 var ErrAborted = errors.New("transcription aborted")
 
 func (j *Job) Run(ctx context.Context, spec JobSpec) (Result, error) {
-
 	if spec.SourcePath == "" {
 		return Result{}, fmt.Errorf("job: SourcePath is required")
 	}

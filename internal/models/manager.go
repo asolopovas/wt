@@ -276,7 +276,6 @@ func (m *Manager) Get(ctx context.Context, id string, prog func(Progress)) error
 	cur := m.active[Family(e.Family)]
 	m.mu.Unlock()
 	if cur == "" {
-
 		_ = m.SetActive(id)
 	}
 	return nil

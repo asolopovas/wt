@@ -47,7 +47,8 @@ func findFFprobe() string {
 
 func ProbeDurationMs(path string) int64 {
 	if probe := findFFprobe(); probe != "" {
-		cmd := exec.Command(probe,
+		cmd := exec.Command(
+			probe,
 			"-v", "error",
 			"-show_entries", "format=duration",
 			"-of", "default=noprint_wrappers=1:nokey=1",
@@ -134,7 +135,8 @@ func findFFmpeg() string {
 				}
 			}
 		}
-		candidates = append(candidates,
+		candidates = append(
+			candidates,
 			filepath.Join(userProfile, "scoop", "shims", "ffmpeg.exe"),
 			`C:\ProgramData\chocolatey\bin\ffmpeg.exe`,
 		)
@@ -215,7 +217,8 @@ func convertToTemp(path string) ([]float32, error) {
 }
 
 func runFFmpeg(input, output string) error {
-	cmd := exec.Command(findFFmpeg(),
+	cmd := exec.Command(
+		findFFmpeg(),
 		"-loglevel", "error",
 		"-i", input,
 		"-ar", "16000",

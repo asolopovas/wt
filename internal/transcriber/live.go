@@ -198,7 +198,8 @@ func microphoneCommand() (*exec.Cmd, error) {
 	}
 	switch runtime.GOOS {
 	case "windows":
-		return exec.Command(ff,
+		return exec.Command(
+			ff,
 			"-loglevel", "quiet",
 			"-f", "dshow",
 			"-i", "audio=default",
@@ -206,7 +207,8 @@ func microphoneCommand() (*exec.Cmd, error) {
 			"-sample_fmt", "s16", "-f", "s16le", "-",
 		), nil
 	case "darwin":
-		return exec.Command(ff,
+		return exec.Command(
+			ff,
 			"-loglevel", "quiet",
 			"-f", "avfoundation",
 			"-i", ":default",
@@ -214,7 +216,8 @@ func microphoneCommand() (*exec.Cmd, error) {
 			"-sample_fmt", "s16", "-f", "s16le", "-",
 		), nil
 	default:
-		return exec.Command(ff,
+		return exec.Command(
+			ff,
 			"-loglevel", "quiet",
 			"-f", "pulse", "-i", "default",
 			"-ar", "16000", "-ac", "1",

@@ -51,7 +51,6 @@ func newSherpaDiarizer() (Backend, error) {
 }
 
 func activeDiarizerPaths() (segURL, segRel, embURL, embRel string) {
-
 	segURL = "https://huggingface.co/csukuangfj/sherpa-onnx-pyannote-segmentation-3-0/resolve/main/model.onnx"
 	segRel = "sherpa-onnx-pyannote-segmentation-3-0/model.onnx"
 	embURL = "https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-recongition-models/nemo_en_titanet_large.onnx"

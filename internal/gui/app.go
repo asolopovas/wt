@@ -86,7 +86,8 @@ func buildTranscodeTab(tp *transcribe.Panel, settings *settingsPanel) fyne.Canva
 func buildSidebar(tp *transcribe.Panel, settings *settingsPanel, addBtn *pointerButton) fyne.CanvasObject {
 	optionsBlock := container.NewVBox(
 		newSectionHeader("OPTIONS"),
-		container.New(newCappedGrid(2, spaceMD, 0),
+		container.New(
+			newCappedGrid(2, spaceMD, 0),
 			newFormField("MODEL", settings.newModelSelectMirror()),
 			newFormField("DIARIZER", settings.newDiarizerSelectMirror()),
 			newFormField("LANGUAGE", settings.newLangSelectMirror()),
@@ -96,7 +97,8 @@ func buildSidebar(tp *transcribe.Panel, settings *settingsPanel, addBtn *pointer
 
 	actionsBlock := container.NewVBox(
 		newSectionHeader("ACTIONS"),
-		container.New(newCappedGrid(1, spaceLG, 36),
+		container.New(
+			newCappedGrid(1, spaceLG, 36),
 			wrapAction(addBtn),
 		),
 	)

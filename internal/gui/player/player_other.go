@@ -23,12 +23,14 @@ func findFfplay() (string, error) {
 		candidates = append(candidates, filepath.Join(filepath.Dir(exe), "ffplay"+exeExt()))
 	}
 	if home, err := os.UserHomeDir(); err == nil {
-		candidates = append(candidates,
+		candidates = append(
+			candidates,
 			filepath.Join(home, "AppData", "Local", "Microsoft", "WinGet", "Links", "ffplay"+exeExt()),
 			filepath.Join(home, "scoop", "shims", "ffplay"+exeExt()),
 		)
 	}
-	candidates = append(candidates,
+	candidates = append(
+		candidates,
 		`C:\Program Files\ffmpeg\bin\ffplay.exe`,
 		`C:\ffmpeg\bin\ffplay.exe`,
 		`C:\msys64\mingw64\bin\ffplay.exe`,

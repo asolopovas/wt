@@ -259,7 +259,8 @@ func binaryCandidates() []string {
 	out := []string{}
 	if exe, err := os.Executable(); err == nil {
 		exeDir := filepath.Dir(exe)
-		out = append(out,
+		out = append(
+			out,
 			filepath.Join(exeDir, "llama", name),
 			filepath.Join(exeDir, name),
 		)
@@ -269,12 +270,14 @@ func binaryCandidates() []string {
 			out = append(out, filepath.Join(dir, "libllama-cli.so"))
 		}
 	}
-	out = append(out,
+	out = append(
+		out,
 		filepath.Join(shared.Dir(), "llama", name),
 		filepath.Join(shared.Dir(), name),
 	)
 	if cwd, err := os.Getwd(); err == nil {
-		out = append(out,
+		out = append(
+			out,
 			filepath.Join(cwd, "dist", "bin", "llama", name),
 			filepath.Join(cwd, "dist", "bin", name),
 			filepath.Join(cwd, "dist", "llama", name),

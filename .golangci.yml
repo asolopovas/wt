@@ -1,0 +1,65 @@
+version: "2"
+
+run:
+  timeout: 5m
+  tests: true
+  build-tags:
+    - integration
+
+linters:
+  default: standard
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - gocritic
+    - gosec
+    - misspell
+    - unconvert
+    - bodyclose
+    - errorlint
+    - nilerr
+    - nolintlint
+  settings:
+    govet:
+      enable-all: true
+      disable:
+        - fieldalignment
+    gosec:
+      excludes:
+        - G104
+        - G304
+    staticcheck:
+      checks:
+        - all
+        - "-ST1000"
+        - "-ST1003"
+        - "-ST1020"
+        - "-ST1021"
+        - "-ST1022"
+  exclusions:
+    paths:
+      - third_party
+      - dist
+      - scripts
+    rules:
+      - path: _test\.go
+        linters:
+          - errcheck
+          - gosec
+          - bodyclose
+
+formatters:
+  enable:
+    - gofumpt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/asolopovas/wt
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0

@@ -253,14 +253,16 @@ func buildTranscodeTabAndroid(tp *transcribe.Panel, settings *settingsPanel) fyn
 	recBtn.Importance = widget.DangerImportance
 	tp.RecordBtn = recBtn
 
-	settingsRow := container.NewGridWithColumns(2,
+	settingsRow := container.NewGridWithColumns(
+		2,
 		newFormField("MODEL", settings.newModelSelectMirror()),
 		newFormField("DIARIZER", settings.newDiarizerSelectMirror()),
 		newFormField("LANGUAGE", settings.newLangSelectMirror()),
 		newFormField("SPEAKERS", settings.newSpeakersSelectMirror()),
 	)
 
-	actionRow := container.NewGridWithColumns(3,
+	actionRow := container.NewGridWithColumns(
+		3,
 		wrapAction(cancelBtn),
 		wrapAction(recBtn),
 		wrapAction(addBtn),
@@ -321,11 +323,13 @@ func buildSettingsTab(sp *settingsPanel, deviceInfo, version string) fyne.Canvas
 	viewLogBtn := newSecondaryButton("VIEW LOG", sp.onViewLog)
 	clearLogBtn := newSecondaryButton("CLEAR LOG", sp.onClearLog)
 
-	clearRow := container.NewGridWithColumns(2,
+	clearRow := container.NewGridWithColumns(
+		2,
 		wrapAction(clearCacheBtn),
 		wrapAction(clearTranscriptsBtn),
 	)
-	logRow := container.NewGridWithColumns(2,
+	logRow := container.NewGridWithColumns(
+		2,
 		wrapAction(viewLogBtn),
 		wrapAction(clearLogBtn),
 	)

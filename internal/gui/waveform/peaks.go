@@ -163,7 +163,8 @@ func decodePeaks(path string) (*Peaks, error) {
 	if bin == "" {
 		return nil, errors.New("ffmpeg not found")
 	}
-	cmd := exec.Command(bin,
+	cmd := exec.Command(
+		bin,
 		"-hide_banner", "-loglevel", "error", "-nostdin",
 		"-i", path,
 		"-f", "s16le", "-ac", "1", "-ar", fmt.Sprintf("%d", peaksSampleRate),

@@ -100,27 +100,66 @@ tasks:
       - cmd: "{{.GO_ENV}} && go test -v ./cmd/... ./internal/..."
         if: '[ -z "{{.SHORT}}" ] && [ -z "{{.INTEGRATION}}" ]'
 
-  lint:
-    desc: "golangci-lint (falls back to go vet). FIX=1 also runs gofumpt. ANDROID=1 = NDK toolchain."
+  check:
+    desc: "Single quality gate: format + golangci-lint (errcheck/govet/staticcheck/unused/ineffassign) + deadcode + govulncheck + tests. ANDROID=1 runs the android build-tag check via NDK toolchain. Must pass before every commit."
     cmds:
-      - task: android:lint
+      - task: check:android
         if: '[ -n "{{.ANDROID}}" ]'
-      - cmd: |
-          export PATH="{{.EXTRA_PATH}};$PATH"
-          if command -v golangci-lint >/dev/null 2>&1; then
-            golangci-lint run ./cmd/... ./internal/...
-          else
-            echo "golangci-lint not found, falling back to go vet"
-            go vet ./cmd/... ./internal/...
-          fi
+      - task: check:host
         if: '[ -z "{{.ANDROID}}" ]'
+
+  check:host:
+    internal: true
+    cmds:
+      - task: ensure:tools
+      - go run ./scripts/clean-comments ./cmd ./internal
       - cmd: |
-          if command -v gofumpt >/dev/null 2>&1; then
-            gofumpt -w ./cmd/ ./internal/
-          else
-            gofmt -w ./cmd/ ./internal/
+          export PATH="$(go env GOPATH)/bin:{{.EXTRA_PATH}}:$PATH"
+          golangci-lint fmt ./cmd/... ./internal/... 2>/dev/null || true
+          gofumpt -w ./cmd/ ./internal/
+      - cmd: |
+          export PATH="$(go env GOPATH)/bin:{{.EXTRA_PATH}}:$PATH"
+          golangci-lint run ./cmd/... ./internal/...
+      - cmd: |
+          export PATH="$(go env GOPATH)/bin:{{.EXTRA_PATH}}:$PATH"
+          deadcode ./cmd/wt/... ./cmd/wt-gui/... ./cmd/wt-test/...
+      - cmd: |
+          export PATH="$(go env GOPATH)/bin:{{.EXTRA_PATH}}:$PATH"
+          govulncheck ./cmd/... ./internal/...
+      - task: test
+
+  ensure:tools:
+    internal: true
+    run: once
+    cmds:
+      - cmd: |
+          gobin="$(go env GOPATH)/bin"
+          export PATH="$gobin:$PATH"
+          goversion="$(go env GOVERSION | sed 's/^go//')"
+          export GOTOOLCHAIN="go${goversion}"
+          lc_ok() { command -v golangci-lint >/dev/null 2>&1 && golangci-lint version 2>/dev/null | grep -qE "version v?2\." && golangci-lint version 2>/dev/null | grep -q "built with go${goversion}"; }
+          if ! lc_ok; then
+            echo "→ installing golangci-lint v2 (go${goversion}) → $gobin"
+            go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
           fi
-        if: '[ -n "{{.FIX}}" ]'
+          if ! command -v deadcode >/dev/null 2>&1; then
+            echo "→ installing deadcode → $gobin"
+            go install golang.org/x/tools/cmd/deadcode@latest
+          fi
+          if ! command -v govulncheck >/dev/null 2>&1; then
+            echo "→ installing govulncheck → $gobin"
+            go install golang.org/x/vuln/cmd/govulncheck@latest
+          fi
+          if ! command -v gofumpt >/dev/null 2>&1; then
+            echo "→ installing gofumpt → $gobin"
+            go install mvdan.cc/gofumpt@latest
+          fi
+
+  check:android:
+    internal: true
+    cmds:
+      - task: ensure:tools
+      - task: android:lint
 
   clean:
     desc: "Remove dist/. DEEP=1 also clears third_party builds."

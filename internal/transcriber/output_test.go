@@ -60,7 +60,6 @@ func TestGroupWordsIntoUtterances_BasicSpeakerChange(t *testing.T) {
 }
 
 func TestGroupWordsIntoUtterances_SmoothsSingleWordFlicker(t *testing.T) {
-
 	words := []Word{
 		{Text: "Now", Start: 0, End: 200, Speaker: "SPEAKER_01"},
 		{Text: "what", Start: 200, End: 400, Speaker: "SPEAKER_01"},
@@ -78,7 +77,6 @@ func TestGroupWordsIntoUtterances_SmoothsSingleWordFlicker(t *testing.T) {
 }
 
 func TestGroupWordsIntoUtterances_PreservesGenuineMultiWordTurn(t *testing.T) {
-
 	words := []Word{
 		{Text: "Tell", Start: 0, End: 200, Speaker: "SPEAKER_01"},
 		{Text: "me", Start: 200, End: 400, Speaker: "SPEAKER_01"},
@@ -120,7 +118,6 @@ func TestGroupWordsIntoUtterances_SmoothsTwoWordFlicker(t *testing.T) {
 }
 
 func TestGroupWordsIntoUtterances_SplitsOnSentenceEndSameSpeaker(t *testing.T) {
-
 	words := []Word{
 		{Text: "First", Start: 0, End: 200, Speaker: "SPEAKER_01"},
 		{Text: "sentence.", Start: 200, End: 600, Speaker: "SPEAKER_01"},
@@ -137,7 +134,6 @@ func TestGroupWordsIntoUtterances_SplitsOnSentenceEndSameSpeaker(t *testing.T) {
 }
 
 func TestGroupWordsIntoUtterances_NoSpeakerLabels(t *testing.T) {
-
 	words := []Word{
 		{Text: "Hello world.", Start: 0, End: 1000, Speaker: "SPEAKER_01"},
 		{Text: "How are you?", Start: 1000, End: 2500, Speaker: "SPEAKER_01"},

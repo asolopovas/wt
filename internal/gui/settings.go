@@ -165,7 +165,8 @@ func (p *settingsPanel) build() {
 	viewLogBtn := newSecondaryButton("VIEW LOG", p.onViewLog)
 	clearLogBtn := newSecondaryButton("CLEAR LOG", p.onClearLog)
 
-	settingsGrid := container.NewGridWithColumns(2,
+	settingsGrid := container.NewGridWithColumns(
+		2,
 		newFormField("MODEL", p.modelSelect),
 		newFormField("LANGUAGE", p.langSelect),
 		newFormField("DEVICE", p.deviceSelect),
@@ -176,11 +177,13 @@ func (p *settingsPanel) build() {
 	)
 
 	toggleRow := wrapGhost(p.noDiarizeBtn)
-	clearRow := container.NewGridWithColumns(2,
+	clearRow := container.NewGridWithColumns(
+		2,
 		wrapAction(clearCacheBtn),
 		wrapAction(clearTranscriptsBtn),
 	)
-	logRow := container.NewGridWithColumns(2,
+	logRow := container.NewGridWithColumns(
+		2,
 		wrapAction(viewLogBtn),
 		wrapAction(clearLogBtn),
 	)
@@ -327,7 +330,6 @@ func (p *settingsPanel) ModelSize() string {
 }
 
 func (p *settingsPanel) Language() string {
-
 	return languageCodeFromName(p.langSelect.Inner.Selected)
 }
 
@@ -451,7 +453,6 @@ func (p *settingsPanel) refreshDiarizerOptions() {
 }
 
 func (p *settingsPanel) onLangChanged(v string) {
-
 	for _, m := range p.langMirrors {
 		if m.Inner.Selected != v {
 			m.Inner.Selected = v
@@ -479,7 +480,6 @@ func (p *settingsPanel) newModelSelectMirror() *pointerSelect {
 }
 
 func (p *settingsPanel) refreshModelOptions() {
-
 	mgr := models.NewManager()
 	pickerOpts := transcriptionPickerOptions(mgr)
 	opts := dropdownModels(p.modelSelect.Selected)
@@ -501,7 +501,6 @@ func (p *settingsPanel) refreshModelOptions() {
 }
 
 func (p *settingsPanel) newLangSelectMirror() *limitSelect {
-
 	s := newLimitSelect(p.langSelect.Inner.Options, 300, p.onLangChanged)
 	s.Inner.Selected = p.langSelect.Inner.Selected
 	if p.langSelect.Inner.Disabled() {

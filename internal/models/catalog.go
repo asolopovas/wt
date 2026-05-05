@@ -16,8 +16,10 @@ const (
 	FamilyASR      Family = "asr"
 )
 
-type Entry = shared.Model
-type FileSpec = shared.ModelFile
+type (
+	Entry    = shared.Model
+	FileSpec = shared.ModelFile
+)
 
 var (
 	mu      sync.RWMutex

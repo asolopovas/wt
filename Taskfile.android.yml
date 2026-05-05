@@ -96,24 +96,35 @@ tasks:
           adb shell "cd /data/local/tmp && LD_LIBRARY_PATH=/data/local/tmp ./wt-test {{.CLI_ARGS}}"
 
   lint:
-    desc: "Lint with the Android NDK toolchain."
+    desc: "Lint + build-check with the Android NDK toolchain (CGo cross-compile to arm64)."
     cmds:
       - cmd: |
-          if [ ! -d "{{.NDK_ROOT}}" ]; then
-            echo "NDK not found at {{.NDK_ROOT}} — skipping android lint"
+          ndk="{{.NDK_ROOT}}"
+          if [ ! -d "$ndk" ]; then
+            ndk="$(ls -d "{{.ANDROID_SDK}}/ndk"/* 2>/dev/null | sort -V | tail -1)"
+          fi
+          if [ -z "$ndk" ] || [ ! -d "$ndk" ]; then
+            echo "⚠  Android NDK not found at {{.NDK_ROOT}} (or any {{.ANDROID_SDK}}/ndk/*)."
+            echo "   Install via Android Studio → SDK Manager → SDK Tools → NDK (Side by side),"
+            echo "   or 'sdkmanager \"ndk;27.2.12479018\"', or set ANDROID_SDK_ROOT/ANDROID_HOME."
+            echo "   Skipping android check."
+            exit 0
+          fi
+          toolchain="$ndk/toolchains/llvm/prebuilt/{{.HOST_TAG}}"
+          cc="$toolchain/bin/aarch64-linux-android28-clang"
+          sysroot="$toolchain/sysroot"
+          if [ ! -x "$cc" ]; then
+            echo "⚠  NDK clang not executable at $cc — NDK install looks broken. Skipping."
             exit 0
           fi
           export GOOS=android GOARCH=arm64 CGO_ENABLED=1
-          export CC="{{.ANDROID_CC}}"
-          export CGO_CFLAGS="--sysroot={{.ANDROID_SYSROOT}} -I{{.ANDROID_SYSROOT}}/usr/include"
-          export CGO_LDFLAGS="--sysroot={{.ANDROID_SYSROOT}} -L{{.ANDROID_SYSROOT}}/usr/lib/aarch64-linux-android/28"
+          export CC="$cc"
+          export CGO_CFLAGS="--sysroot=$sysroot -I$sysroot/usr/include"
+          export CGO_LDFLAGS="--sysroot=$sysroot -L$sysroot/usr/lib/aarch64-linux-android/28"
           export CGO_LDFLAGS_ALLOW='.*'
-          if command -v golangci-lint >/dev/null 2>&1; then
-            golangci-lint run ./cmd/wt-gui/... ./cmd/wt-test/... ./internal/...
-          else
-            echo "golangci-lint not found, falling back to go vet"
-            go vet ./cmd/wt-gui/... ./cmd/wt-test/... ./internal/...
-          fi
+          export PATH="$(go env GOPATH)/bin:$PATH"
+          golangci-lint run ./cmd/wt-gui/... ./cmd/wt-test/... ./internal/...
+          go build -tags android -o /dev/null ./cmd/wt-gui ./cmd/wt-test
 
   ffmpeg:
     internal: true

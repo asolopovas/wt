@@ -66,7 +66,8 @@ func ShowText(opts TextViewerOpts) func() {
 			fyne.Do(func() { copyBtn.SetIcon(theme.ContentCopyIcon()) })
 		}()
 	}
-	copyRow := container.NewGridWithColumns(3,
+	copyRow := container.NewGridWithColumns(
+		3,
 		layout.NewSpacer(),
 		layout.NewSpacer(),
 		container.NewHBox(layout.NewSpacer(), copyBtn),

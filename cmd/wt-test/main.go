@@ -104,25 +104,32 @@ func runSherpaEngine(engine, audioPath, modelID, lang string, threads int, withD
 	switch engine {
 	case shared.EngineParakeet:
 		segs, detectedLang, rtf, err = transcriber.RunParakeet(
-			context.Background(), spec, samples, audioDur, "", hooks)
+			context.Background(), spec, samples, audioDur, "", hooks,
+		)
 	case shared.EngineSenseVoice:
 		segs, detectedLang, rtf, err = transcriber.RunSenseVoice(
-			context.Background(), spec, samples, audioDur, "", hooks)
+			context.Background(), spec, samples, audioDur, "", hooks,
+		)
 	case shared.EngineZipformer:
 		segs, detectedLang, rtf, err = transcriber.RunZipformer(
-			context.Background(), spec, samples, audioDur, "", hooks)
+			context.Background(), spec, samples, audioDur, "", hooks,
+		)
 	case shared.EngineMoonshine:
 		segs, detectedLang, rtf, err = transcriber.RunMoonshine(
-			context.Background(), spec, samples, audioDur, "", hooks)
+			context.Background(), spec, samples, audioDur, "", hooks,
+		)
 	case shared.EngineWhisperONNX:
 		segs, detectedLang, rtf, err = transcriber.RunWhisperONNX(
-			context.Background(), spec, samples, audioDur, "", hooks)
+			context.Background(), spec, samples, audioDur, "", hooks,
+		)
 	case shared.EngineCanary:
 		segs, detectedLang, rtf, err = transcriber.RunCanary(
-			context.Background(), spec, samples, audioDur, "", hooks)
+			context.Background(), spec, samples, audioDur, "", hooks,
+		)
 	case shared.EngineNemoCTC:
 		segs, detectedLang, rtf, err = transcriber.RunNemoCTC(
-			context.Background(), spec, samples, audioDur, "", hooks)
+			context.Background(), spec, samples, audioDur, "", hooks,
+		)
 	default:
 		fatal("unknown sherpa sub-engine %q", engine)
 	}

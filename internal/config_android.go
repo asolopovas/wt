@@ -47,7 +47,6 @@ func platformConfigFileOverride() string {
 				return
 			}
 		}
-
 	})
 	return configFilePath
 }
@@ -93,7 +92,6 @@ func modelsDirOverride() string {
 				return
 			}
 		}
-
 	})
 	return modelsDirPath
 }

@@ -229,7 +229,8 @@ func (p *Panel) OpenPreview(item ExportItem, onClose func()) {
 		}()
 	}
 
-	copyRow := container.NewGridWithColumns(3,
+	copyRow := container.NewGridWithColumns(
+		3,
 		layout.NewSpacer(),
 		layout.NewSpacer(),
 		container.NewHBox(layout.NewSpacer(), copyBtn),
@@ -249,7 +250,8 @@ func (p *Panel) OpenPreview(item ExportItem, onClose func()) {
 		}
 	})
 
-	buttons := container.NewGridWithColumns(3,
+	buttons := container.NewGridWithColumns(
+		3,
 		wrapAction(closeBtn),
 		wrapAction(exportBtn),
 		wrapAction(editBtn),

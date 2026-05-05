@@ -333,7 +333,8 @@ func (d *playerDock) onSaveTrim() {
 		showError(d.window, fmt.Errorf("ffmpeg not found"))
 		return
 	}
-	cmd := exec.Command(bin,
+	cmd := exec.Command(
+		bin,
 		"-hide_banner", "-loglevel", "error", "-y", "-nostdin",
 		"-ss", fmt.Sprintf("%.3f", startSec),
 		"-to", fmt.Sprintf("%.3f", endSec),

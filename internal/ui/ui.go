@@ -106,7 +106,8 @@ func cpuName() string {
 }
 
 func totalRAM() string {
-	out, err := exec.Command("powershell", "-NoProfile", "-Command",
+	out, err := exec.Command(
+		"powershell", "-NoProfile", "-Command",
 		"$m=Get-CimInstance Win32_PhysicalMemory;"+
 			"$gb=[math]::Round(($m|Measure-Object -Property Capacity -Sum).Sum/1GB);"+
 			"$spd=($m|Select-Object -First 1).Speed;"+
