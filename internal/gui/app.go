@@ -3,6 +3,9 @@
 package gui
 
 import (
+	"context"
+	"log"
+
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/canvas"
@@ -12,6 +15,7 @@ import (
 	shared "github.com/asolopovas/wt/internal"
 	"github.com/asolopovas/wt/internal/appinfo"
 	"github.com/asolopovas/wt/internal/gui/transcribe"
+	"github.com/asolopovas/wt/internal/models"
 	"github.com/asolopovas/wt/internal/transcriber/cache"
 )
 
@@ -40,6 +44,12 @@ func Run(version, buildDate string) error {
 	go func() {
 		if cache.BackfillDurations() > 0 {
 			fyne.Do(history.Refresh)
+		}
+	}()
+
+	go func() {
+		if err := models.NewManager().EnsureDefaults(context.Background(), nil); err != nil {
+			log.Printf("EnsureDefaults: %v", err)
 		}
 	}()
 

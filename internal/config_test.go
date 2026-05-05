@@ -3,20 +3,19 @@ package shared
 import (
 	"os"
 	"path/filepath"
-	"runtime"
 	"testing"
 )
 
 func TestDefaults(t *testing.T) {
 	cfg := Defaults()
-	if cfg.Model != "sherpa-whisper-turbo" {
-		t.Errorf("expected model sherpa-whisper-turbo, got %q", cfg.Model)
-	}
 	if cfg.Device != "auto" {
 		t.Errorf("expected device 'auto', got %q", cfg.Device)
 	}
-	if cfg.Threads != runtime.NumCPU() {
-		t.Errorf("expected %d threads, got %d", runtime.NumCPU(), cfg.Threads)
+	if cfg.Threads <= 0 {
+		t.Errorf("expected positive thread count, got %d", cfg.Threads)
+	}
+	if len(cfg.Models) == 0 {
+		t.Errorf("expected default Models populated, got empty")
 	}
 }
 

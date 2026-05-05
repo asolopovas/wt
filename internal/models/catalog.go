@@ -1,6 +1,10 @@
 package models
 
 import (
+	"path/filepath"
+	"runtime"
+	"sync"
+
 	shared "github.com/asolopovas/wt/internal"
 )
 
@@ -12,24 +16,47 @@ const (
 	FamilyASR      Family = "asr"
 )
 
-type Entry struct {
-	ID            string
-	Family        Family
-	Engine        string
-	DisplayName   string
-	URL           string
-	RelPath       string
-	SizeBytes     int64
-	SHA256        string
-	RAMHintMB     int
-	DefaultActive bool
-	Files         []FileSpec
-	Description   string
+type Entry = shared.Model
+type FileSpec = shared.ModelFile
 
-	DiarSegRelPath string
-	DiarEmbRelPath string
+var (
+	mu      sync.RWMutex
+	entries []Entry
+)
 
-	Languages []string
+func Set(in []Entry) {
+	mu.Lock()
+	entries = make([]Entry, len(in))
+	copy(entries, in)
+	mu.Unlock()
+}
+
+func loadCatalog() []Entry {
+	mu.RLock()
+	if entries != nil {
+		out := make([]Entry, len(entries))
+		copy(out, entries)
+		mu.RUnlock()
+		return out
+	}
+	mu.RUnlock()
+
+	cfg, err := shared.Load()
+	if err == nil && len(cfg.Models) > 0 {
+		Set(cfg.Models)
+		mu.RLock()
+		out := make([]Entry, len(entries))
+		copy(out, entries)
+		mu.RUnlock()
+		return out
+	}
+	def := shared.Defaults()
+	Set(def.Models)
+	mu.RLock()
+	out := make([]Entry, len(entries))
+	copy(out, entries)
+	mu.RUnlock()
+	return out
 }
 
 func LanguagesFor(id string) []string {
@@ -40,30 +67,12 @@ func LanguagesFor(id string) []string {
 	return e.Languages
 }
 
-type FileSpec struct {
-	URL       string
-	RelPath   string
-	SizeBytes int64
-	SHA256    string
-}
-
-func (e Entry) FileSpecs() []FileSpec {
-	if len(e.Files) > 0 {
-		return e.Files
-	}
-	return []FileSpec{{URL: e.URL, RelPath: e.RelPath, SizeBytes: e.SizeBytes, SHA256: e.SHA256}}
-}
-
 func Catalog() []Entry {
-	out := make([]Entry, 0, len(asrEntries)+len(diarizerEntries)+len(llmEntries))
-	out = append(out, asrEntries...)
-	out = append(out, diarizerEntries...)
-	out = append(out, llmEntries...)
-	return out
+	return loadCatalog()
 }
 
 func ByID(id string) (Entry, bool) {
-	for _, e := range Catalog() {
+	for _, e := range loadCatalog() {
 		if e.ID == id {
 			return e, true
 		}
@@ -73,261 +82,53 @@ func ByID(id string) (Entry, bool) {
 
 func ByFamily(f Family) []Entry {
 	out := []Entry{}
-	for _, e := range Catalog() {
-		if e.Family == f {
+	for _, e := range loadCatalog() {
+		if Family(e.Family) == f {
 			out = append(out, e)
 		}
 	}
 	return out
 }
 
-var (
-	diarSegPyannote30URL = "https://huggingface.co/csukuangfj/sherpa-onnx-pyannote-segmentation-3-0/resolve/main/model.onnx"
-	diarSegPyannote30Rel = "sherpa-onnx-pyannote-segmentation-3-0/model.onnx"
-
-	diarEmbBase = "https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-recongition-models/"
-)
-
-var diarizerEntries = []Entry{
-
-	{
-		ID:             "diar-titanet-large",
-		Family:         FamilyDiarizer,
-		DisplayName:    "Standard (pyannote-3.0 + TitaNet-Large)",
-		Description:    "Best DER in our sweep (0.190). Recommended default for English. ~107 MB.",
-		SizeBytes:      107_000_000,
-		RAMHintMB:      350,
-		DefaultActive:  true,
-		DiarSegRelPath: diarSegPyannote30Rel,
-		DiarEmbRelPath: "titanet_large.onnx",
-		Files: []FileSpec{
-			{URL: diarSegPyannote30URL, RelPath: diarSegPyannote30Rel, SizeBytes: 5_992_913},
-			{URL: diarEmbBase + "nemo_en_titanet_large.onnx", RelPath: "titanet_large.onnx", SizeBytes: 101_405_493},
-		},
-	},
-
-	{
-		ID:             "diar-multilingual",
-		Family:         FamilyDiarizer,
-		DisplayName:    "Multilingual (pyannote-3.0 + CAM++ zh+en)",
-		Description:    "3D-Speaker CAM++ zh+en advanced. Sweep DER 0.222. Best multilingual + small (~34 MB).",
-		SizeBytes:      34_000_000,
-		RAMHintMB:      200,
-		DiarSegRelPath: diarSegPyannote30Rel,
-		DiarEmbRelPath: "3dspeaker_campplus_zh_en_advanced.onnx",
-		Files: []FileSpec{
-			{URL: diarSegPyannote30URL, RelPath: diarSegPyannote30Rel, SizeBytes: 5_992_913},
-			{URL: diarEmbBase + "3dspeaker_speech_campplus_sv_zh_en_16k-common_advanced.onnx", RelPath: "3dspeaker_campplus_zh_en_advanced.onnx", SizeBytes: 28_281_164},
-		},
-	},
-}
-
 func EngineForActiveASR(activeASR string) (engine, modelID string) {
 	if activeASR != "" {
-		if e, ok := ByID(activeASR); ok && e.Family == FamilyASR && e.Engine != "" {
+		if e, ok := ByID(activeASR); ok && Family(e.Family) == FamilyASR && e.Engine != "" {
 			return e.Engine, e.ID
 		}
 	}
 	return shared.EngineWhisper, ""
 }
 
-var legacyDiarizerIDs = map[string]string{
-	"sherpa-pyannote-segmentation-3.0": "diar-titanet-large",
-	"sherpa-titanet-large":             "diar-titanet-large",
-	"sherpa-diarizer":                  "diar-titanet-large",
-	"diar-mobile-light":                "diar-titanet-large",
-	"diar-3dspeaker-v2":                "diar-titanet-large",
-	"diar-reverb-v2":                   "diar-titanet-large",
+func DefaultID(f Family) string {
+	list := ByFamily(f)
+	if runtime.GOOS == "android" {
+		for _, e := range list {
+			if e.AndroidDefault {
+				return e.ID
+			}
+		}
+	}
+	for _, e := range list {
+		if e.DefaultActive {
+			return e.ID
+		}
+	}
+	if len(list) > 0 {
+		return list[0].ID
+	}
+	return ""
 }
 
-var asrEntries = []Entry{
-	{
-		ID:          "parakeet-tdt-0.6b-v2-int8",
-		Family:      FamilyASR,
-		Engine:      shared.EngineParakeet,
-		Languages:   []string{"en"},
-		DisplayName: "Parakeet TDT 0.6B v2 (English)",
-		Description: "#1 English ASR on Open ASR Leaderboard (~1.9% LibriSpeech WER). Native casing + punctuation. Best for English-only audio.",
-		SizeBytes:   635_000_000,
-		RAMHintMB:   1100,
-		Files: []FileSpec{
-			{URL: "https://huggingface.co/csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v2-int8/resolve/main/encoder.int8.onnx", RelPath: "sherpa-onnx-nemo-parakeet-tdt-0.6b-v2-int8/encoder.int8.onnx", SizeBytes: 622_000_000},
-			{URL: "https://huggingface.co/csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v2-int8/resolve/main/decoder.int8.onnx", RelPath: "sherpa-onnx-nemo-parakeet-tdt-0.6b-v2-int8/decoder.int8.onnx", SizeBytes: 7_000_000},
-			{URL: "https://huggingface.co/csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v2-int8/resolve/main/joiner.int8.onnx", RelPath: "sherpa-onnx-nemo-parakeet-tdt-0.6b-v2-int8/joiner.int8.onnx", SizeBytes: 2_500_000},
-			{URL: "https://huggingface.co/csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v2-int8/resolve/main/tokens.txt", RelPath: "sherpa-onnx-nemo-parakeet-tdt-0.6b-v2-int8/tokens.txt", SizeBytes: 50_000},
-		},
-	},
-	{
-		ID:          "moonshine-tiny-en-int8",
-		Family:      FamilyASR,
-		Engine:      shared.EngineMoonshine,
-		Languages:   []string{"en"},
-		DisplayName: "Moonshine tiny (English, fast)",
-		Description: "Useful Sensors Moonshine 27M, INT8. Fastest engine on Android (RTF ≈0.03 on Galaxy S24+). English only. Recommended Android default for English-only speech.",
-		SizeBytes:   125_000_000,
-		RAMHintMB:   250,
-		Files: []FileSpec{
-			{URL: "https://huggingface.co/csukuangfj/sherpa-onnx-moonshine-tiny-en-int8/resolve/main/preprocess.onnx", RelPath: "sherpa-onnx-moonshine-tiny-en-int8/preprocess.onnx", SizeBytes: 6_800_000},
-			{URL: "https://huggingface.co/csukuangfj/sherpa-onnx-moonshine-tiny-en-int8/resolve/main/encode.int8.onnx", RelPath: "sherpa-onnx-moonshine-tiny-en-int8/encode.int8.onnx", SizeBytes: 18_500_000},
-			{URL: "https://huggingface.co/csukuangfj/sherpa-onnx-moonshine-tiny-en-int8/resolve/main/uncached_decode.int8.onnx", RelPath: "sherpa-onnx-moonshine-tiny-en-int8/uncached_decode.int8.onnx", SizeBytes: 53_000_000},
-			{URL: "https://huggingface.co/csukuangfj/sherpa-onnx-moonshine-tiny-en-int8/resolve/main/cached_decode.int8.onnx", RelPath: "sherpa-onnx-moonshine-tiny-en-int8/cached_decode.int8.onnx", SizeBytes: 46_000_000},
-			{URL: "https://huggingface.co/csukuangfj/sherpa-onnx-moonshine-tiny-en-int8/resolve/main/tokens.txt", RelPath: "sherpa-onnx-moonshine-tiny-en-int8/tokens.txt", SizeBytes: 440_000},
-		},
-	},
-	{
-		ID:          "sherpa-whisper-tiny.en",
-		Family:      FamilyASR,
-		Engine:      shared.EngineWhisperONNX,
-		Languages:   []string{"en"},
-		DisplayName: "Whisper tiny.en (ONNX, English)",
-		Description: "OpenAI Whisper tiny.en repackaged for ONNX Runtime. Same accuracy as ggml-tiny.en, ~14× faster on Android (RTF 0.05 vs 1.43 on Exynos 2400). 99% English-only.",
-		SizeBytes:   100_000_000,
-		RAMHintMB:   250,
-		Files: []FileSpec{
-			{URL: "https://huggingface.co/csukuangfj/sherpa-onnx-whisper-tiny.en/resolve/main/tiny.en-encoder.int8.onnx", RelPath: "sherpa-whisper-tiny.en/tiny.en-encoder.int8.onnx", SizeBytes: 13_500_000},
-			{URL: "https://huggingface.co/csukuangfj/sherpa-onnx-whisper-tiny.en/resolve/main/tiny.en-decoder.int8.onnx", RelPath: "sherpa-whisper-tiny.en/tiny.en-decoder.int8.onnx", SizeBytes: 90_000_000},
-			{URL: "https://huggingface.co/csukuangfj/sherpa-onnx-whisper-tiny.en/resolve/main/tiny.en-tokens.txt", RelPath: "sherpa-whisper-tiny.en/tiny.en-tokens.txt", SizeBytes: 836_000},
-		},
-	},
-	{
-		ID:          "sherpa-whisper-tiny",
-		Family:      FamilyASR,
-		Engine:      shared.EngineWhisperONNX,
-		Languages:   []string{"auto", "en", "de", "fr", "es", "it", "pt", "nl", "pl", "ru", "uk", "zh", "ja", "ko", "ar", "tr", "hi"},
-		DisplayName: "Whisper tiny (ONNX, multilingual)",
-		Description: "OpenAI Whisper tiny multilingual via ONNX Runtime. 99 languages. ~50× faster than whisper.cpp on Android per VoicePing benchmark.",
-		SizeBytes:   105_000_000,
-		RAMHintMB:   300,
-		Files: []FileSpec{
-			{URL: "https://huggingface.co/csukuangfj/sherpa-onnx-whisper-tiny/resolve/main/tiny-encoder.int8.onnx", RelPath: "sherpa-whisper-tiny/tiny-encoder.int8.onnx", SizeBytes: 13_500_000},
-			{URL: "https://huggingface.co/csukuangfj/sherpa-onnx-whisper-tiny/resolve/main/tiny-decoder.int8.onnx", RelPath: "sherpa-whisper-tiny/tiny-decoder.int8.onnx", SizeBytes: 91_000_000},
-			{URL: "https://huggingface.co/csukuangfj/sherpa-onnx-whisper-tiny/resolve/main/tiny-tokens.txt", RelPath: "sherpa-whisper-tiny/tiny-tokens.txt", SizeBytes: 836_000},
-		},
-	},
-	{
-		ID:          "sherpa-whisper-turbo",
-		Family:      FamilyASR,
-		Engine:      shared.EngineWhisperONNX,
-		Languages:   []string{"auto", "en", "de", "fr", "es", "it", "pt", "nl", "pl", "ru", "uk", "zh", "ja", "ko", "ar", "tr", "hi"},
-		DisplayName: "Whisper large-v3-turbo (ONNX, multilingual)",
-		Description: "OpenAI Whisper large-v3-turbo via ONNX Runtime. Same accuracy as ggml-large-v3-turbo, ~7× faster on Android (60s vs 440s for 2min audio on Galaxy S24+). 99 languages. Recommended Android default for best quality.",
-		SizeBytes:   1_036_000_000,
-		RAMHintMB:   1500,
-		Files: []FileSpec{
-			{URL: "https://huggingface.co/csukuangfj/sherpa-onnx-whisper-turbo/resolve/main/turbo-encoder.int8.onnx", RelPath: "sherpa-whisper-turbo/turbo-encoder.int8.onnx", SizeBytes: 674_716_297},
-			{URL: "https://huggingface.co/csukuangfj/sherpa-onnx-whisper-turbo/resolve/main/turbo-decoder.int8.onnx", RelPath: "sherpa-whisper-turbo/turbo-decoder.int8.onnx", SizeBytes: 361_080_764},
-			{URL: "https://huggingface.co/csukuangfj/sherpa-onnx-whisper-turbo/resolve/main/turbo-tokens.txt", RelPath: "sherpa-whisper-turbo/turbo-tokens.txt", SizeBytes: 816_730},
-		},
-	},
-	{
-		ID:          "parakeet-tdt-0.6b-v3-int8",
-		Family:      FamilyASR,
-		Engine:      shared.EngineParakeet,
-		Languages:   []string{"bg", "hr", "cs", "da", "nl", "en", "et", "fi", "fr", "de", "el", "hu", "it", "lv", "lt", "mt", "pl", "pt", "ro", "sk", "sl", "es", "sv", "ru", "uk"},
-		DisplayName: "Parakeet TDT 0.6B v3 (25 EU langs)",
-		Description: "NVIDIA Parakeet TDT v3, 25 European languages. Successor to v2 with broader language coverage. ~671 MB.",
-		SizeBytes:   671_000_000,
-		RAMHintMB:   1200,
-		Files: []FileSpec{
-			{URL: "https://huggingface.co/csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8/resolve/main/encoder.int8.onnx", RelPath: "sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8/encoder.int8.onnx", SizeBytes: 660_000_000},
-			{URL: "https://huggingface.co/csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8/resolve/main/decoder.int8.onnx", RelPath: "sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8/decoder.int8.onnx", SizeBytes: 7_500_000},
-			{URL: "https://huggingface.co/csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8/resolve/main/joiner.int8.onnx", RelPath: "sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8/joiner.int8.onnx", SizeBytes: 3_500_000},
-			{URL: "https://huggingface.co/csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8/resolve/main/tokens.txt", RelPath: "sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8/tokens.txt", SizeBytes: 80_000},
-		},
-	},
-	{
-		ID:          "canary-180m-flash",
-		Family:      FamilyASR,
-		Engine:      shared.EngineCanary,
-		Languages:   []string{"en", "de", "es", "fr"},
-		DisplayName: "Canary 180M Flash (en/de/es/fr)",
-		Description: "NVIDIA Canary 180M Flash, very fast multilingual ASR (en/de/es/fr) with translation. ~146 MB.",
-		SizeBytes:   146_000_000,
-		RAMHintMB:   400,
-		Files: []FileSpec{
-			{URL: "https://huggingface.co/csukuangfj/sherpa-onnx-nemo-canary-180m-flash/resolve/main/encoder.int8.onnx", RelPath: "sherpa-onnx-nemo-canary-180m-flash/encoder.int8.onnx", SizeBytes: 110_000_000},
-			{URL: "https://huggingface.co/csukuangfj/sherpa-onnx-nemo-canary-180m-flash/resolve/main/decoder.int8.onnx", RelPath: "sherpa-onnx-nemo-canary-180m-flash/decoder.int8.onnx", SizeBytes: 36_000_000},
-			{URL: "https://huggingface.co/csukuangfj/sherpa-onnx-nemo-canary-180m-flash/resolve/main/tokens.txt", RelPath: "sherpa-onnx-nemo-canary-180m-flash/tokens.txt", SizeBytes: 100_000},
-		},
-	},
-	{
-		ID:          "gigaam-v3-ru",
-		Family:      FamilyASR,
-		Engine:      shared.EngineNemoCTC,
-		Languages:   []string{"ru"},
-		DisplayName: "GigaAM v3 (Russian)",
-		Description: "Sber GigaAM v3 NeMo CTC, Russian-only. Fast and accurate for Russian audio. ~250 MB.",
-		SizeBytes:   250_000_000,
-		RAMHintMB:   500,
-		Files: []FileSpec{
-			{URL: "https://huggingface.co/csukuangfj/sherpa-onnx-nemo-ctc-giga-am-v3-russian-2025-04-19/resolve/main/model.int8.onnx", RelPath: "sherpa-onnx-nemo-ctc-giga-am-v3/model.int8.onnx", SizeBytes: 240_000_000},
-			{URL: "https://huggingface.co/csukuangfj/sherpa-onnx-nemo-ctc-giga-am-v3-russian-2025-04-19/resolve/main/tokens.txt", RelPath: "sherpa-onnx-nemo-ctc-giga-am-v3/tokens.txt", SizeBytes: 1_000},
-		},
-	},
-	{
-		ID:          "sherpa-whisper-medium.en",
-		Family:      FamilyASR,
-		Engine:      shared.EngineWhisperONNX,
-		Languages:   []string{"en"},
-		DisplayName: "Whisper medium.en (ONNX, English)",
-		Description: "OpenAI Whisper medium.en via ONNX Runtime. Higher accuracy than base.en, 769M params, ~470 MB.",
-		SizeBytes:   470_000_000,
-		RAMHintMB:   800,
-		Files: []FileSpec{
-			{URL: "https://huggingface.co/csukuangfj/sherpa-onnx-whisper-medium.en/resolve/main/medium.en-encoder.int8.onnx", RelPath: "sherpa-whisper-medium.en/medium.en-encoder.int8.onnx", SizeBytes: 90_000_000},
-			{URL: "https://huggingface.co/csukuangfj/sherpa-onnx-whisper-medium.en/resolve/main/medium.en-decoder.int8.onnx", RelPath: "sherpa-whisper-medium.en/medium.en-decoder.int8.onnx", SizeBytes: 380_000_000},
-			{URL: "https://huggingface.co/csukuangfj/sherpa-onnx-whisper-medium.en/resolve/main/medium.en-tokens.txt", RelPath: "sherpa-whisper-medium.en/medium.en-tokens.txt", SizeBytes: 836_000},
-		},
-	},
-	{
-		ID:          "sherpa-whisper-base.en",
-		Family:      FamilyASR,
-		Engine:      shared.EngineWhisperONNX,
-		Languages:   []string{"en"},
-		DisplayName: "Whisper base.en (ONNX, English)",
-		Description: "OpenAI Whisper base.en via ONNX Runtime. Higher accuracy than tiny, RTF ≈0.13 on Android.",
-		SizeBytes:   165_000_000,
-		RAMHintMB:   400,
-		Files: []FileSpec{
-			{URL: "https://huggingface.co/csukuangfj/sherpa-onnx-whisper-base.en/resolve/main/base.en-encoder.int8.onnx", RelPath: "sherpa-whisper-base.en/base.en-encoder.int8.onnx", SizeBytes: 27_000_000},
-			{URL: "https://huggingface.co/csukuangfj/sherpa-onnx-whisper-base.en/resolve/main/base.en-decoder.int8.onnx", RelPath: "sherpa-whisper-base.en/base.en-decoder.int8.onnx", SizeBytes: 138_000_000},
-			{URL: "https://huggingface.co/csukuangfj/sherpa-onnx-whisper-base.en/resolve/main/base.en-tokens.txt", RelPath: "sherpa-whisper-base.en/base.en-tokens.txt", SizeBytes: 836_000},
-		},
-	},
-	{
-		ID:          "sense-voice-zh-en-ja-ko-yue-int8",
-		Family:      FamilyASR,
-		Engine:      shared.EngineSenseVoice,
-		Languages:   []string{"auto", "zh", "en", "ja", "ko", "yue"},
-		DisplayName: "SenseVoice (zh/en/ja/ko/yue)",
-		Description: "Alibaba FunAudio — fast multilingual ASR for Chinese/English/Japanese/Korean/Cantonese. Native casing + punctuation. Single 228 MB model. Best for Asian-language audio.",
-		SizeBytes:   228_000_000,
-		RAMHintMB:   500,
-		Files: []FileSpec{
-			{URL: "https://huggingface.co/csukuangfj/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17/resolve/main/model.int8.onnx", RelPath: "sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17/model.int8.onnx", SizeBytes: 228_000_000},
-			{URL: "https://huggingface.co/csukuangfj/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17/resolve/main/tokens.txt", RelPath: "sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17/tokens.txt", SizeBytes: 320_000},
-		},
-	},
+func DirFor(e Entry) string {
+	if len(e.Files) == 0 {
+		return ""
+	}
+	return filepath.Join(shared.ModelsDir(), filepath.Dir(e.Files[0].RelPath))
 }
 
-var llmEntries = []Entry{
-	{
-		ID: "qwen3-0.6b-q4km", Family: FamilyLLM,
-		DisplayName:   "Qwen3 0.6B (Q4_K_M, namer)",
-		Description:   "3× faster than Qwen3-1.7B for filename naming with comparable output. Recommended default on phone.",
-		URL:           "https://huggingface.co/unsloth/Qwen3-0.6B-GGUF/resolve/main/Qwen3-0.6B-Q4_K_M.gguf",
-		RelPath:       "qwen3-0.6b-q4km.gguf",
-		SizeBytes:     396_000_000,
-		RAMHintMB:     800,
-		DefaultActive: true,
-	},
-	{
-		ID: "qwen3-1.7b-q4km", Family: FamilyLLM,
-		DisplayName: "Qwen3 1.7B (Q4_K_M, namer)",
-		Description: "Larger, slightly higher-quality naming. Slower on phone.",
-		URL:         "https://huggingface.co/unsloth/Qwen3-1.7B-GGUF/resolve/main/Qwen3-1.7B-Q4_K_M.gguf",
-		RelPath:     "qwen3-1.7b-q4km.gguf",
-		SizeBytes:   1_100_000_000,
-		RAMHintMB:   1800,
-	},
+func DirForID(id string) string {
+	if e, ok := ByID(id); ok {
+		return DirFor(e)
+	}
+	return ""
 }

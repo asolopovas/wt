@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 
 	shared "github.com/asolopovas/wt/internal"
 )
@@ -21,7 +22,24 @@ const (
 	StatusNotInstalled Status = "not_installed"
 	StatusDownloading  Status = "downloading"
 	StatusInstalled    Status = "installed"
+	StatusCorrupt      Status = "corrupt"
 )
+
+type installedFile struct {
+	RelPath   string `json:"relPath"`
+	SizeBytes int64  `json:"sizeBytes"`
+	SHA256    string `json:"sha256"`
+}
+
+type installedManifest struct {
+	SchemaVersion int             `json:"schemaVersion"`
+	ID            string          `json:"id"`
+	Family        Family          `json:"family"`
+	Engine        string          `json:"engine,omitempty"`
+	DisplayName   string          `json:"displayName"`
+	InstalledAt   string          `json:"installedAt"`
+	Files         []installedFile `json:"files"`
+}
 
 type Progress struct {
 	ID         string
@@ -68,7 +86,8 @@ func (m *Manager) Status(id string) Status {
 		return StatusDownloading
 	}
 	for _, p := range PathsFor(e) {
-		if !fileExists(p) {
+		st, err := os.Stat(p)
+		if err != nil || st.IsDir() {
 			return StatusNotInstalled
 		}
 	}
@@ -134,7 +153,7 @@ func (m *Manager) SetActive(id string) error {
 		}
 	}
 	m.mu.Lock()
-	m.active[e.Family] = id
+	m.active[Family(e.Family)] = id
 	m.mu.Unlock()
 	return m.saveActive()
 }
@@ -156,7 +175,7 @@ func (m *Manager) Get(ctx context.Context, id string, prog func(Progress)) error
 		return fmt.Errorf("unknown model: %s", id)
 	}
 
-	specs := e.FileSpecs()
+	specs := e.Files
 	paths := PathsFor(e)
 
 	var totalAll int64
@@ -220,18 +239,126 @@ func (m *Manager) Get(ctx context.Context, id string, prog func(Progress)) error
 		completed += s.SizeBytes
 	}
 
+	if err := writeInstalledManifest(e); err != nil {
+		return fmt.Errorf("writing model.json for %s: %w", id, err)
+	}
+
 	if prog != nil {
 		prog(Progress{ID: id, Downloaded: totalAll, Total: totalAll, Done: true})
 	}
 
 	m.mu.Lock()
-	cur := m.active[e.Family]
+	cur := m.active[Family(e.Family)]
 	m.mu.Unlock()
 	if cur == "" {
 
 		_ = m.SetActive(id)
 	}
 	return nil
+}
+
+func installedManifestPath(e Entry) string {
+	dir := filepath.Join(shared.ModelsDir(), e.ID)
+	return filepath.Join(dir, "model.json")
+}
+
+func writeInstalledManifest(e Entry) error {
+	instPath := installedManifestPath(e)
+	if err := os.MkdirAll(filepath.Dir(instPath), 0o755); err != nil {
+		return err
+	}
+	specs := e.Files
+	paths := PathsFor(e)
+	files := make([]installedFile, 0, len(specs))
+	for i, s := range specs {
+		hash := s.SHA256
+		if hash == "" {
+			computed, err := computeSHA256(paths[i])
+			if err != nil {
+				return fmt.Errorf("hashing %s: %w", paths[i], err)
+			}
+			hash = computed
+		}
+		size := s.SizeBytes
+		if st, err := os.Stat(paths[i]); err == nil {
+			size = st.Size()
+		}
+		files = append(files, installedFile{RelPath: s.RelPath, SizeBytes: size, SHA256: hash})
+	}
+	im := installedManifest{
+		SchemaVersion: 1,
+		ID:            e.ID,
+		Family:        Family(e.Family),
+		Engine:        e.Engine,
+		DisplayName:   e.DisplayName,
+		InstalledAt:   nowRFC3339(),
+		Files:         files,
+	}
+	data, err := json.MarshalIndent(im, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(instPath, data, 0o644)
+}
+
+func readInstalledManifest(e Entry) (*installedManifest, error) {
+	data, err := os.ReadFile(installedManifestPath(e))
+	if err != nil {
+		return nil, err
+	}
+	var im installedManifest
+	if err := json.Unmarshal(data, &im); err != nil {
+		return nil, err
+	}
+	return &im, nil
+}
+
+func (m *Manager) Verify(id string) error {
+	e, ok := ByID(id)
+	if !ok {
+		return fmt.Errorf("unknown model: %s", id)
+	}
+	specs := e.Files
+	paths := PathsFor(e)
+	inst, _ := readInstalledManifest(e)
+	for i, s := range specs {
+		if !fileExists(paths[i]) {
+			return fmt.Errorf("missing file %s", paths[i])
+		}
+		want := s.SHA256
+		if want == "" && inst != nil {
+			for _, f := range inst.Files {
+				if f.RelPath == s.RelPath {
+					want = f.SHA256
+					break
+				}
+			}
+		}
+		if want == "" {
+			continue
+		}
+		if err := verifySHA256(paths[i], want); err != nil {
+			return fmt.Errorf("%s: %w", s.RelPath, err)
+		}
+	}
+	return nil
+}
+
+func computeSHA256(path string) (string, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = f.Close() }()
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
+}
+
+func nowRFC3339() string {
+	return time.Now().UTC().Format("2006-01-02T15:04:05Z")
 }
 
 func (m *Manager) Cancel(id string) {
@@ -275,8 +402,8 @@ func (m *Manager) Delete(id string) error {
 		return nil
 	}
 	m.mu.Lock()
-	if m.active[e.Family] == id {
-		delete(m.active, e.Family)
+	if m.active[Family(e.Family)] == id {
+		delete(m.active, Family(e.Family))
 	}
 	m.mu.Unlock()
 	return m.saveActive()
@@ -337,8 +464,8 @@ func (m *Manager) loadActive() {
 		return
 	}
 	for k, v := range raw {
-		if mapped, ok := legacyDiarizerIDs[v]; ok {
-			v = mapped
+		if _, ok := ByID(v); !ok {
+			v = DefaultID(Family(k))
 		}
 		m.active[Family(k)] = v
 	}
@@ -384,3 +511,19 @@ func verifySHA256(path, want string) error {
 }
 
 var ErrAlreadyInstalled = errors.New("already installed")
+
+func (m *Manager) EnsureDefaults(ctx context.Context, prog func(Progress)) error {
+	for _, f := range []Family{FamilyASR, FamilyDiarizer} {
+		id := DefaultID(f)
+		if id == "" {
+			continue
+		}
+		if m.Status(id) == StatusInstalled {
+			continue
+		}
+		if err := m.Get(ctx, id, prog); err != nil {
+			return fmt.Errorf("ensuring %s default %q: %w", f, id, err)
+		}
+	}
+	return nil
+}

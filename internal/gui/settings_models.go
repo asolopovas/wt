@@ -148,8 +148,7 @@ func (s *modelsSection) refresh() {
 		f     models.Family
 		title string
 	}{
-		{models.FamilyASR, "TRANSCRIPTION (WHISPER)"},
-		{models.FamilyASR, "TRANSCRIPTION (FAST ASR)"},
+		{models.FamilyASR, "TRANSCRIPTION"},
 		{models.FamilyDiarizer, "DIARIZATION"},
 		{models.FamilyLLM, "LANGUAGE MODELS"},
 	}
@@ -202,7 +201,7 @@ func (s *modelsSection) refresh() {
 
 func (s *modelsSection) buildRow(e models.Entry) fyne.CanvasObject {
 	status := s.mgr.Status(e.ID)
-	isActive := s.mgr.Active(e.Family) == e.ID
+	isActive := s.mgr.Active(models.Family(e.Family)) == e.ID
 
 	s.mu.Lock()
 	_, downloading := s.cancels[e.ID]
@@ -305,8 +304,7 @@ func (s *modelsSection) openDownloadDialog() {
 			f     models.Family
 			title string
 		}{
-			{models.FamilyASR, "TRANSCRIPTION (WHISPER)"},
-			{models.FamilyASR, "TRANSCRIPTION (FAST ASR)"},
+			{models.FamilyASR, "TRANSCRIPTION"},
 			{models.FamilyDiarizer, "DIARIZATION"},
 			{models.FamilyLLM, "LANGUAGE MODELS"},
 		}

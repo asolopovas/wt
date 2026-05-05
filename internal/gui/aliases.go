@@ -42,7 +42,7 @@ var (
 
 func defaultASRModelID() string {
 	if runtime.GOOS == "android" {
-		return "sherpa-whisper-tiny.en"
+		return "moonshine-tiny-en-int8"
 	}
 	return "sherpa-whisper-turbo"
 }

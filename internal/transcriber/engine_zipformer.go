@@ -369,7 +369,7 @@ func RunZipformer(ctx context.Context, spec JobSpec, samples []float32, audioDur
 	return segs, "en", rtf, nil
 }
 
-const parakeetBundleName = "sherpa-onnx-nemo-parakeet-tdt-0.6b-v2-int8"
+const parakeetBundleName = "sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8"
 
 func parakeetModelDir() string {
 	if v := os.Getenv("WT_PARAKEET_DIR"); v != "" {
@@ -530,7 +530,7 @@ func canaryModelDir(modelID string) string {
 	}
 	name := modelID
 	if name == "" {
-		name = "sherpa-onnx-nemo-canary-180m-flash"
+		name = "sherpa-onnx-nemo-canary-180m-flash-en-es-de-fr-int8"
 	}
 	return filepath.Join(shared.ModelsDir(), name)
 }
@@ -602,7 +602,7 @@ func nemoCTCModelDir(modelID string) string {
 	}
 	name := modelID
 	if name == "" {
-		name = "sherpa-onnx-nemo-ctc-giga-am-v3"
+		name = "sherpa-onnx-nemo-ctc-giga-am-v3-russian-2025-12-16"
 	}
 	return filepath.Join(shared.ModelsDir(), name)
 }

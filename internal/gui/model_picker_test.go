@@ -22,9 +22,9 @@ func setupTestModels(t *testing.T) *models.Manager {
 	mgr := models.NewManager()
 
 	wantInstalled := []string{
-		"sherpa-whisper-tiny.en",
+		"moonshine-tiny-en-int8",
 		"sherpa-whisper-turbo",
-		"parakeet-tdt-0.6b-v2-int8",
+		"parakeet-tdt-0.6b-v3-int8",
 		"sense-voice-zh-en-ja-ko-yue-int8",
 		"diar-titanet-large",
 	}
@@ -51,9 +51,9 @@ func TestTranscriptionPickerOptions_IncludesWhisperAndASR(t *testing.T) {
 
 	got := pickerLabels(opts)
 	mustContain := []string{
-		"Whisper tiny.en (ONNX, English)",
+		"Moonshine tiny (English, fast)",
 		"Whisper large-v3-turbo (ONNX, multilingual)",
-		"Parakeet TDT 0.6B v2 (English)",
+		"Parakeet TDT 0.6B v3 (25 EU langs)",
 	}
 	for _, want := range mustContain {
 		found := false
@@ -77,7 +77,7 @@ func TestDiarizerPickerOptions_OnlyDiarizers(t *testing.T) {
 	}
 	for _, o := range opts {
 		e, _ := models.ByID(o.ID)
-		if e.Family != models.FamilyDiarizer {
+		if models.Family(e.Family) != models.FamilyDiarizer {
 			t.Errorf("diarizer dropdown contains non-diarizer entry %q (family=%s)", o.ID, e.Family)
 		}
 	}

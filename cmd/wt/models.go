@@ -57,7 +57,7 @@ func modelsList(_ context.Context, _ *cli.Command) error {
 		for _, e := range models.ByFamily(fam) {
 			st := mgr.Status(e.ID)
 			marker := " "
-			if mgr.Active(e.Family) == e.ID {
+			if mgr.Active(models.Family(e.Family)) == e.ID {
 				marker = "*"
 			}
 			fmt.Printf("  %s %-32s  %-13s  %8s  %s\n", marker, e.ID, st, humanSize(e.SizeBytes), e.DisplayName)

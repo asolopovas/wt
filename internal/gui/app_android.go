@@ -3,6 +3,8 @@
 package gui
 
 import (
+	"context"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -21,6 +23,7 @@ import (
 	"github.com/asolopovas/wt/internal/gui/decor"
 	"github.com/asolopovas/wt/internal/gui/platsvc"
 	"github.com/asolopovas/wt/internal/gui/transcribe"
+	"github.com/asolopovas/wt/internal/models"
 	"github.com/asolopovas/wt/internal/transcriber/cache"
 )
 
@@ -56,6 +59,12 @@ func Run(version, buildDate string) error {
 		}
 	}()
 	go watchImportsDir(history.Refresh)
+
+	go func() {
+		if err := models.NewManager().EnsureDefaults(context.Background(), nil); err != nil {
+			log.Printf("EnsureDefaults: %v", err)
+		}
+	}()
 
 	deviceInfo := detectDevice()
 

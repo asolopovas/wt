@@ -19,6 +19,7 @@ import (
 
 	shared "github.com/asolopovas/wt/internal"
 	"github.com/asolopovas/wt/internal/diarizer"
+	"github.com/asolopovas/wt/internal/models"
 )
 
 func Live(language, modelSize, _ string, threads int) error {
@@ -68,7 +69,7 @@ func Live(language, modelSize, _ string, threads int) error {
 
 	moonshineDir := os.Getenv("WT_MOONSHINE_DIR")
 	if moonshineDir == "" {
-		moonshineDir = filepath.Join(shared.ModelsDir(), "sherpa-onnx-moonshine-tiny-en-int8")
+		moonshineDir = models.DirForID("moonshine-tiny-en-int8")
 	}
 
 	hooks := Hooks{}

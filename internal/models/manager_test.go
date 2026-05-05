@@ -20,8 +20,8 @@ func TestCatalog_Unique(t *testing.T) {
 		if e.Family == "" {
 			t.Fatalf("entry %s missing family", e.ID)
 		}
-		if len(e.Files) == 0 && (e.URL == "" || e.RelPath == "") {
-			t.Fatalf("entry %s missing url/relpath and has no Files", e.ID)
+		if len(e.Files) == 0 {
+			t.Fatalf("entry %s has no Files", e.ID)
 		}
 		for _, f := range e.Files {
 			if f.URL == "" || f.RelPath == "" {
@@ -56,7 +56,7 @@ func TestManager_GetAndStatus(t *testing.T) {
 	t.Setenv("APPDATA", tmp)
 	t.Setenv("XDG_CONFIG_HOME", tmp)
 
-	e := Entry{ID: "test-x", Family: FamilyLLM, URL: srv.URL, RelPath: "test-x.bin", SizeBytes: int64(len(body))}
+	e := Entry{ID: "test-x", Family: string(FamilyLLM), Files: []FileSpec{{URL: srv.URL, RelPath: "test-x.bin", SizeBytes: int64(len(body))}}}
 	registerForTest(e)
 	defer unregisterForTest(e.ID)
 
@@ -97,7 +97,7 @@ func TestManager_SetActiveAndPersist(t *testing.T) {
 	t.Setenv("APPDATA", tmp)
 	t.Setenv("XDG_CONFIG_HOME", tmp)
 
-	e := Entry{ID: "test-active", Family: FamilyLLM, URL: "x", RelPath: "test-active.bin", SizeBytes: 1}
+	e := Entry{ID: "test-active", Family: string(FamilyLLM), Files: []FileSpec{{URL: "x", RelPath: "test-active.bin", SizeBytes: 1}}}
 	registerForTest(e)
 	defer unregisterForTest(e.ID)
 
@@ -127,7 +127,7 @@ func TestManager_DeleteClearsActive(t *testing.T) {
 	t.Setenv("APPDATA", tmp)
 	t.Setenv("XDG_CONFIG_HOME", tmp)
 
-	e := Entry{ID: "test-delete", Family: FamilyLLM, URL: "x", RelPath: "test-delete.bin", SizeBytes: 1}
+	e := Entry{ID: "test-delete", Family: string(FamilyLLM), Files: []FileSpec{{URL: "x", RelPath: "test-delete.bin", SizeBytes: 1}}}
 	registerForTest(e)
 	defer unregisterForTest(e.ID)
 

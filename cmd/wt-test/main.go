@@ -15,7 +15,7 @@ import (
 )
 
 func main() {
-	modelID := flag.String("m", "", "model id (sherpa-whisper-turbo, sherpa-whisper-tiny.en, ...)")
+	modelID := flag.String("m", "", "model id (run `wt models list` to see catalog)")
 	lang := flag.String("lang", "auto", "language code (auto/en/ru/...)")
 	threads := flag.Int("t", max(runtime.NumCPU()-2, 1), "threads")
 	diarizeOnly := flag.Bool("diarize-only", false, "run only the diarizer and exit")

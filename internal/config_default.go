@@ -30,10 +30,6 @@ func appDir() string {
 	return filepath.Join(home, ".config", "wt")
 }
 
-func defaultModel() string {
-	return "sherpa-whisper-turbo"
-}
-
 func MediaDir() string {
 	return filepath.Join(CacheDir(), "imports")
 }

@@ -98,10 +98,6 @@ func modelsDirOverride() string {
 	return modelsDirPath
 }
 
-func defaultModel() string {
-	return "sherpa-whisper-tiny.en"
-}
-
 func affinityCPUs() int {
 	const setSize = 128
 	var mask [setSize]byte

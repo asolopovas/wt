@@ -1,15 +1,19 @@
 package models
 
 func registerForTest(e Entry) {
-	llmEntries = append(llmEntries, e)
+	mu.Lock()
+	entries = append(entries, e)
+	mu.Unlock()
 }
 
 func unregisterForTest(id string) {
-	out := llmEntries[:0]
-	for _, e := range llmEntries {
+	mu.Lock()
+	out := entries[:0]
+	for _, e := range entries {
 		if e.ID != id {
 			out = append(out, e)
 		}
 	}
-	llmEntries = out
+	entries = out
+	mu.Unlock()
 }

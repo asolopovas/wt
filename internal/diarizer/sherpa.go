@@ -67,7 +67,7 @@ func activeDiarizerPaths() (segURL, segRel, embURL, embRel string) {
 		return
 	}
 
-	for _, f := range e.FileSpecs() {
+	for _, f := range e.Files {
 		switch f.RelPath {
 		case e.DiarSegRelPath:
 			segURL, segRel = f.URL, f.RelPath

@@ -1,6 +1,7 @@
 package shared
 
 import (
+	_ "embed"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -16,17 +17,42 @@ import (
 const CurrentConfigVersion = 1
 
 type Config struct {
-	Version         int    `yaml:"version"`
-	Model           string `yaml:"model"`
-	Language        string `yaml:"language"`
-	Device          string `yaml:"device"`
-	Engine          string `yaml:"engine,omitempty"`
-	Threads         int    `yaml:"threads"`
-	Speakers        int    `yaml:"speakers,omitempty"`
-	NoDiarize       bool   `yaml:"no_diarize,omitempty"`
-	CacheExpiryDays int    `yaml:"cache_expiry_days,omitempty"`
+	Version          int     `yaml:"version"`
+	Model            string  `yaml:"model"`
+	Diarizer         string  `yaml:"diarizer,omitempty"`
+	LLM              string  `yaml:"llm,omitempty"`
+	Language         string  `yaml:"language"`
+	Device           string  `yaml:"device"`
+	Engine           string  `yaml:"engine,omitempty"`
+	Threads          int     `yaml:"threads"`
+	Speakers         int     `yaml:"speakers,omitempty"`
+	NoDiarize        bool    `yaml:"no_diarize,omitempty"`
+	CacheExpiryDays  int     `yaml:"cache_expiry_days,omitempty"`
+	LogRetentionDays int     `yaml:"log_retention_days,omitempty"`
+	Models           []Model `yaml:"models,omitempty"`
+}
 
-	LogRetentionDays int `yaml:"log_retention_days,omitempty"`
+type Model struct {
+	ID             string      `yaml:"id"`
+	Family         string      `yaml:"family"`
+	Engine         string      `yaml:"engine,omitempty"`
+	DisplayName    string      `yaml:"displayName"`
+	Description    string      `yaml:"description,omitempty"`
+	Languages      []string    `yaml:"languages,omitempty"`
+	RAMHintMB      int         `yaml:"ramHintMB,omitempty"`
+	SizeBytes      int64       `yaml:"sizeBytes,omitempty"`
+	DefaultActive  bool        `yaml:"defaultActive,omitempty"`
+	AndroidDefault bool        `yaml:"androidDefault,omitempty"`
+	DiarSegRelPath string      `yaml:"diarSegRelPath,omitempty"`
+	DiarEmbRelPath string      `yaml:"diarEmbRelPath,omitempty"`
+	Files          []ModelFile `yaml:"files"`
+}
+
+type ModelFile struct {
+	URL       string `yaml:"url"`
+	RelPath   string `yaml:"relPath"`
+	SizeBytes int64  `yaml:"sizeBytes"`
+	SHA256    string `yaml:"sha256"`
 }
 
 const (
@@ -40,6 +66,15 @@ const (
 
 	EngineWhisper = EngineWhisperONNX
 )
+
+const (
+	FamilyASR      = "asr"
+	FamilyDiarizer = "diarizer"
+	FamilyLLM      = "llm"
+)
+
+//go:embed default_config.yml
+var defaultConfigYAML []byte
 
 func PythonDir() string {
 	return filepath.Join(Dir(), "python")
@@ -75,43 +110,30 @@ func FilePath() string {
 }
 
 func Defaults() Config {
-	return Config{
-		Version:          CurrentConfigVersion,
-		Model:            defaultModel(),
-		Device:           "auto",
-		Engine:           EngineWhisper,
-		Threads:          defaultThreads(),
-		CacheExpiryDays:  30,
-		LogRetentionDays: 1,
+	var cfg Config
+	if err := yaml.Unmarshal(defaultConfigYAML, &cfg); err != nil {
+		panic("shared: parse default_config.yml: " + err.Error())
 	}
+	if cfg.Version == 0 {
+		cfg.Version = CurrentConfigVersion
+	}
+	if cfg.Threads == 0 {
+		cfg.Threads = defaultThreads()
+	}
+	return cfg
 }
 
 func upgradeConfig(cfg *Config) (changed bool) {
 	for cfg.Version < CurrentConfigVersion {
-		switch cfg.Version {
-		case 0:
-
-			cfg.Version = 1
-			changed = true
-		default:
-
-			cfg.Version = CurrentConfigVersion
-			changed = true
-		}
+		cfg.Version = CurrentConfigVersion
+		changed = true
 	}
 	if cfg.Engine == "whisper" {
 		cfg.Engine = EngineWhisperONNX
 		changed = true
 	}
-	switch cfg.Model {
-	case "tiny", "whisper-tiny":
-		cfg.Model = "sherpa-whisper-tiny"
-		changed = true
-	case "small", "whisper-small":
-		cfg.Model = "sherpa-whisper-base.en"
-		changed = true
-	case "turbo", "whisper-turbo", "large-v3-turbo":
-		cfg.Model = "sherpa-whisper-turbo"
+	if len(cfg.Models) == 0 {
+		cfg.Models = Defaults().Models
 		changed = true
 	}
 	return changed
@@ -126,6 +148,7 @@ func Load() (Config, error) {
 			if mkErr := initDir(cfg); mkErr != nil {
 				return cfg, fmt.Errorf("initializing config dir: %w", mkErr)
 			}
+			applyEnvOverrides(&cfg)
 			return cfg, nil
 		}
 		return cfg, fmt.Errorf("reading config: %w", err)
@@ -138,16 +161,12 @@ func Load() (Config, error) {
 	if cfg.Threads <= 0 {
 		cfg.Threads = defaultThreads()
 	}
-	if cfg.Model == "" {
-		cfg.Model = defaultModel()
-	}
 	if cfg.Device == "" {
 		cfg.Device = "auto"
 	}
 	if cfg.Engine == "" {
 		cfg.Engine = EngineWhisper
 	}
-
 	if upgradeConfig(&cfg) {
 		_ = Save(cfg)
 	}
