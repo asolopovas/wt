@@ -1,8 +1,8 @@
 # Build & Release
 
-## Taskfile
+## Taskfile dispatch
 
-- Internal tasks: call via `task: X` cmd entries, never `cmd: 'task X'`. Don't combine with `&&`; split into separate steps.
+- Internal tasks: call via `task: X` cmd entries, never `cmd: 'task X'` — the latter spawns a new `task` process that re-sees the parent flag and exits 202. Don't combine with `&&`; split into separate `task:` + `cmd:` steps.
 - `{{.VERSION}}` doesn't propagate through nested `task:` calls. Re-declare per leaf: `vars: { VERSION: { sh: awk -F"\x27" '/^  VERSION:/{print $2; exit}' Taskfile.yml } }`.
 - `_release-stable` must call `installer-exe` / `linux-deb` explicitly.
 - `task release` re-reads `VERSION` from `Taskfile.yml` post-bump.
@@ -18,12 +18,16 @@
 
 ## Shell quirks (mvdan/sh)
 
-- Never `grep | sed -E "s/.../\1/"` in `sh:` vars; use `awk -F"\x27" '/pattern/{print $2}'`.
-- No fd≥10 redirects; use cp-retry loops on Windows.
+- Never `grep | sed -E "s/.../\1/"` in `sh:` vars — mvdan/sh mangles `\1`. Use `awk -F"\x27" '/pattern/{print $2}'`.
+- mvdan/sh panics on fd≥10 redirects (`exec 9>>file`); don't use fd-based locking.
 
 ## Windows
 
-- DLL handles linger after `taskkill`; install must wait+retry `cp` (whisper.dll especially).
+- DLL handles linger briefly after `taskkill` (whisper.dll especially); install must wait+retry `cp`. A single sleep is insufficient — use a retry loop.
+
+## llama-cli host download
+
+`Taskfile.yml:llama-cli-host` downloads the latest `llama-cli` release from `ggml-org/llama.cpp` into `dist/llama/` (Windows .zip via `gh release download`, Linux equivalent). Required by `installer-exe` and `linux-deb`. Bumps automatically on tag changes; no version pin.
 
 ## Cross-compile sherpa-onnx for Android
 

@@ -15,12 +15,21 @@ Use tokens and components below. Never raw pixel literals, hex colors, or `widge
 - Read-only text modals: `preview.ShowText(...)`. Never `widget.NewMultiLineEntry().Disable()`.
 - Re-exports: single `aliases.go`.
 
-## Rules
+## Modals with text inputs on Android
 
-- Modals with text inputs on Android: set `AnchorTop: true`.
-- Widget reuse across tabs: add a mirror factory on the owning panel (see `settingsPanel.newModelSelectMirror`).
-- Truncating text rows: use `newTruncText(s, color, size, style)` from `trunctext.go`. Never mix `widget.Label` truncation with `canvas.Text` in the same column.
-- Mirror init: seed new mirrors from the master's already-filtered `Options` (and copy `Disabled()` state), not the raw global slice.
+Set `AnchorTop: true`. `widget.NewModalPopUp` re-centers in full canvas size and ignores `Move()`; the Android mobile driver doesn't shrink `Canvas.Size()` when the soft keyboard opens (only `Canvas.InteractiveArea()` does), so a centered modal sits half-behind the IME.
+
+## Widget reuse across tabs
+
+A Fyne widget can only have one parent. To show the same control in two tabs, add a mirror factory on the owning panel (see `settingsPanel.newModelSelectMirror`).
+
+## Truncating text rows
+
+Use `newTruncText(s, color, size, style)` from `trunctext.go`. Never mix `widget.Label` truncation (`Truncation = fyne.TextTruncateEllipsis`) with `canvas.Text` in the same column — Label wraps in `theme.InnerPadding()`, `canvas.Text` has zero padding, so you get a ~4 px x-offset mismatch.
+
+## Mirror init order
+
+Mirror factories are called by `app.go` / `app_android.go` *after* panel-level state mutations (e.g. `refreshLanguageOptions`) have run. Always seed a new mirror from the master's already-filtered `Options` (and copy `Disabled()` state), not the raw global slice. `LimitSelect.Tapped` reads `Inner.Options` per tap, so stale unfiltered options surface otherwise.
 
 ## Entry on Android
 
