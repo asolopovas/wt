@@ -19,9 +19,10 @@ const (
 )
 
 type DialogAction struct {
-	Label string
-	OnTap func()
-	Kind  ButtonKind
+	Label    string
+	OnTap    func()
+	Kind     ButtonKind
+	KeepOpen bool
 }
 
 type DialogConfig struct {
@@ -57,7 +58,7 @@ func ShowDialog(cfg DialogConfig) func() {
 			btn = NewSecondaryButton(action.Label, nil)
 		}
 		btn.OnTapped = func() {
-			if hide != nil {
+			if !action.KeepOpen && hide != nil {
 				hide()
 			}
 			if action.OnTap != nil {

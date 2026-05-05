@@ -25,7 +25,7 @@ type renameDecision struct {
 	newName string
 }
 
-func (p *Panel) promptRename(originalName, suggested string) renameDecision {
+func (p *Panel) promptRename(originalName, suggested string, regenerate func() (string, error)) renameDecision {
 	if p.window == nil {
 		return renameDecision{newName: suggested}
 	}
@@ -36,7 +36,8 @@ func (p *Panel) promptRename(originalName, suggested string) renameDecision {
 	entry := widget.NewEntry()
 	entry.SetText(suggested)
 
-	caption := newCaptionText("Edit the suggested name or keep the original.")
+	hint := "Edit the suggested name, regenerate with AUTO-RENAME, or keep the original."
+	caption := newCaptionText(hint)
 
 	body := container.NewVBox(info, entry, caption)
 
@@ -48,19 +49,38 @@ func (p *Panel) promptRename(originalName, suggested string) renameDecision {
 		}
 	}
 
+	actions := []dialogAction{
+		{Label: "KEEP ORIGINAL", Kind: kindSecondary, OnTap: func() { send(renameDecision{keep: true}) }},
+	}
+	if regenerate != nil {
+		actions = append(actions, dialogAction{Label: "AUTO-RENAME", Kind: kindSecondary, KeepOpen: true, OnTap: func() {
+			caption.Text = "Regenerating…"
+			caption.Refresh()
+			go func() {
+				suggestion, err := regenerate()
+				fyne.Do(func() {
+					if err != nil {
+						caption.Text = "Regenerate failed: " + err.Error()
+					} else {
+						entry.SetText(suggestion)
+						caption.Text = hint
+					}
+					caption.Refresh()
+				})
+			}()
+		}})
+	}
+	actions = append(actions, dialogAction{Label: "RENAME", Kind: kindPrimary, OnTap: func() {
+		send(renameDecision{newName: strings.TrimSpace(entry.Text)})
+	}})
+
 	fyne.Do(func() {
 		showDialog(dialogConfig{
-			Parent: p.window,
-			Title:  "AUTO-RENAME FILE?",
-			Body:   body,
-			Actions: []dialogAction{
-				{Label: "KEEP ORIGINAL", Kind: kindSecondary, OnTap: func() { send(renameDecision{keep: true}) }},
-				{Label: "RENAME", Kind: kindPrimary, OnTap: func() {
-					send(renameDecision{newName: strings.TrimSpace(entry.Text)})
-				}},
-			},
+			Parent:    p.window,
+			Title:     "AUTO-RENAME FILE?",
+			Body:      body,
+			Actions:   actions,
 			WidthFrac: 0.6,
-
 			AnchorTop: true,
 		})
 	})
@@ -111,7 +131,16 @@ func (p *Panel) autoRenameAfterTranscribe(cacheKey, jsonPath, sourcePath, source
 	ext := filepath.Ext(sourcePath)
 	suggested := s.Filename(ext)
 
-	decision := p.promptRename(sourceName, suggested)
+	regenerate := func() (string, error) {
+		rctx, rcancel := context.WithTimeout(context.Background(), 30*time.Minute)
+		defer rcancel()
+		sRe, rerr := namer.Suggest(rctx, text, fallback)
+		if rerr != nil {
+			return "", rerr
+		}
+		return sRe.Filename(ext), nil
+	}
+	decision := p.promptRename(sourceName, suggested, regenerate)
 	if decision.keep {
 		p.AppendLog("  Auto-name: kept original name")
 		return sourcePath, sourceName
