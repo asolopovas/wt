@@ -36,7 +36,7 @@ func main() {
 
 	app := &cli.Command{
 		Name:      "wt",
-		Usage:     "Transcribe audio files using sherpa-onnx (whisper-onnx, parakeet, sensevoice, canary, nemo-ctc)",
+		Usage:     "Transcribe audio files using sherpa-onnx (whisper-onnx, parakeet, canary, nemo-ctc)",
 		Version:   appinfo.DisplayVersion(Version, BuildDate),
 		ArgsUsage: "<audio files...>",
 		Description: fmt.Sprintf(

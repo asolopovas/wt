@@ -24,7 +24,6 @@ func setupTestModels(t *testing.T) *models.Manager {
 	wantInstalled := []string{
 		"sherpa-whisper-turbo",
 		"parakeet-tdt-0.6b-v3-int8",
-		"sense-voice-zh-en-ja-ko-yue-int8",
 		"diar-titanet-large",
 	}
 	for _, id := range wantInstalled {

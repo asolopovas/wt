@@ -38,12 +38,11 @@ All Android ASR runs through sherpa-onnx (ONNX Runtime). Recommended catalog IDs
 
 - Default: `sherpa-whisper-turbo` (best quality).
 - Fast: `parakeet-tdt-0.6b-v3-int8` (25 EU langs, near-turbo accuracy at ~3× the speed).
-- Multilingual: `sense-voice-zh-en-ja-ko-yue-int8` (5 Asian langs).
 
 The `whisper-onnx` engine (`internal/transcriber/engine_zipformer.go:RunWhisperONNX`) routes Whisper through `sherpa-onnx-offline --whisper-encoder=...`. Engine details and the 30 s sherpa-whisper limit live in `docs/asr.md`.
 
 ## NPU / NNAPI
 
-- Don't ship `libonnxruntime.so` by default. NNAPI ran slower than CPU for SenseVoice on Exynos 2400, so the size cost buys nothing; static APK wins.
+- Don't ship `libonnxruntime.so` by default. NNAPI ran slower than CPU for the engines we tested on Exynos 2400, so the size cost buys nothing; static APK wins.
 - Whisper Vulkan path on Xclipse 940 is dead — sherpa hard-checks `VK_AMD_shader_core_properties` (desktop-AMD only). Don't try to revive without patching upstream.
 - For NNAPI experiments: rebuild sherpa-onnx with `BUILD_SHARED_LIBS=ON`. Verify `<bin> --help | grep provider` lists `nnapi` (silently accepted but rejected at session-create otherwise).

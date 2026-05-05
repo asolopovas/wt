@@ -7,14 +7,13 @@
 
 ## Engine selection
 
-Dispatched in `internal/transcriber/engine.go:Job.runASR`; never branch inside an engine function. Values: `whisper-onnx` (default; `whisper` accepted as legacy alias), `zipformer`, `parakeet`, `sensevoice`, `canary`, `nemo-ctc`. Set via `shared.Config.Engine` / env `WT_ENGINE` / `JobSpec.Engine`.
+Dispatched in `internal/transcriber/engine.go:Job.runASR`; never branch inside an engine function. Values: `whisper-onnx` (default; `whisper` accepted as legacy alias), `zipformer`, `parakeet`, `canary`, `nemo-ctc`. Set via `shared.Config.Engine` / env `WT_ENGINE` / `JobSpec.Engine`.
 
 Note: `gigaam-v3-ru` is a model served by the `nemo-ctc` engine, not an engine.
 
 ## Engine quirks
 
 - **Parakeet TDT**: needs `--model-type=nemo_transducer` (plain `transducer` reads `vocab_size` metadata TDT lacks).
-- **SenseVoice**: single-file flag `--sense-voice-model=`, not encoder/decoder/joiner triplet.
 - **Whisper-ONNX**: sherpa-whisper has a hardcoded 30 s per-call limit; existing `runChunked` driver already chunks at 30 s. Override model dir with `WT_WHISPER_ONNX_DIR`.
 
 ## Token coalescing

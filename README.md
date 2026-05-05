@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/asolopovas/wt/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/asolopovas/wt/actions/workflows/ci.yml)
 
-Audio transcription for Windows, Linux, and Android. Powered by [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) (Whisper / Parakeet / SenseVoice / Canary / NeMo CTC) with speaker diarization via [NVIDIA NeMo Sortformer](https://huggingface.co/nvidia/diar_sortformer_4spk-v1) (desktop CLI) or sherpa-onnx pyannote-3.0 segmentation + TitaNet-Large embeddings (GUI and Android).
+Audio transcription for Windows, Linux, and Android. Powered by [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) (Whisper / Parakeet / Canary / NeMo CTC) with speaker diarization via [NVIDIA NeMo Sortformer](https://huggingface.co/nvidia/diar_sortformer_4spk-v1) (desktop CLI) or sherpa-onnx pyannote-3.0 segmentation + TitaNet-Large embeddings (GUI and Android).
 
 Ships as a CLI (`wt`), a desktop GUI (`wt-gui`), and an Android APK. Models download automatically on first run.
 
@@ -119,7 +119,6 @@ The catalog is defined in `internal/default_config.yml`; pick one with `wt model
 | ------------------------------------ | ----------------- | ------------------------------------------------ |
 | `sherpa-whisper-turbo`               | Whisper turbo     | Best accuracy, 99 langs, recommended Android default |
 | `parakeet-tdt-0.6b-v2-int8`          | Parakeet TDT      | ~3× faster than turbo, near-turbo accuracy      |
-| `sense-voice-zh-en-ja-ko-yue-int8`   | SenseVoice        | 5 Asian langs (ZH/EN/JA/KO/YUE)                  |
 | `gigaam-v3-ru`                       | NeMo CTC (GigaAM) | Russian                                          |
 
 Models download to `<config-dir>/models/` (or the public Documents path on Android) on first use.

@@ -212,18 +212,6 @@ type sherpaResult struct {
 	Event   string `json:"event,omitempty"`
 }
 
-func stripSherpaTag(tag string) string {
-	tag = strings.TrimSpace(tag)
-	tag = strings.TrimPrefix(tag, "<|")
-	tag = strings.TrimSuffix(tag, "|>")
-	tag = strings.ToLower(tag)
-	switch tag {
-	case "", "emo_unknown", "unknown", "event_unknown":
-		return ""
-	}
-	return tag
-}
-
 func parseSherpaJSON(stdout string) (sherpaResult, error) {
 	for _, line := range strings.Split(stdout, "\n") {
 		line = strings.TrimSpace(line)
@@ -434,90 +422,6 @@ func RunParakeet(ctx context.Context, spec JobSpec, samples []float32, audioDurS
 		return nil, "", 0, err
 	}
 	return segs, "en", rtf, nil
-}
-
-const senseVoiceBundleName = "sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17"
-
-func senseVoiceModelDir() string {
-	if v := os.Getenv("WT_SENSEVOICE_DIR"); v != "" {
-		return v
-	}
-	name := senseVoiceBundleName
-	if v := os.Getenv("WT_SENSEVOICE_BUNDLE"); v != "" {
-		name = v
-	}
-	return filepath.Join(shared.ModelsDir(), name)
-}
-
-type senseVoiceModelPaths struct{ Model, Tokens string }
-
-func resolveSenseVoiceModels() (senseVoiceModelPaths, error) {
-	dir := senseVoiceModelDir()
-	p := senseVoiceModelPaths{
-		Model:  filepath.Join(dir, "model.int8.onnx"),
-		Tokens: filepath.Join(dir, "tokens.txt"),
-	}
-	missing := []string{}
-	for _, f := range []string{p.Model, p.Tokens} {
-		if _, err := os.Stat(f); err != nil {
-			missing = append(missing, filepath.Base(f))
-		}
-	}
-	if len(missing) > 0 {
-		return p, fmt.Errorf("sensevoice models missing in %s: %s", dir, strings.Join(missing, ", "))
-	}
-	return p, nil
-}
-
-func (j *Job) runSenseVoice(ctx context.Context, spec JobSpec, samples []float32, audioDurSec float64, rawKey string) ([]diarizer.TranscriptSegment, string, float64, error) {
-	return RunSenseVoice(ctx, spec, samples, audioDurSec, rawKey, j.Hooks)
-}
-
-func RunSenseVoice(ctx context.Context, spec JobSpec, samples []float32, audioDurSec float64, rawKey string, hooks Hooks) ([]diarizer.TranscriptSegment, string, float64, error) {
-	bin, err := findSherpaASRBinary()
-	if err != nil {
-		return nil, "", 0, fmt.Errorf("sensevoice engine: %w", err)
-	}
-	models, err := resolveSenseVoiceModels()
-	if err != nil {
-		return nil, "", 0, fmt.Errorf("sensevoice engine: %w", err)
-	}
-	lang := strings.ToLower(strings.TrimSpace(spec.Language))
-	switch lang {
-	case "", "auto", "zh", "en", "ja", "ko", "yue":
-		if lang == "" {
-			lang = "auto"
-		}
-	default:
-		hooks.log("warn", fmt.Sprintf("sensevoice: unsupported language %q (using auto)", spec.Language))
-		lang = "auto"
-	}
-	argsForWAV := func(wavPath string) []string {
-		return []string{
-			"--tokens=" + models.Tokens,
-			"--sense-voice-model=" + models.Model,
-			"--sense-voice-language=" + lang,
-			"--sense-voice-use-itn=true",
-			fmt.Sprintf("--num-threads=%d", sherpaThreads(spec)),
-			"--provider=" + sherpaProvider(),
-			wavPath,
-		}
-	}
-	segs, first, rtf, err := runSherpaEngineChunked(ctx, "sensevoice", bin, argsForWAV, hooks, samples, audioDurSec, rawKey)
-	if err != nil {
-		return nil, "", 0, err
-	}
-	detected := lang
-	if detected == "auto" {
-		detected = ""
-	}
-
-	if detected == "" && first.Lang != "" {
-		if tag := stripSherpaTag(first.Lang); tag != "" {
-			detected = tag
-		}
-	}
-	return segs, detected, rtf, nil
 }
 
 type whisperONNXModelPaths struct{ Encoder, Decoder, Tokens string }

@@ -1,4 +1,4 @@
-version: 2
+version: 3
 language: auto
 device: auto
 engine: whisper-onnx
@@ -118,29 +118,6 @@ models:
     sizeBytes: 196
     sha256: 17cc514451bcceac9c280068c71502f8448f99e9fb1456b8d0761651fd0392f2
   sizeBytes: 224721672
-- id: sense-voice-zh-en-ja-ko-yue-int8
-  family: asr
-  engine: sense-voice
-  displayName: SenseVoice (zh/en/ja/ko/yue)
-  description: Alibaba FunAudio - fast multilingual ASR for Chinese/English/Japanese/Korean/Cantonese. Native casing + punctuation. Single 228 MB model. Best for Asian-language audio.
-  languages:
-  - auto
-  - zh
-  - en
-  - ja
-  - ko
-  - yue
-  ramHintMB: 500
-  files:
-  - url: "https://huggingface.co/csukuangfj/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17/resolve/main/model.int8.onnx"
-    relPath: sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17/model.int8.onnx
-    sizeBytes: 239233841
-    sha256: c71f0ce00bec95b07744e116345e33d8cbbe08cef896382cf907bf4b51a2cd51
-  - url: "https://huggingface.co/csukuangfj/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17/resolve/main/tokens.txt"
-    relPath: sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17/tokens.txt
-    sizeBytes: 315894
-    sha256: f449eb28dc567533d7fa59be34e2abca8784f771850c78a47fb731a31429a1dc
-  sizeBytes: 239549735
 - id: diar-titanet-large
   family: diarizer
   displayName: Standard (pyannote-3.0 + TitaNet-Large)
