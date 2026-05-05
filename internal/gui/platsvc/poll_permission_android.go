@@ -18,3 +18,18 @@ func PollPermission(id string, onChange func()) {
 		}
 	}
 }
+
+func PollBatteryOptimization(onChange func()) {
+	initial := IsIgnoringBatteryOptimizations()
+	deadline := time.Now().Add(60 * time.Second)
+	for time.Now().Before(deadline) {
+		time.Sleep(500 * time.Millisecond)
+		now := IsIgnoringBatteryOptimizations()
+		if now != initial {
+			if onChange != nil {
+				onChange()
+			}
+			return
+		}
+	}
+}

@@ -88,6 +88,7 @@ func (s *permissionsSection) buildCell(p platsvc.PermissionInfo) fyne.CanvasObje
 func (s *permissionsSection) buildBatteryCell(ignoring bool) fyne.CanvasObject {
 	return s.assembleCell("BATTERY", ignoring, func(bool) {
 		platsvc.OpenBatteryOptimizationSettings()
+		go platsvc.PollBatteryOptimization(func() { fyne.Do(s.refresh) })
 	})
 }
 
