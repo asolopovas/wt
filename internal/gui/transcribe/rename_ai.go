@@ -33,9 +33,6 @@ func (p *Panel) promptRename(originalName, suggested string, regenerate func() (
 	}
 	_ = originalName
 
-	caption := widget.NewLabel("NAME")
-	caption.TextStyle = fyne.TextStyle{Bold: true, Monospace: true}
-
 	entry := widget.NewEntry()
 	entry.SetText(suggested)
 	entryScroll := container.NewHScroll(entry)
@@ -86,7 +83,7 @@ func (p *Panel) promptRename(originalName, suggested string, regenerate func() (
 	toolbarKids = append(toolbarKids, layout.NewSpacer(), cutBtn, copyBtn, pasteBtn)
 	toolbar := container.NewHBox(toolbarKids...)
 
-	body := container.NewVBox(caption, entryScroll, toolbar, status)
+	body := container.NewVBox(entryScroll, toolbar, status)
 
 	ch := make(chan renameDecision, 1)
 	send := func(d renameDecision) {

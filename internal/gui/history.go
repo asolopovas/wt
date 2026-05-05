@@ -333,9 +333,7 @@ func (h *historyPanel) renameEntry(e cache.Entry) {
 
 	toolbar := container.NewHBox(autoBtn, layout.NewSpacer(), cutBtn, copyBtn, pasteBtn)
 
-	caption := newCaptionText("NAME")
-
-	form := container.New(&tightVBox{gap: spaceSM}, caption, entrySized, toolbar, status)
+	form := container.New(&tightVBox{gap: spaceSM}, entrySized, toolbar, status)
 
 	showDialog(dialogConfig{
 		Parent:    h.window,
