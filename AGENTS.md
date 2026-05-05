@@ -1,47 +1,157 @@
 # AGENTS.md — wt
 
-Go CLI + GUI wrapping sherpa-onnx for audio transcription with speaker diarization.
-Module: `github.com/asolopovas/wt`. Deps: `fyne.io/fyne/v2`, `pterm`, `urfave/cli/v3`, `yaml.v3`.
+Go CLI + GUI + Android APK wrapping sherpa-onnx for audio transcription with speaker diarization and optional LLM-based renaming.
 
-## Commands (always via `task`, never bare `go build`)
+Module: `github.com/asolopovas/wt` (Go 1.26).
+Direct deps: `fyne.io/fyne/v2`, `pterm`, `urfave/cli/v3`, `gopkg.in/yaml.v3`, `fsnotify/fsnotify`, `xuri/excelize/v2`, `lumberjack.v2`.
+
+## Commands (always via `task`, never bare `go build`/`go test`)
 
 ```
-task build [ONLY=cli|gui|android]        Build binaries + installer; android = APK
-task install [TARGET=android] [QUICK=1]  Replace local install (or push APK + launch). QUICK = redeploy binaries only.
-task test [SHORT=1|INTEGRATION=1]        Default = full; SHORT skips CGo; INTEGRATION = diarizer
-task check [ANDROID=1]                   Single quality gate: clean-comments + format + golangci-lint (errcheck/govet/staticcheck/unused/ineffassign) + deadcode + govulncheck + tests
-task release [ROLLING=1]                 Default bumps + publishes; ROLLING updates `rolling` prerelease
-task clean [DEEP=1]                      Clean dist/ (+ third_party builds)
-task models FETCH=samples|import         Fetch diarization samples / import models
+task build  [ONLY=cli|gui|android]                Build binaries (+ installer/.deb); android = APK
+task install [TARGET=android] [QUICK=1]           Replace local install (or push APK + launch). QUICK = redeploy bins only.
+task test    [SHORT=1|INTEGRATION=1]              Default = full; SHORT skips cgo; INTEGRATION = diarizer suite
+task check   [ANDROID=1]                          Single quality gate (see "Quality gate" below)
+task release [ROLLING=1]                          Default bumps + publishes; ROLLING updates `rolling` prerelease
+task clean   [DEEP=1]                             Clean dist/ (+ third_party builds)
+task models  FETCH=samples|import                 Fetch diarization samples / import models
 ```
+
+Sub-taskfiles: `Taskfile.android.yml` (APK build, ADB install, lint), `Taskfile.release.yml` (publish, rolling).
+
+## Quality gate — `task check`
+
+Runs in order, must all pass before commit:
+
+1. `go run ./scripts/clean-comments ./cmd ./internal` — strips comments from generated code.
+2. `golangci-lint fmt` + `gofumpt -w` — formatting.
+3. `golangci-lint run` — linters: errcheck, govet (enable-all minus fieldalignment/shadow), staticcheck, unused, ineffassign, gocritic, gosec, misspell, unconvert, bodyclose, errorlint, nilerr, nolintlint.
+4. `deadcode -test ./cmd/wt/... ./cmd/wt-gui/... ./cmd/wt-test/...`.
+5. `govulncheck ./cmd/... ./internal/...`.
+6. Full `go test`.
+
+`ANDROID=1` swaps step 1–6 for the NDK build-tag check (`task android:lint`). Tools auto-install into `$(go env GOPATH)/bin` via `ensure:tools` (golangci-lint v2, deadcode, govulncheck, gofumpt) pinned to current Go toolchain.
 
 ## Layout
 
 ```
-cmd/{wt,wt-gui,wt-test}        CLI / Fyne GUI / Android test CLI
-internal/gui/                  Fyne GUI
-internal/transcriber/          Audio, model resolve, chunked driver, live mode
-internal/diarizer/             NeMo subprocess + sherpa-onnx
-internal/llm/                  llama-cli subprocess
-internal/ui/                   Terminal spinners (CLI only)
-scripts/                       Build helpers, Inno Setup, diarize.py, diar_sweep.py
-third_party/sherpa-onnx       Cloned at build time (gitignored)
-third_party/sherpa-onnx-cuda  Pre-built CUDA binaries downloaded at build time (gitignored)
-docs/                          Topic-scoped rules (see below)
+cmd/
+  wt/                              CLI entrypoint (urfave/cli v3)
+  wt-gui/                          Fyne GUI entrypoint (+ AndroidManifest.xml.in)
+  wt-test/                         On-device / dev CLI for engine + diarizer probes
+
+internal/
+  appinfo/                         Version + build-date rendering (DisplayVersion)
+  config.go, default_config.yml    Shared config (yaml), embedded defaults, versioned
+  config_android.go / _default.go  Per-platform model dir overrides
+  download.go                      HTTP download helpers (model fetch)
+  logfile.go                       lumberjack rotating log
+  hidewindow_*.go                  Windows console hider stub
+
+  diarizer/                        Speaker diarization
+    nemo.go                        NeMo Sortformer subprocess (uv + diarize.py)
+    sherpa.go                      sherpa-onnx offline diarization
+    subproc.go, types.go           Shared subprocess + RTTM types
+    integration_test.go            //go:build integration
+
+  transcriber/                     ASR pipeline
+    audio.go / audio_android.go    PCM read, ffmpeg invocation
+    ffmpeg_android.go              Android-bundled ffmpeg path resolution
+    engine.go                      Job + dispatcher (runASR)
+    engine_chunk.go                Chunked driver (mandatory; never one-shot)
+    engine_zipformer.go            sherpa-onnx engines (zipformer/parakeet/sensevoice/moonshine/canary/gigaam)
+    model.go                       Model resolve, catalog → on-disk paths
+    live.go                        Live (mic) mode
+    csv.go, format.go, output.go   Coalescing + output formatting
+    wav.go                         WAV header parsing
+    job.go                         JobSpec
+    cache/                         Result cache (probe + store)
+    assets/                        Embedded VAD model (silero v6.2.0)
+
+  llm/                             llama-cli subprocess (rename, summarize)
+    runner.go                      Subprocess runner
+    dirs_*.go                      Per-platform binary discovery
+
+  models/                          Model catalog + manager
+    catalog.go                     Curated ASR / diarizer models (csukuangfj mirrors)
+    manager.go, paths.go           Download / import / locate
+    external_*.go                  Per-platform external dirs
+
+  namer/                           Filename generation (autorename + LLM)
+  progress/                        Smoothed progress reporter
+  ui/                              Terminal spinners / pterm wrappers (CLI only)
+
+  gui/                             Fyne GUI (desktop + Android)
+    app.go / app_android.go        Entrypoint, lifecycle, platform init
+    layouts.go / layouts_desktop.go
+    components.go, aliases.go      Component re-exports (single source)
+    tokens.go, theme.go, theme_desktop.go, rename_theme.go
+    history.go, settings*.go       Tabs + persistence
+    model_picker.go                Shared model selector (mirror pattern)
+    timepicker.go, datepicker.go
+    trunctext.go                   Truncating canvas text rows
+    languages.go, device.go, dock.go, version_label.go
+    decor/                         Buttons, dialogs, forms, notifications, progress, select, colors, tokens
+    transcribe/                    Transcribe tab: panel, runner, share, export (rtf/bundle), drop area, recorder, AI rename, tray
+    preview/                       Read-only text modals (ShowText)
+    player/                        Audio playback (per-platform)
+    waveform/                      Peaks + canvas widget
+    sysstats/                      CPU/mem/affinity/priority probes (per-OS)
+    platsvc/                       Android platform services: foreground service, wakelock, keep-screen-on, MediaStore, share intents, permissions, SDK probe
+    assets/                        Bundled GUI resources
+
+scripts/                           Build/install/release helpers, Inno Setup, diarize.py, diar_sweep.py, clean-comments tool, android-service Java
+docs/                              Topic-scoped rules (load on demand)
+third_party/sherpa-onnx            Cloned at build time (gitignored)
+third_party/sherpa-onnx-cuda       Pre-built CUDA binaries downloaded at build time (gitignored)
+third_party/llama.cpp              Built or downloaded at build time (gitignored)
+samples/                           Test audio (+ samples/diarization/sherpa/ gitignored)
+_tmp/                              Local scratch (gitignored)
 ```
 
 ## Topic-scoped rules (read on demand)
 
-- `docs/build-release.md` — Taskfile dispatch, QUICK install, version policy, mvdan/sh quirks, Windows DLL retry, sherpa cross-compile.
-- `docs/gui.md` — Design tokens, components, modals, Android Entry, truncating rows, mirror init.
-- `docs/android.md` — Java sources, native lib discovery, JNI, sherpa CLI bundling, model storage, NNAPI.
-- `docs/asr.md` — Chunked driver, engine selection, catalog policy, watch/reject lists, token coalescing, LLM rename.
-- `docs/testing.md` — Conventions, integration tests, cgo gotchas.
+- `docs/build-release.md` — Taskfile dispatch, mvdan/sh quirks, version propagation, QUICK install, Windows DLL retry, sherpa cross-compile, llama-cli host download.
+- `docs/gui.md` — Design tokens, components (`decor/`), modals (`showDialog`/`preview.ShowText`), Android Entry rules, mirror init, truncating rows.
+- `docs/android.md` — Java sources, native lib discovery via `/proc/self/maps`, JNI `loadClass` rule, sherpa CLI bundling as `lib*.so`, model storage, NNAPI, screenshot workflow.
+- `docs/asr.md` — Chunked driver invariant, engine selection (`Job.runASR`), per-engine quirks, token coalescing, catalog policy + reject list.
+- `docs/testing.md` — Conventions, integration build tag, cgo gotchas, GUI compile-check.
 
-## Always (cross-cutting)
+## Always (cross-cutting invariants)
 
-- Run `task check` before every commit (runs clean-comments, format, lint, deadcode, govulncheck, tests); fix every issue it reports.
-- No comments in any generated code (Go, bash, YAML, Python, JS); shebangs stay. Put rationale in `docs/*.md` or commit messages.
-- Remove dead code, imports, and tests for removed code on every change.
-- Never write screenshots/logs/binary debug files into tracked dirs; use system tempdir or `_tmp/` (gitignored).
-- GUI compile-checks only through `task build ONLY=gui`.
+### Process
+- Run `task check` before every commit; fix every issue it reports. CI mirrors it.
+- Use `task` for all builds/tests/installs. Never bare `go build` / `go test` (cgo flags + asset embedding break).
+- Touch only one taskfile per concern: host stuff in `Taskfile.yml`, Android in `Taskfile.android.yml`, publishing in `Taskfile.release.yml`. Don't duplicate.
+
+### Code hygiene
+- **No comments in generated code** (Go, bash, YAML, Python, JS); shebangs stay. Rationale belongs in `docs/*.md` or commit messages. `clean-comments` enforces this.
+- Remove dead code, imports, and tests for removed code in the same change. `deadcode` will catch leftovers.
+- No new direct dependencies without first checking if an existing one (fyne, pterm, urfave/cli, yaml.v3, fsnotify, excelize, lumberjack) covers the need.
+- Errors: wrap with `%w`, never `errors.New(fmt.Sprintf(...))`. Respect `errorlint` / `nilerr`.
+- Subprocesses: always pass `context.Context`, propagate cancellation, capture stderr, surface non-zero exits with the command line.
+- File I/O: prefer `os.ReadFile` / `os.WriteFile`; close every `Open`/`Create` (`bodyclose` covers HTTP).
+- Concurrency: protect shared state with mutexes or channels; never assume Fyne callbacks run on the main goroutine — wrap UI mutations in `fyne.Do(...)`.
+
+### Performance
+- ASR must stay chunked (`engine_chunk.go`). Never reintroduce a "process whole file" path — it OOM-kills Android arm64.
+- Reuse buffers / `sync.Pool` for hot audio paths; don't allocate per-frame.
+- Coalesce BPE sub-word tokens before any `strings.Join(parts, " ")` (`coalesceWhisperTokens` / `coalesceTokens`).
+- Cache model resolution + result lookups via `internal/transcriber/cache`; don't re-stat or re-hash on every job.
+
+### Layout discipline
+- Platform splits use build tags + `_android.go` / `_other.go` / `_linux.go` / `_windows.go` filenames. Don't gate with `runtime.GOOS` checks inside one file when a build tag works.
+- GUI widgets and styling go through `internal/gui/decor` + `tokens.go`. No raw hex, no pixel literals, no bare `widget.NewButton` + manual styling.
+- Cross-tab widget reuse uses the mirror factory pattern (see `settingsPanel.newModelSelectMirror`); seed mirrors from filtered options + copy disabled state.
+- Read-only text modals: `preview.ShowText`. Notifications: `showNotice`/`showError`/`showConfirm`. Never call `dialog.ShowError/Information/Confirm` directly (file pickers excepted).
+
+### Filesystem
+- Never write screenshots, logs, or binary debug artifacts into tracked dirs. Use `os.TempDir()` or `_tmp/` (gitignored).
+- Model storage paths come from `internal/models/paths.go` + `external_*.go`; never hard-code `/sdcard/...` or `~/.cache/...` elsewhere.
+- Android: never glob `/data/app/*/...`; use `androidNativeLibDirs` (parses `/proc/self/maps`).
+
+### Build / release
+- Both `wt` and `wt-gui` need `-X main.BuildDate=$GIT_DATE` ldflags; render via `appinfo.DisplayVersion`.
+- GUI compile-checks **only** through `task build ONLY=gui` (CGO_LDFLAGS differ between MinGW and CUDA/MSVC).
+- New Java class → drop in `scripts/android-service/com/asolopovas/wtranscribe/`, extend `javac` + `d8` lists in `Taskfile.android.yml`, declare in `cmd/wt-gui/AndroidManifest.xml.in`.
+- New sherpa / llama-cli launcher must check Android `lib*.so` path before `exec.LookPath`.
