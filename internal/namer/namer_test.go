@@ -93,9 +93,9 @@ func TestSuggestionFilename(t *testing.T) {
 		ext  string
 		want string
 	}{
-		{"with_ext", Suggestion{Stamp: stamp, Topic: "kitchen-quote"}, "m4a", stamp + "_kitchen-quote.m4a"},
-		{"ext_with_dot", Suggestion{Stamp: stamp, Topic: "kitchen-quote"}, ".m4a", stamp + "_kitchen-quote.m4a"},
-		{"no_ext", Suggestion{Stamp: stamp, Topic: "kitchen-quote"}, "", stamp + "_kitchen-quote"},
+		{"with_ext", Suggestion{Stamp: stamp, Topic: "kitchen-quote"}, "m4a", "kitchen-quote_" + stamp + ".m4a"},
+		{"ext_with_dot", Suggestion{Stamp: stamp, Topic: "kitchen-quote"}, ".m4a", "kitchen-quote_" + stamp + ".m4a"},
+		{"no_ext", Suggestion{Stamp: stamp, Topic: "kitchen-quote"}, "", "kitchen-quote_" + stamp},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -60,9 +60,9 @@ func Suggest(ctx context.Context, transcript string, fallbackDate time.Time) (Su
 func (s Suggestion) Filename(ext string) string {
 	ext = strings.TrimPrefix(ext, ".")
 	if ext == "" {
-		return fmt.Sprintf("%s_%s", s.Stamp, s.Topic)
+		return fmt.Sprintf("%s_%s", s.Topic, s.Stamp)
 	}
-	return fmt.Sprintf("%s_%s.%s", s.Stamp, s.Topic, ext)
+	return fmt.Sprintf("%s_%s.%s", s.Topic, s.Stamp, ext)
 }
 
 func ExtractTranscriptText(path string) (string, error) {
