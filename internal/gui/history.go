@@ -301,7 +301,7 @@ func (h *historyPanel) renameEntry(e cache.Entry) {
 	status.TextStyle = decor.MonoBoldStyle
 	status.Alignment = fyne.TextAlignTrailing
 
-	autoBtn := newPointerButton("AUTO-RENAME", func() {
+	runRegenerate := func() {
 		decor.SetStatusText(status, decor.NotifyActive, "GENERATING…")
 		go func() {
 			stem, serr := h.suggestStemForEntry(e)
@@ -323,8 +323,8 @@ func (h *historyPanel) renameEntry(e cache.Entry) {
 				}
 			})
 		}()
-	})
-	toolbar := container.NewHBox(decor.WrapAction(autoBtn), layout.NewSpacer(), cutBtn, copyBtn, pasteBtn)
+	}
+	toolbar := container.NewHBox(layout.NewSpacer(), cutBtn, copyBtn, pasteBtn)
 
 	form := container.New(&tightVBox{gap: spaceSM}, entryThemed, toolbar)
 
@@ -335,8 +335,10 @@ func (h *historyPanel) renameEntry(e cache.Entry) {
 		Body:       form,
 		AnchorTop:  true,
 		WidthFrac:  0.85,
+		WidthExtra: 8,
 		Actions: []dialogAction{
 			{Label: "CANCEL", Kind: kindSecondary},
+			{Label: "AUTO-RENAME", Kind: kindSecondary, KeepOpen: true, OnTap: runRegenerate},
 			{Label: "SAVE", Kind: kindPrimary, OnTap: func() {
 				newStem := strings.TrimSpace(entry.Text)
 				if newStem == "" || newStem == stem {

@@ -33,6 +33,7 @@ type DialogConfig struct {
 	Body        fyne.CanvasObject
 	Actions     []DialogAction
 	WidthFrac   float32
+	WidthExtra  float32
 	Size        *fyne.Size
 	TopInset    float32
 	BottomInset float32
@@ -108,7 +109,7 @@ func ShowDialog(cfg DialogConfig) func() {
 		pop.Resize(*cfg.Size)
 	} else if cfg.WidthFrac > 0 {
 		winSize := cfg.Parent.Canvas().Size()
-		pop.Resize(fyne.NewSize(winSize.Width*cfg.WidthFrac, pop.MinSize().Height))
+		pop.Resize(fyne.NewSize(winSize.Width*cfg.WidthFrac+cfg.WidthExtra, pop.MinSize().Height))
 	}
 
 	hide = pop.Hide
@@ -143,7 +144,7 @@ func showAnchoredDialog(cfg DialogConfig, bodyContainer fyne.CanvasObject) func(
 		if widthFrac <= 0 {
 			widthFrac = 0.92
 		}
-		w = canvasSize.Width * widthFrac
+		w = canvasSize.Width*widthFrac + cfg.WidthExtra
 		h = pop.MinSize().Height
 	}
 	if w > areaSize.Width {

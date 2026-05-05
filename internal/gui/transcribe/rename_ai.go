@@ -58,35 +58,26 @@ func (p *Panel) promptRename(originalName, suggested string, regenerate func() (
 	status.TextStyle = monoBoldStyle
 	status.Alignment = fyne.TextAlignTrailing
 
-	var autoBtn fyne.CanvasObject
-	if regenerate != nil {
-		btn := newSecondaryButton("AUTO-RENAME", func() {
-			decor.SetStatusText(status, decor.NotifyActive, "GENERATING…")
-			go func() {
-				suggestion, err := regenerate()
-				fyne.Do(func() {
-					if err != nil {
-						decor.SetStatusText(status, decor.NotifyError, "FAILED (SEE LOG)")
-						shared.LogError(fmt.Sprintf("Auto-rename failed: %v", err))
-					} else {
-						entry.SetText(suggestion)
-						status.Text = ""
-						status.Refresh()
-					}
-				})
-			}()
-		})
-		autoBtn = decor.WrapAction(btn)
-	}
-
-	toolbarKids := []fyne.CanvasObject{}
-	if autoBtn != nil {
-		toolbarKids = append(toolbarKids, autoBtn)
-	}
-	toolbarKids = append(toolbarKids, layout.NewSpacer(), cutBtn, copyBtn, pasteBtn)
-	toolbar := container.NewHBox(toolbarKids...)
+	toolbar := container.NewHBox(layout.NewSpacer(), cutBtn, copyBtn, pasteBtn)
 
 	body := container.NewVBox(entry, toolbar)
+
+	runRegenerate := func() {
+		decor.SetStatusText(status, decor.NotifyActive, "GENERATING…")
+		go func() {
+			suggestion, err := regenerate()
+			fyne.Do(func() {
+				if err != nil {
+					decor.SetStatusText(status, decor.NotifyError, "FAILED (SEE LOG)")
+					shared.LogError(fmt.Sprintf("Auto-rename failed: %v", err))
+				} else {
+					entry.SetText(suggestion)
+					status.Text = ""
+					status.Refresh()
+				}
+			})
+		}()
+	}
 
 	ch := make(chan renameDecision, 1)
 	send := func(d renameDecision) {
@@ -97,11 +88,21 @@ func (p *Panel) promptRename(originalName, suggested string, regenerate func() (
 	}
 
 	actions := []dialogAction{
-		{Label: "KEEP ORIGINAL", Kind: kindSecondary, OnTap: func() { send(renameDecision{keep: true}) }},
-		{Label: "SAVE", Kind: kindPrimary, OnTap: func() {
-			send(renameDecision{newName: strings.TrimSpace(entry.Text)})
-		}},
+		{Label: "CANCEL", Kind: kindSecondary, OnTap: func() { send(renameDecision{keep: true}) }},
 	}
+	if regenerate != nil {
+		actions = append(actions, dialogAction{
+			Label:    "AUTO-RENAME",
+			Kind:     kindSecondary,
+			KeepOpen: true,
+			OnTap:    runRegenerate,
+		})
+	}
+	actions = append(actions, dialogAction{
+		Label: "SAVE",
+		Kind:  kindPrimary,
+		OnTap: func() { send(renameDecision{newName: strings.TrimSpace(entry.Text)}) },
+	})
 
 	fyne.Do(func() {
 		showDialog(dialogConfig{
@@ -111,6 +112,7 @@ func (p *Panel) promptRename(originalName, suggested string, regenerate func() (
 			Body:       body,
 			Actions:    actions,
 			WidthFrac:  0.85,
+			WidthExtra: 8,
 			AnchorTop:  true,
 		})
 	})
