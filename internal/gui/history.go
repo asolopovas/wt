@@ -1,6 +1,7 @@
 package gui
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -17,6 +18,7 @@ import (
 	"github.com/asolopovas/wt/internal/gui/decor"
 	"github.com/asolopovas/wt/internal/gui/player"
 	"github.com/asolopovas/wt/internal/gui/transcribe"
+	"github.com/asolopovas/wt/internal/namer"
 	"github.com/asolopovas/wt/internal/transcriber"
 	"github.com/asolopovas/wt/internal/transcriber/cache"
 )
@@ -299,7 +301,10 @@ func (h *historyPanel) renameEntry(e cache.Entry) {
 		hint = layout.NewSpacer()
 	}
 
-	form := container.New(&tightVBox{gap: spaceSM}, caption, entrySized, toolbar, hint)
+	status := canvas.NewText("", colMuted)
+	status.TextSize = textCaption
+
+	form := container.New(&tightVBox{gap: spaceSM}, caption, entrySized, toolbar, hint, status)
 
 	showDialog(dialogConfig{
 		Parent:    h.window,
@@ -309,6 +314,22 @@ func (h *historyPanel) renameEntry(e cache.Entry) {
 		WidthFrac: 0.85,
 		Actions: []dialogAction{
 			{Label: "CANCEL", Kind: kindSecondary},
+			{Label: "AUTO-RENAME", Kind: kindSecondary, KeepOpen: true, OnTap: func() {
+				status.Text = "Generating…"
+				status.Refresh()
+				go func() {
+					stem, serr := h.suggestStemForEntry(e)
+					fyne.Do(func() {
+						if serr != nil {
+							status.Text = "Auto-rename failed: " + serr.Error()
+						} else {
+							entry.SetText(stem)
+							status.Text = ""
+						}
+						status.Refresh()
+					})
+				}()
+			}},
 			{Label: "SAVE", Kind: kindPrimary, OnTap: func() {
 				newStem := strings.TrimSpace(entry.Text)
 				if newStem == "" || newStem == stem {
@@ -343,6 +364,37 @@ func (h *historyPanel) renameEntry(e cache.Entry) {
 		c.Focus(entry)
 		entry.TypedShortcut(&fyne.ShortcutSelectAll{})
 	})
+}
+
+func (h *historyPanel) suggestStemForEntry(e cache.Entry) (string, error) {
+	jsonPath := cache.TranscriptPathForKey(e.Key)
+	text, err := namer.ExtractTranscriptText(jsonPath)
+	if err != nil {
+		return "", fmt.Errorf("reading transcript: %w", err)
+	}
+	if strings.TrimSpace(text) == "" {
+		return "", fmt.Errorf("transcript is empty")
+	}
+	fallback := time.Time{}
+	if e.SourcePath != "" {
+		if st, statErr := os.Stat(e.SourcePath); statErr == nil {
+			fallback = st.ModTime()
+		}
+	}
+	if fallback.IsZero() {
+		fallback = e.CreatedAt
+	}
+	if fallback.IsZero() {
+		fallback = time.Now()
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+	defer cancel()
+	s, err := namer.Suggest(ctx, text, fallback)
+	if err != nil {
+		return "", err
+	}
+	name := s.Filename("")
+	return name, nil
 }
 
 func (h *historyPanel) editRecordedAt(key string, current time.Time) {
