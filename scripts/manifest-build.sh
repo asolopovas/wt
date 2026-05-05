@@ -2,76 +2,107 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-SRC="$ROOT/internal/models/manifest.source.json"
-OUT="$ROOT/internal/models/manifest.json"
+SRC="$ROOT/internal/default_config.yml"
 
 if [ ! -f "$SRC" ]; then
 	echo "ERROR: $SRC missing." >&2
 	exit 1
 fi
 
+cache="$HOME/.cache/wt-manifest-build"
+mkdir -p "$cache"
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 
-probe_one() {
-	local idx="$1" url="$2" outf="$3"
-	local headers size etag
-	headers="$(curl --connect-timeout 10 --max-time 30 -sIL "$url" 2>/dev/null | tr -d '\r' || true)"
-	size="$(printf '%s\n' "$headers" | awk -F': ' 'tolower($1)=="x-linked-size"{v=$2} END{print v+0}')"
-	etag="$(printf '%s\n' "$headers" | awk -F': ' 'tolower($1)=="x-linked-etag"{v=$2} END{gsub(/"/,"",v); print v}')"
-	if [ -z "$size" ] || [ "$size" -eq 0 ]; then
-		size="$(printf '%s\n' "$headers" | awk -F': ' 'tolower($1)=="content-length"{v=$2} END{print v+0}')"
+python3 - "$SRC" >"$work/index" <<'PY'
+import sys, yaml
+data = yaml.safe_load(open(sys.argv[1]))
+for ei, e in enumerate(data.get("models", [])):
+    for fi, f in enumerate(e.get("files", [])):
+        print(f"{ei}|{fi}|{e['id']}|{f['url']}")
+PY
+
+count=$(wc -l <"$work/index")
+echo "$count files to download/verify (parallel=4, cache=$cache)" >&2
+
+probe() {
+	local rec="$1"
+	local ei fi id url
+	ei="$(printf '%s' "$rec" | cut -d'|' -f1)"
+	fi="$(printf '%s' "$rec" | cut -d'|' -f2)"
+	id="$(printf '%s' "$rec" | cut -d'|' -f3)"
+	url="$(printf '%s' "$rec" | cut -d'|' -f4-)"
+
+	local key hash_file tmp
+	key="$(printf '%s' "$url" | sha256sum | cut -c1-32)"
+	hash_file="$cache/$key.bin"
+
+	if [ ! -s "$hash_file" ]; then
+		tmp="$hash_file.partial"
+		if ! curl -fsSL --connect-timeout 30 --max-time 1200 --retry 3 --retry-delay 5 \
+			-o "$tmp" "$url"; then
+			echo "FAIL  [$id] file[$fi]  $url" >&2
+			return 1
+		fi
+		mv "$tmp" "$hash_file"
 	fi
-	if [ -z "$etag" ] || [ "${#etag}" -ne 64 ]; then
-		local tmp="$work/blob.$idx"
-		curl --connect-timeout 10 --max-time 120 -sL "$url" -o "$tmp"
-		etag="$(sha256sum "$tmp" | awk '{print $1}')"
-		size="$(stat -c%s "$tmp")"
-		rm -f "$tmp"
-	fi
-	printf '%s\t%s\t%s\n' "$idx" "$size" "$etag" > "$outf"
+
+	local sz sh
+	sz="$(stat -c%s "$hash_file")"
+	sh="$(sha256sum "$hash_file" | awk '{print $1}')"
+	echo "  ok  [$id] file[$fi]  size=$sz  sha=${sh:0:12}…" >&2
+	printf '%s|%s|%s|%s\n' "$ei" "$fi" "$sz" "$sh" >>"$work/results"
 }
 
-mapfile -t entries < <(jq -c '.entries[]' "$SRC")
+export -f probe
+export cache work
 
-idx=0
-for entry in "${entries[@]}"; do
-	id="$(jq -r '.id' <<<"$entry")"
-	count="$(jq '.files | length' <<<"$entry")"
-	echo "[$id] $count file(s)" >&2
-	for i in $(seq 0 $((count - 1))); do
-		url="$(jq -r ".files[$i].url" <<<"$entry")"
-		probe_one "$idx" "$url" "$work/r.$idx" &
-		printf '%s\t%s\t%s\t%s\n' "$idx" "$id" "$i" "$url" >> "$work/index"
-		idx=$((idx + 1))
-	done
-done
-
+: >"$work/results"
+running=0
+maxpar=4
+fails=0
+while IFS= read -r rec; do
+	probe "$rec" || fails=$((fails + 1)) &
+	running=$((running + 1))
+	if [ "$running" -ge "$maxpar" ]; then
+		wait -n
+		running=$((running - 1))
+	fi
+done <"$work/index"
 wait
 
-while IFS=$'\t' read -r ix id i url; do
-	if [ ! -f "$work/r.$ix" ]; then
-		echo "FAIL  $id  file[$i]  $url (no result)" >&2
-		exit 1
-	fi
-	IFS=$'\t' read -r _ size etag < "$work/r.$ix"
-	if [ -z "$size" ] || [ "$size" -eq 0 ] || [ "${#etag}" -ne 64 ]; then
-		echo "FAIL  $id  file[$i]  $url  (size=$size etag=$etag)" >&2
-		exit 1
-	fi
-	echo "  ok  $id  file[$i]  size=$size sha256=${etag:0:12}…  $url" >&2
-	tmp="$work/manifest.$ix"
-	jq --arg id "$id" --argjson i "$i" --arg sz "$size" --arg h "$etag" \
-		'(.entries[] | select(.id == $id) | .files[$i].sizeBytes) |= ($sz | tonumber)
-		 | (.entries[] | select(.id == $id) | .files[$i].sha256) |= $h' \
-		"$SRC" >"$tmp"
-	mv "$tmp" "$SRC"
-done < "$work/index"
+if [ "$fails" -gt 0 ]; then
+	echo "ERROR: $fails downloads failed" >&2
+	exit 1
+fi
 
-jq '.entries[] |= (.sizeBytes = (.files | map(.sizeBytes) | add))' "$SRC" >"$work/final"
-mv "$work/final" "$SRC"
+python3 - "$SRC" "$work/results" >"$work/out.yml" <<'PY'
+import sys, yaml
+data = yaml.safe_load(open(sys.argv[1]))
+results = {}
+for line in open(sys.argv[2]):
+    parts = line.rstrip("\n").split("|")
+    if len(parts) != 4:
+        continue
+    ei, fi, sz, sh = int(parts[0]), int(parts[1]), int(parts[2]), parts[3]
+    results[(ei, fi)] = (sz, sh)
 
-cp "$SRC" "$OUT"
-echo "Wrote $OUT" >&2
-echo "Total entries: $(jq '.entries | length' "$OUT")" >&2
-echo "Total bytes:   $(jq '[.entries[].sizeBytes] | add' "$OUT")" >&2
+for ei, e in enumerate(data.get("models", [])):
+    total = 0
+    for fi, f in enumerate(e.get("files", [])):
+        sz, sh = results[(ei, fi)]
+        f["sizeBytes"] = sz
+        f["sha256"] = sh
+        total += sz
+    e["sizeBytes"] = total
+
+class Dumper(yaml.SafeDumper):
+    pass
+Dumper.add_representer(str, lambda d, v: d.represent_scalar("tag:yaml.org,2002:str", v, style='"' if any(c in v for c in ":,#") else None))
+
+print(yaml.dump(data, Dumper=Dumper, sort_keys=False, default_flow_style=False, width=200, allow_unicode=True))
+PY
+
+mv "$work/out.yml" "$SRC"
+echo "Wrote $SRC" >&2
+echo "Cache: $cache ($(du -sh "$cache" | cut -f1))" >&2

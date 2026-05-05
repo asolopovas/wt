@@ -98,7 +98,14 @@ func DownloadFile(dst, url string, prog DownloadProgress) error {
 			if prog != nil {
 				prog(totalSize, totalSize)
 			}
-			return os.Rename(tmp, dst)
+			if err := os.Rename(tmp, dst); err != nil {
+				if st, statErr := os.Stat(dst); statErr == nil && !st.IsDir() {
+					_ = os.Remove(tmp)
+					return nil
+				}
+				return err
+			}
+			return nil
 		}
 
 		readAttempt++

@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"path/filepath"
 	"sync"
@@ -64,14 +65,26 @@ type job struct {
 
 const defaultParallel = 2
 
+var (
+	sharedManagerOnce sync.Once
+	sharedManager     *Manager
+)
+
 func NewManager() *Manager {
-	m := &Manager{
-		active: map[Family]string{},
-		jobs:   map[string]*job{},
-		maxPar: defaultParallel,
-	}
-	m.loadActive()
-	return m
+	sharedManagerOnce.Do(func() {
+		sharedManager = &Manager{
+			active: map[Family]string{},
+			jobs:   map[string]*job{},
+			maxPar: defaultParallel,
+		}
+		sharedManager.loadActive()
+	})
+	return sharedManager
+}
+
+func resetSharedManagerForTest() {
+	sharedManagerOnce = sync.Once{}
+	sharedManager = nil
 }
 
 func (m *Manager) Status(id string) Status {
@@ -194,6 +207,7 @@ func (m *Manager) Get(ctx context.Context, id string, prog func(Progress)) error
 		}
 	}
 	if allPresent {
+		log.Printf("[models] %s: already installed (%d files, %.1f MB)", id, len(paths), float64(totalAll)/(1024*1024))
 		if prog != nil {
 			prog(Progress{ID: id, Downloaded: totalAll, Total: totalAll, Done: true})
 		}
@@ -205,16 +219,22 @@ func (m *Manager) Get(ctx context.Context, id string, prog func(Progress)) error
 	}
 	defer m.releaseSlot(id)
 
+	log.Printf("[models] %s: downloading %d file(s), %.1f MB total", id, len(specs), float64(totalAll)/(1024*1024))
+	start := time.Now()
 	var completed int64
 	for i, s := range specs {
 		dst := paths[i]
 		if fileExists(dst) {
+			log.Printf("[models] %s: skip file %d/%d %s (already present)", id, i+1, len(specs), filepath.Base(dst))
 			completed += s.SizeBytes
 			continue
 		}
 		if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+			log.Printf("[models] %s: FAILED mkdir %s: %v", id, filepath.Dir(dst), err)
 			return err
 		}
+		log.Printf("[models] %s: file %d/%d %s (%.1f MB) <- %s", id, i+1, len(specs), filepath.Base(dst), float64(s.SizeBytes)/(1024*1024), s.URL)
+		fileStart := time.Now()
 		base := completed
 		fileTotal := s.SizeBytes
 		cb := shared.DownloadProgress(func(downloaded, total int64) {
@@ -228,20 +248,25 @@ func (m *Manager) Get(ctx context.Context, id string, prog func(Progress)) error
 			prog(Progress{ID: id, Downloaded: base + downloaded, Total: completed + ft + (totalAll - completed - fileTotal)})
 		})
 		if err := shared.DownloadFile(dst, s.URL, cb); err != nil {
+			log.Printf("[models] %s: FAILED file %d/%d %s: %v", id, i+1, len(specs), filepath.Base(dst), err)
 			return fmt.Errorf("downloading %s: %w", id, err)
 		}
 		if s.SHA256 != "" {
 			if err := verifySHA256(dst, s.SHA256); err != nil {
+				log.Printf("[models] %s: FAILED sha256 mismatch for %s: %v", id, filepath.Base(dst), err)
 				_ = os.Remove(dst)
 				return fmt.Errorf("verifying %s: %w", id, err)
 			}
 		}
+		log.Printf("[models] %s: file %d/%d %s done (%.1fs)", id, i+1, len(specs), filepath.Base(dst), time.Since(fileStart).Seconds())
 		completed += s.SizeBytes
 	}
 
 	if err := writeInstalledManifest(e); err != nil {
+		log.Printf("[models] %s: FAILED model.json write: %v", id, err)
 		return fmt.Errorf("writing model.json for %s: %w", id, err)
 	}
+	log.Printf("[models] %s: installed in %.1fs", id, time.Since(start).Seconds())
 
 	if prog != nil {
 		prog(Progress{ID: id, Downloaded: totalAll, Total: totalAll, Done: true})
@@ -513,17 +538,27 @@ func verifySHA256(path, want string) error {
 var ErrAlreadyInstalled = errors.New("already installed")
 
 func (m *Manager) EnsureDefaults(ctx context.Context, prog func(Progress)) error {
+	log.Printf("[models] EnsureDefaults: checking family defaults")
 	for _, f := range []Family{FamilyASR, FamilyDiarizer} {
 		id := DefaultID(f)
 		if id == "" {
+			log.Printf("[models] EnsureDefaults: family %s has no default; skip", f)
 			continue
 		}
-		if m.Status(id) == StatusInstalled {
+		switch m.Status(id) {
+		case StatusInstalled:
+			log.Printf("[models] EnsureDefaults: %s default %q already installed", f, id)
+			continue
+		case StatusDownloading:
+			log.Printf("[models] EnsureDefaults: %s default %q already downloading; skip", f, id)
 			continue
 		}
+		log.Printf("[models] EnsureDefaults: fetching %s default %q", f, id)
 		if err := m.Get(ctx, id, prog); err != nil {
+			log.Printf("[models] EnsureDefaults: FAILED %s default %q: %v", f, id, err)
 			return fmt.Errorf("ensuring %s default %q: %w", f, id, err)
 		}
 	}
+	log.Printf("[models] EnsureDefaults: complete")
 	return nil
 }
