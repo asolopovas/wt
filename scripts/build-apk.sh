@@ -22,7 +22,12 @@ trap 'rm -f cmd/wt-gui/AndroidManifest.xml cmd/wt-gui/buildinfo_generated.go int
 if git describe --tags --exact-match HEAD >/dev/null 2>&1; then
 	GIT_DATE=""
 else
-	GIT_DATE="$(git log -1 --format=%cd --date=format:%y%m%d%H%M%S 2>/dev/null || echo '')"
+	commit_ts="$(git log -1 --format=%cd --date=format:%Y-%m-%d-%H-%M-%S 2>/dev/null || true)"
+	if [ -n "$commit_ts" ]; then
+		GIT_DATE="dev-$commit_ts"
+	else
+		GIT_DATE=""
+	fi
 fi
 
 cat >cmd/wt-gui/buildinfo_generated.go <<EOF
