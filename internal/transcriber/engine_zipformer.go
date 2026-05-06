@@ -133,6 +133,7 @@ func writeTempWAV(samples []float32, prefix string) (string, func(), error) {
 func runSherpaCmd(ctx context.Context, bin string, args []string) (string, string, float64, error) {
 	start := time.Now()
 	cmd := exec.CommandContext(ctx, bin, args...)
+	shared.HideWindow(cmd)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
