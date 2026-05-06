@@ -59,6 +59,25 @@ func TestFindSherpaBinaryIn_FindsFirstMatch(t *testing.T) {
 	}
 }
 
+func TestSherpaInstallDirs_LinuxIncludesSherpaCpuSubdir(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("sherpa-cpu subdir is linux-only")
+	}
+	t.Setenv("XDG_CONFIG_HOME", "/tmp/xdg-fake")
+	dirs := sherpaInstallDirs()
+	want := filepath.Join("/tmp/xdg-fake", "wt", "sherpa-cpu", "bin")
+	found := false
+	for _, d := range dirs {
+		if d == want {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected %q in dirs %v", want, dirs)
+	}
+}
+
 func TestSherpaProvider_DefaultsToCPU(t *testing.T) {
 	t.Setenv("WT_ZIPFORMER_PROVIDER", "")
 	if got := sherpaProvider(); got != "cpu" {

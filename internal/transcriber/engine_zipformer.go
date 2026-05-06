@@ -49,6 +49,11 @@ func sherpaInstallDirs() []string {
 		dirs = append(dirs, filepath.Dir(exe))
 	}
 	dirs = append(dirs, appRuntimeRoots()...)
+	if runtime.GOOS == "linux" {
+		for _, base := range appRuntimeRoots() {
+			dirs = append(dirs, filepath.Join(base, "sherpa-cpu", "bin"))
+		}
+	}
 	return dirs
 }
 
@@ -60,8 +65,11 @@ func sherpaCudaRuntimeDirs() []string {
 	if v := os.Getenv("WT_SHERPA_CUDA_DIR"); v != "" {
 		dirs = append(dirs, filepath.Join(v, "bin"), v)
 	}
-	for _, base := range sherpaInstallDirs() {
+	for _, base := range appRuntimeRoots() {
 		dirs = append(dirs, filepath.Join(base, "sherpa-cuda", "bin"))
+	}
+	if exe, err := os.Executable(); err == nil {
+		dirs = append(dirs, filepath.Join(filepath.Dir(exe), "sherpa-cuda", "bin"))
 	}
 	return dirs
 }
