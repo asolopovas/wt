@@ -62,10 +62,12 @@ tasks:
         vars: { VERSION: "{{.DEV_VERSION}}" }
       - task: windows-vm
         vars: { VERSION: "{{.DEV_VERSION}}" }
+        platforms: [linux]
       - cmd: bash scripts/release-dev.sh "{{.DEV_VERSION}}"
 
   windows-vm:
-    desc: "Build Windows installer inside ~/os/windows-vm via SSH alias 'windows-vm'; output copied to dist/."
+    desc: "Build Windows installer inside ~/os/windows-vm via SSH alias 'windows-vm'; output copied to dist/. Linux-only."
+    platforms: [linux]
     cmds:
       - cmd: |
           set -e

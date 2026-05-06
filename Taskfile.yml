@@ -17,6 +17,8 @@ vars:
   SHERPA_BIN_VERSION: "v1.13.0"
   SHERPA_GPU_DIR: "{{.ROOT_DIR | toSlash}}/third_party/sherpa-onnx-cuda"
   SHERPA_GPU_URL: "https://github.com/k2-fsa/sherpa-onnx/releases/download/{{.SHERPA_BIN_VERSION}}/sherpa-onnx-{{.SHERPA_BIN_VERSION}}-cuda-12.x-cudnn-9.x-linux-x64-gpu.tar.bz2"
+  SHERPA_WIN_DIR: "{{.ROOT_DIR | toSlash}}/third_party/sherpa-onnx-win"
+  SHERPA_WIN_URL: "https://github.com/k2-fsa/sherpa-onnx/releases/download/{{.SHERPA_BIN_VERSION}}/sherpa-onnx-{{.SHERPA_BIN_VERSION}}-win-x64-shared-MD-Release-no-tts.tar.bz2"
 
   VERSION:
     sh: 'v="$(git describe --tags --abbrev=0 2>/dev/null | sed s/^v//)"; if [ -z "$v" ]; then v="0.0.0"; fi; echo "$v"'
@@ -226,7 +228,7 @@ tasks:
         if: '[ -z "{{.ONLY}}" ]'
 
   build:windows:
-    deps: [fetch-deps]
+    deps: [sherpa-windows-bin, fetch-deps]
     sources:
       - cmd/**/*.go
       - internal/**/*.go
@@ -235,6 +237,7 @@ tasks:
     generates:
       - dist/bin/{{.BINARY}}.exe
       - dist/bin/{{.BINARY}}-gui.exe
+      - dist/bin/sherpa-onnx-offline.exe
       - dist/bin/diarize.py
     cmds:
       - mkdir -p dist/bin
@@ -242,6 +245,16 @@ tasks:
         if: '[ "{{.ONLY}}" != "gui" ]'
       - cmd: '{{.GO_ENV}} && go build -ldflags "-X main.Version={{.VERSION}} -X main.BuildDate={{.GIT_DATE}} -H windowsgui" -o dist/bin/{{.BINARY}}-gui.exe ./cmd/wt-gui'
         if: '[ "{{.ONLY}}" != "cli" ]'
+      - cmd: |
+          dest="{{.ROOT_DIR | toSlash}}/dist/bin"
+          src="{{.SHERPA_WIN_DIR}}"
+          if [ -d "$src/bin" ]; then
+            cp -f "$src/bin/sherpa-onnx-offline.exe" "$dest/" || true
+            cp -f "$src/bin/sherpa-onnx.exe" "$dest/" 2>/dev/null || true
+            cp -f "$src/bin/sherpa-onnx-offline-speaker-diarization.exe" "$dest/" 2>/dev/null || true
+            cp -f "$src/bin/"*.dll "$dest/" 2>/dev/null || true
+            cp -f "$src/lib/"*.dll "$dest/" 2>/dev/null || true
+          fi
       - task: llama-cli-host
       - cmd: |
           src="{{.ROOT_DIR | toSlash}}/dist/llama"
@@ -270,6 +283,25 @@ tasks:
       - task: build:windows
         vars: { ONLY: host }
       - cmd: bash scripts/install-host-windows.sh "{{.VERSION}}" "{{.BINARY}}"
+
+  sherpa-windows-bin:
+    internal: true
+    run: once
+    desc: "Download pre-built sherpa-onnx Windows x64 binaries (CPU, shared MD)."
+    status:
+      - test -f "{{.SHERPA_WIN_DIR}}/bin/sherpa-onnx-offline.exe" -a -f "{{.SHERPA_WIN_DIR}}/bin/onnxruntime.dll"
+    cmds:
+      - cmd: |
+          mkdir -p "{{.SHERPA_WIN_DIR}}"
+          cd "{{.SHERPA_WIN_DIR}}/.."
+          tarball=sherpa-onnx-win.tar.bz2
+          if [ ! -f "$tarball" ]; then
+            curl -fSL -o "$tarball" "{{.SHERPA_WIN_URL}}"
+          fi
+          tmp="{{.SHERPA_WIN_DIR}}.tmp"
+          rm -rf "$tmp" "{{.SHERPA_WIN_DIR}}"
+          mkdir -p "$tmp"
+          bash -c "set -e; tar -xjf '$tarball' -C '$tmp'; inner=\"\$(ls -1 '$tmp' | head -1)\"; mv '$tmp'/\"\$inner\" '{{.SHERPA_WIN_DIR}}'; rm -rf '$tmp'"
 
   sherpa-cuda-bin:
     internal: true
