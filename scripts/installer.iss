@@ -74,12 +74,15 @@ Root: HKCU; Subkey: "Environment"; \
 [UninstallDelete]
 Type: files; Name: "{app}\diarize.py"
 Type: filesandordirs; Name: "{app}\sherpa-cuda"
+Type: filesandordirs; Name: "{app}\llama"
 
 [Code]
 const
   RequiredCudaVersion = '12.9';
   SherpaCudaVersion = 'v1.13.0';
   SherpaCudaUrl = 'https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.0/sherpa-onnx-v1.13.0-cuda-12.x-cudnn-9.x-win-x64-cuda.tar.bz2';
+  LlamaCppVersion = 'b9041';
+  LlamaCppUrl = 'https://github.com/ggml-org/llama.cpp/releases/download/b9041/llama-b9041-bin-win-cpu-x64.zip';
 
 var
   CfgLanguage, CfgDevice, CfgThreads: string;
@@ -492,6 +495,53 @@ begin
   end;
 end;
 
+function LlamaCppInstalled(): Boolean;
+begin
+  Result := FileExists(ExpandConstant('{app}\llama\llama-cli.exe'));
+end;
+
+procedure InstallLlamaCPP();
+var
+  EC: Integer;
+  Tarball, ExtractDir: string;
+begin
+  SetStepStatus('Checking llama.cpp runtime...');
+  if LlamaCppInstalled() then begin
+    LogOk('llama.cpp already installed');
+    MemoLog('  llama.cpp already installed');
+    AdvanceProgress();
+    exit;
+  end;
+
+  ExtractDir := ExpandConstant('{app}\llama');
+  Tarball := ExpandConstant('{tmp}\llama-cpu.zip');
+
+  SetStepStatus('Downloading llama.cpp ' + LlamaCppVersion + ' (~16 MB)...');
+  EC := RunStreamed('Downloading llama.cpp', 'powershell.exe',
+    '-NoProfile -ExecutionPolicy Bypass -Command "$ProgressPreference=''SilentlyContinue''; ' +
+    'Invoke-WebRequest -Uri ''' + LlamaCppUrl + ''' -OutFile ''' + Tarball + '''"');
+  if (EC <> 0) or (not FileExists(Tarball)) then begin
+    LogWarn('llama.cpp download failed (exit ' + IntToStr(EC) + '); AI rename will be unavailable');
+    MemoLog('  WARNING: llama.cpp download failed; AI rename will be unavailable');
+    AdvanceProgress();
+    exit;
+  end;
+
+  SetStepStatus('Extracting llama.cpp...');
+  ForceDirectories(ExtractDir);
+  EC := RunStreamed('Extracting llama.cpp', 'tar.exe',
+    '-xf "' + Tarball + '" -C "' + ExtractDir + '"');
+  if (EC <> 0) or (not LlamaCppInstalled()) then begin
+    LogWarn('llama.cpp extraction failed (exit ' + IntToStr(EC) + '); AI rename will be unavailable');
+    MemoLog('  WARNING: llama.cpp extraction failed; AI rename will be unavailable');
+  end else begin
+    LogOk('llama.cpp installed: ' + ExtractDir);
+    MemoLog('  llama.cpp installed at ' + ExtractDir);
+  end;
+  DeleteFile(Tarball);
+  AdvanceProgress();
+end;
+
 function NemoInstalled(): Boolean;
 var SiteDir: string;
 begin
@@ -579,7 +629,7 @@ begin
   Log('App directory: ' + ExpandConstant('{app}'));
   Log('Log file: ' + SetupLogPath);
 
-  TotalSteps := 5;
+  TotalSteps := 6;
   CurrentStep := 0;
   if Assigned(OverallProgress) then begin
     OverallProgress.Max := TotalSteps;
@@ -601,6 +651,7 @@ begin
   InstallFFmpeg();
   InstallCuda();
   InstallSherpaCUDA();
+  InstallLlamaCPP();
   InstallPythonEnv();
   LinkCudaRuntimeForSherpa();
 
