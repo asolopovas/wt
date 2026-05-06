@@ -48,10 +48,6 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 [Files]
 Source: "..\dist\bin\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\dist\bin\wt-gui.exe"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\dist\bin\sherpa-onnx-offline.exe"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
-Source: "..\dist\bin\sherpa-onnx.exe"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
-Source: "..\dist\bin\sherpa-onnx-offline-speaker-diarization.exe"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
-Source: "..\dist\bin\*.dll"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
 Source: "..\dist\bin\diarize.py"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\dist\deps\uv.exe"; DestDir: "{app}\deps"; Flags: ignoreversion
 Source: "..\LICENSE"; DestDir: "{app}"; Flags: ignoreversion
@@ -73,6 +69,13 @@ Root: HKCU; Subkey: "Environment"; \
 
 [UninstallDelete]
 Type: files; Name: "{app}\diarize.py"
+Type: files; Name: "{app}\sherpa-onnx-offline.exe"
+Type: files; Name: "{app}\sherpa-onnx.exe"
+Type: files; Name: "{app}\sherpa-onnx-offline-speaker-diarization.exe"
+Type: files; Name: "{app}\sherpa-onnx-c-api.dll"
+Type: files; Name: "{app}\sherpa-onnx-cxx-api.dll"
+Type: files; Name: "{app}\onnxruntime.dll"
+Type: files; Name: "{app}\onnxruntime_providers_shared.dll"
 Type: filesandordirs; Name: "{app}\sherpa-cuda"
 Type: filesandordirs; Name: "{app}\llama"
 
@@ -83,6 +86,8 @@ const
   SherpaCudaUrl = 'https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.0/sherpa-onnx-v1.13.0-cuda-12.x-cudnn-9.x-win-x64-cuda.tar.bz2';
   LlamaCppVersion = 'b9041';
   LlamaCppUrl = 'https://github.com/ggml-org/llama.cpp/releases/download/b9041/llama-b9041-bin-win-cpu-x64.zip';
+  SherpaCpuVersion = 'v1.13.0';
+  SherpaCpuUrl = 'https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.0/sherpa-onnx-v1.13.0-win-x64-shared-MD-Release-no-tts.tar.bz2';
 
 var
   CfgLanguage, CfgDevice, CfgThreads: string;
@@ -495,6 +500,65 @@ begin
   end;
 end;
 
+function SherpaCpuInstalled(): Boolean;
+begin
+  Result := FileExists(ExpandConstant('{app}\sherpa-onnx-offline.exe'))
+    and FileExists(ExpandConstant('{app}\onnxruntime.dll'));
+end;
+
+procedure InstallSherpaCPU();
+var
+  EC: Integer;
+  Tarball, ExtractDir, AppDir: string;
+begin
+  SetStepStatus('Checking sherpa-onnx CPU runtime...');
+  if SherpaCpuInstalled() then begin
+    LogOk('sherpa-onnx CPU runtime already installed');
+    MemoLog('  sherpa-onnx CPU runtime already installed');
+    AdvanceProgress();
+    exit;
+  end;
+
+  AppDir := ExpandConstant('{app}');
+  Tarball := ExpandConstant('{tmp}\sherpa-cpu.tar.bz2');
+  ExtractDir := ExpandConstant('{tmp}\sherpa-cpu');
+
+  SetStepStatus('Downloading sherpa-onnx CPU ' + SherpaCpuVersion + ' (~16 MB)...');
+  EC := RunStreamed('Downloading sherpa-onnx CPU', 'powershell.exe',
+    '-NoProfile -ExecutionPolicy Bypass -Command "$ProgressPreference=''SilentlyContinue''; ' +
+    'Invoke-WebRequest -Uri ''' + SherpaCpuUrl + ''' -OutFile ''' + Tarball + '''"');
+  if (EC <> 0) or (not FileExists(Tarball)) then begin
+    LogError('sherpa-onnx CPU download failed (exit ' + IntToStr(EC) + '); transcription will be unavailable');
+    MemoLog('  ERROR: sherpa-onnx CPU download failed; transcription will be unavailable');
+    AdvanceProgress();
+    exit;
+  end;
+
+  SetStepStatus('Extracting sherpa-onnx CPU runtime...');
+  ForceDirectories(ExtractDir);
+  EC := RunStreamed('Extracting sherpa-onnx CPU', 'tar.exe',
+    '-xjf "' + Tarball + '" --strip-components=1 -C "' + ExtractDir + '"');
+  if EC <> 0 then begin
+    LogError('sherpa-onnx CPU extraction failed (exit ' + IntToStr(EC) + ')');
+    MemoLog('  ERROR: sherpa-onnx CPU extraction failed');
+    DeleteFile(Tarball);
+    AdvanceProgress();
+    exit;
+  end;
+  EC := RunStreamed('Installing sherpa-onnx CPU files', 'cmd.exe',
+    '/c (for %f in ("' + ExtractDir + '\bin\sherpa-onnx-offline.exe" "' + ExtractDir + '\bin\sherpa-onnx-offline-speaker-diarization.exe" "' + ExtractDir + '\bin\*.dll") do copy /y "%f" "' + AppDir + '")');
+  if (EC <> 0) or (not SherpaCpuInstalled()) then begin
+    LogError('sherpa-onnx CPU file copy failed (exit ' + IntToStr(EC) + ')');
+    MemoLog('  ERROR: sherpa-onnx CPU file copy failed');
+  end else begin
+    LogOk('sherpa-onnx CPU runtime installed: ' + AppDir);
+    MemoLog('  sherpa-onnx CPU runtime installed at ' + AppDir);
+  end;
+  DelTree(ExtractDir, True, True, True);
+  DeleteFile(Tarball);
+  AdvanceProgress();
+end;
+
 function LlamaCppInstalled(): Boolean;
 begin
   Result := FileExists(ExpandConstant('{app}\llama\llama-cli.exe'));
@@ -629,7 +693,7 @@ begin
   Log('App directory: ' + ExpandConstant('{app}'));
   Log('Log file: ' + SetupLogPath);
 
-  TotalSteps := 6;
+  TotalSteps := 7;
   CurrentStep := 0;
   if Assigned(OverallProgress) then begin
     OverallProgress.Max := TotalSteps;
@@ -648,6 +712,7 @@ begin
   WriteConfig();
   AdvanceProgress();
 
+  InstallSherpaCPU();
   InstallFFmpeg();
   InstallCuda();
   InstallSherpaCUDA();
