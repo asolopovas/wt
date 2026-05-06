@@ -18,9 +18,8 @@ llama_dir="$cfgdir/llama"
 mkdir -p "$cfgdir" "$modelsdir" "$llama_dir"
 
 fetch_tarball() {
-  local url="$1" dst="$2" tmp
+  local url="$1" tmp
   tmp="$(mktemp -d)"
-  trap 'rm -rf "$tmp"' RETURN
   echo "      → $url"
   curl -fSL --retry 3 -o "$tmp/archive" "$url"
   case "$url" in
@@ -31,18 +30,22 @@ fetch_tarball() {
   echo "$tmp"
 }
 
+first_subdir() {
+  find "$1" -maxdepth 1 -mindepth 1 -type d | head -1
+}
+
 ensure_sherpa_cpu() {
   if [ -x "$sherpa_cpu_dir/bin/sherpa-onnx-offline" ]; then
     echo "      sherpa-onnx CPU runtime already present"
     return 0
   fi
   echo "      installing sherpa-onnx CPU runtime"
-  local tmp; tmp=$(fetch_tarball "$SHERPA_CPU_URL" "$sherpa_cpu_dir")
-  local inner; inner=$(ls -d "$tmp"/*/ | head -1)
-  inner="${inner%/}"
+  local tmp; tmp=$(fetch_tarball "$SHERPA_CPU_URL")
+  local inner; inner=$(first_subdir "$tmp")
   rm -rf "$sherpa_cpu_dir"
   mv "$inner" "$sherpa_cpu_dir"
   chmod +x "$sherpa_cpu_dir/bin/"sherpa-onnx-* 2>/dev/null || true
+  rm -rf "$tmp"
 }
 
 ensure_sherpa_cuda() {
@@ -52,12 +55,12 @@ ensure_sherpa_cuda() {
     return 0
   fi
   echo "      installing sherpa-onnx CUDA runtime"
-  local tmp; tmp=$(fetch_tarball "$SHERPA_CUDA_URL" "$sherpa_cuda_dir")
-  local inner; inner=$(ls -d "$tmp"/*/ | head -1)
-  inner="${inner%/}"
+  local tmp; tmp=$(fetch_tarball "$SHERPA_CUDA_URL")
+  local inner; inner=$(first_subdir "$tmp")
   rm -rf "$sherpa_cuda_dir"
   mv "$inner" "$sherpa_cuda_dir"
   chmod +x "$sherpa_cuda_dir/bin/"sherpa-onnx-* 2>/dev/null || true
+  rm -rf "$tmp"
 }
 
 ensure_llama() {
@@ -66,7 +69,7 @@ ensure_llama() {
     return 0
   fi
   echo "      installing llama.cpp ${LLAMA_VER}"
-  local tmp; tmp=$(fetch_tarball "$LLAMA_URL" "$llama_dir")
+  local tmp; tmp=$(fetch_tarball "$LLAMA_URL")
   local src
   if [ -f "$tmp/extracted/llama-cli" ]; then
     src="$tmp/extracted"
@@ -78,6 +81,7 @@ ensure_llama() {
   cp -f "$src/llama-cli" "$llama_dir/"
   cp -P "$src/"*.so* "$llama_dir/" 2>/dev/null || true
   chmod +x "$llama_dir/llama-cli"
+  rm -rf "$tmp"
 }
 
 link_cuda_runtime_for_sherpa() {

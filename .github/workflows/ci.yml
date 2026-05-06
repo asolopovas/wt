@@ -33,3 +33,8 @@ jobs:
 
       - name: Test (short)
         run: go test -short -count=1 ./cmd/... ./internal/...
+
+      - name: Shellcheck install scripts
+        run: |
+          sudo apt-get install -y --no-install-recommends shellcheck
+          shellcheck -e SC1091,SC2155,SC2034 scripts/setup-linux-user.sh scripts/build-deb.sh

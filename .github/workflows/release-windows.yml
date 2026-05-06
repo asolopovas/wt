@@ -1,4 +1,4 @@
-name: Release Linux .deb
+name: Release Windows installer
 
 on:
   push:
@@ -13,8 +13,11 @@ permissions:
   contents: write
 
 jobs:
-  deb:
-    runs-on: ubuntu-latest
+  installer:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v4
         with:
@@ -24,36 +27,33 @@ jobs:
         with:
           go-version: stable
 
-      - name: Install build dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            libgl1-mesa-dev xorg-dev \
-            dpkg-dev fakeroot
-
       - name: Install Task
         uses: arduino/setup-task@v2
         with:
           version: 3.x
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Cache sherpa-onnx-cuda binaries
+      - name: Install Inno Setup
+        run: |
+          choco install innosetup -y --no-progress
+
+      - name: Cache sherpa-onnx-win binaries
         uses: actions/cache@v4
         with:
-          path: third_party/sherpa-onnx-cuda
-          key: sherpa-onnx-cuda-linux-${{ hashFiles('Taskfile.yml') }}
+          path: third_party/sherpa-onnx-win
+          key: sherpa-onnx-win-${{ hashFiles('Taskfile.yml') }}
 
       - name: Cache llama.cpp host binaries
         uses: actions/cache@v4
         with:
           path: dist/llama
-          key: llama-host-linux-${{ hashFiles('Taskfile.yml') }}
+          key: llama-host-win-${{ hashFiles('Taskfile.yml') }}
 
-      - name: Cache uv-linux
+      - name: Cache uv.exe
         uses: actions/cache@v4
         with:
           path: dist/deps
-          key: uv-deps-linux-${{ hashFiles('Taskfile.yml') }}
+          key: uv-deps-win-${{ hashFiles('Taskfile.yml') }}
 
       - name: Compute version
         id: ver
@@ -62,12 +62,12 @@ jobs:
           echo "tag=$tag" >> $GITHUB_OUTPUT
           echo "version=${tag#v}" >> $GITHUB_OUTPUT
 
-      - name: Build Linux binaries + .deb
-        run: task build VERSION="${{ steps.ver.outputs.version }}"
+      - name: Build Windows binaries + installer
+        run: task build:windows VERSION="${{ steps.ver.outputs.version }}"
 
-      - name: Upload .deb to release
+      - name: Upload installer to release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release upload "${{ steps.ver.outputs.tag }}" \
-            "dist/wt_${{ steps.ver.outputs.version }}_amd64.deb" --clobber
+            "dist/wt-setup-${{ steps.ver.outputs.version }}.exe" --clobber
