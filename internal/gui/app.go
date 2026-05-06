@@ -12,8 +12,12 @@ import (
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/theme"
 
+	"fyne.io/fyne/v2/widget"
+
 	shared "github.com/asolopovas/wt/internal"
 	"github.com/asolopovas/wt/internal/appinfo"
+
+	"github.com/asolopovas/wt/internal/gui/assets"
 	"github.com/asolopovas/wt/internal/gui/transcribe"
 	"github.com/asolopovas/wt/internal/models"
 	"github.com/asolopovas/wt/internal/transcriber/cache"
@@ -76,15 +80,22 @@ func Run(version, buildDate string) error {
 }
 
 func buildTranscodeTab(tp *transcribe.Panel, settings *settingsPanel) fyne.CanvasObject {
-	addBtn := newSecondaryButton("ADD FILES", tp.OnBrowse)
+	var addBtn *pointerButton
+	addBtn = newPointerButtonWithIcon("ADD FILES", assets.AddFileIcon, func() { tp.OnAddOrSave(addBtn) })
+	addBtn.Importance = widget.LowImportance
 	tp.AddFilesBtn = addBtn
 
-	sidebar := buildSidebar(tp, settings, addBtn)
+	var recBtn *pointerButton
+	recBtn = newPointerButtonWithIcon("RECORD", assets.MicIcon, func() { tp.OnToggleRecord(recBtn) })
+	recBtn.Importance = widget.DangerImportance
+	tp.RecordBtn = recBtn
+
+	sidebar := buildSidebar(tp, settings, addBtn, recBtn)
 
 	return container.New(newSidebarLayout(spaceLG), tp.Container, sidebar)
 }
 
-func buildSidebar(tp *transcribe.Panel, settings *settingsPanel, addBtn *pointerButton) fyne.CanvasObject {
+func buildSidebar(tp *transcribe.Panel, settings *settingsPanel, addBtn, recBtn *pointerButton) fyne.CanvasObject {
 	optionsBlock := container.NewVBox(
 		newSectionHeader("OPTIONS"),
 		container.New(
@@ -101,6 +112,7 @@ func buildSidebar(tp *transcribe.Panel, settings *settingsPanel, addBtn *pointer
 		container.New(
 			newCappedGrid(1, spaceLG, 36),
 			wrapAction(tp.TranscribeBtn),
+			wrapAction(recBtn),
 			wrapAction(addBtn),
 		),
 	)
