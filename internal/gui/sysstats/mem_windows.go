@@ -27,7 +27,7 @@ type memoryStatusEx struct {
 func MemUsageMB() (usedMB, totalMB int) {
 	var ms memoryStatusEx
 	ms.Length = uint32(unsafe.Sizeof(ms))
-	r1, _, _ := procGlobalMemoryStatusEx.Call(uintptr(unsafe.Pointer(&ms)))
+	r1, _, _ := procGlobalMemoryStatusEx.Call(uintptr(unsafe.Pointer(&ms))) //nolint:gosec // Win32 syscall requires unsafe pointer
 	if r1 == 0 {
 		return -1, -1
 	}

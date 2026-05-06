@@ -32,6 +32,19 @@ if sys.platform == "win32":
     tempfile.TemporaryDirectory = _WinTempDir
 
 
+def _resolve_symlink(fpath: str) -> str:
+    try:
+        target = os.readlink(fpath)
+    except OSError:
+        try:
+            return os.path.realpath(fpath)
+        except OSError:
+            return ""
+    if not os.path.isabs(target):
+        target = os.path.normpath(os.path.join(os.path.dirname(fpath), target))
+    return target
+
+
 def _fix_hf_symlinks(model_id: str) -> None:
     cache_dir = os.path.join(os.path.expanduser("~"), ".cache", "huggingface", "hub")
     model_dir = os.path.join(cache_dir, "models--" + model_id.replace("/", "--"))
@@ -39,17 +52,38 @@ def _fix_hf_symlinks(model_id: str) -> None:
     blobs = os.path.join(model_dir, "blobs")
     if not os.path.isdir(snapshots) or not os.path.isdir(blobs):
         return
+    import shutil
+
     for root, _dirs, files in os.walk(snapshots):
         for fname in files:
             fpath = os.path.join(root, fname)
-            if os.path.islink(fpath) and not os.path.exists(fpath):
-                target = os.path.realpath(fpath)
-                if os.path.exists(target):
-                    os.remove(fpath)
-                    import shutil
-
-                    shutil.copy2(target, fpath)
-                    print(f"fixed broken symlink: {fname}", file=sys.stderr, flush=True)
+            try:
+                is_link = os.path.islink(fpath)
+            except OSError:
+                is_link = False
+            if not is_link:
+                continue
+            try:
+                exists = os.path.exists(fpath)
+            except OSError:
+                exists = False
+            target = _resolve_symlink(fpath)
+            if not target:
+                continue
+            try:
+                target_ok = os.path.isfile(target)
+            except OSError:
+                target_ok = False
+            if exists and target_ok:
+                continue
+            if not target_ok:
+                continue
+            try:
+                os.remove(fpath)
+                shutil.copy2(target, fpath)
+                print(f"fixed broken symlink: {fname}", file=sys.stderr, flush=True)
+            except OSError as e:
+                print(f"warn: could not fix symlink {fname}: {e}", file=sys.stderr, flush=True)
 
 
 def main():

@@ -33,28 +33,71 @@ func SherpaASRBinaryAvailable() bool {
 	return err == nil
 }
 
+func appRuntimeRoots() []string {
+	roots := []string{shared.Dir()}
+	if runtime.GOOS == "windows" {
+		if v := os.Getenv("LOCALAPPDATA"); v != "" {
+			roots = append(roots, filepath.Join(v, "wt"))
+		}
+	}
+	return roots
+}
+
+func sherpaInstallDirs() []string {
+	var dirs []string
+	if exe, err := os.Executable(); err == nil {
+		dirs = append(dirs, filepath.Dir(exe))
+	}
+	dirs = append(dirs, appRuntimeRoots()...)
+	return dirs
+}
+
+func sherpaCudaRuntimeDirs() []string {
+	if runtime.GOOS != "windows" && runtime.GOOS != "linux" {
+		return nil
+	}
+	var dirs []string
+	if v := os.Getenv("WT_SHERPA_CUDA_DIR"); v != "" {
+		dirs = append(dirs, filepath.Join(v, "bin"), v)
+	}
+	for _, base := range sherpaInstallDirs() {
+		dirs = append(dirs, filepath.Join(base, "sherpa-cuda", "bin"))
+	}
+	return dirs
+}
+
+func findSherpaBinaryIn(dirs []string, name string) string {
+	for _, d := range dirs {
+		if d == "" {
+			continue
+		}
+		c := filepath.Join(d, name)
+		if fileExists(c) {
+			return c
+		}
+	}
+	return ""
+}
+
 func findSherpaASRBinary() (string, error) {
 	name := sherpaBinaryName()
 
-	if exe, err := os.Executable(); err == nil {
-		c := filepath.Join(filepath.Dir(exe), name)
-		if fileExists(c) {
-			return c, nil
+	if sherpaProvider() == "cuda" {
+		if p := findSherpaBinaryIn(sherpaCudaRuntimeDirs(), name); p != "" {
+			return p, nil
 		}
+	}
+
+	if p := findSherpaBinaryIn(sherpaInstallDirs(), name); p != "" {
+		return p, nil
 	}
 
 	if runtime.GOOS == "android" {
-		for _, dir := range androidNativeLibDirs() {
-			c := filepath.Join(dir, name)
-			if fileExists(c) {
-				return c, nil
-			}
+		if p := findSherpaBinaryIn(androidNativeLibDirs(), name); p != "" {
+			return p, nil
 		}
 	}
 
-	if c := filepath.Join(shared.Dir(), name); fileExists(c) {
-		return c, nil
-	}
 	if p, err := exec.LookPath(name); err == nil {
 		return p, nil
 	}
@@ -104,6 +147,28 @@ func sherpaProvider() string {
 		return v
 	}
 	return "cpu"
+}
+
+func cudaProviderLibName() string {
+	if runtime.GOOS == "windows" {
+		return "onnxruntime_providers_cuda.dll"
+	}
+	return "libonnxruntime_providers_cuda.so"
+}
+
+func SherpaCUDAAvailable() bool {
+	lib := cudaProviderLibName()
+	for _, d := range sherpaCudaRuntimeDirs() {
+		if fileExists(filepath.Join(d, lib)) {
+			return true
+		}
+	}
+	for _, d := range sherpaInstallDirs() {
+		if fileExists(filepath.Join(d, lib)) {
+			return true
+		}
+	}
+	return false
 }
 
 func sherpaThreads(spec JobSpec) int {

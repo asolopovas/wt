@@ -8,7 +8,20 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	shared "github.com/asolopovas/wt/internal"
 )
+
+func isolateModelDirs(t *testing.T) string {
+	t.Helper()
+	tmp := t.TempDir()
+	t.Setenv("WT_MODELS_DIR", tmp)
+	t.Setenv("HOME", tmp)
+	t.Setenv("APPDATA", tmp)
+	t.Setenv("XDG_CONFIG_HOME", tmp)
+	t.Cleanup(shared.CloseLog)
+	return tmp
+}
 
 func TestCatalog_Unique(t *testing.T) {
 	seen := map[string]bool{}
@@ -50,11 +63,7 @@ func TestManager_GetAndStatus(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	tmp := t.TempDir()
-	t.Setenv("WT_MODELS_DIR", tmp)
-	t.Setenv("HOME", tmp)
-	t.Setenv("APPDATA", tmp)
-	t.Setenv("XDG_CONFIG_HOME", tmp)
+	_ = isolateModelDirs(t)
 
 	e := Entry{ID: "test-x", Family: string(FamilyLLM), Files: []FileSpec{{URL: srv.URL, RelPath: "test-x.bin", SizeBytes: int64(len(body))}}}
 	registerForTest(e)
@@ -91,11 +100,7 @@ func TestManager_GetAndStatus(t *testing.T) {
 }
 
 func TestManager_SetActiveAndPersist(t *testing.T) {
-	tmp := t.TempDir()
-	t.Setenv("WT_MODELS_DIR", tmp)
-	t.Setenv("HOME", tmp)
-	t.Setenv("APPDATA", tmp)
-	t.Setenv("XDG_CONFIG_HOME", tmp)
+	_ = isolateModelDirs(t)
 
 	e := Entry{ID: "test-active", Family: string(FamilyLLM), Files: []FileSpec{{URL: "x", RelPath: "test-active.bin", SizeBytes: 1}}}
 	registerForTest(e)
@@ -121,11 +126,7 @@ func TestManager_SetActiveAndPersist(t *testing.T) {
 }
 
 func TestManager_DeleteClearsActive(t *testing.T) {
-	tmp := t.TempDir()
-	t.Setenv("WT_MODELS_DIR", tmp)
-	t.Setenv("HOME", tmp)
-	t.Setenv("APPDATA", tmp)
-	t.Setenv("XDG_CONFIG_HOME", tmp)
+	_ = isolateModelDirs(t)
 
 	e := Entry{ID: "test-delete", Family: string(FamilyLLM), Files: []FileSpec{{URL: "x", RelPath: "test-delete.bin", SizeBytes: 1}}}
 	registerForTest(e)

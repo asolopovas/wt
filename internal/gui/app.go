@@ -77,6 +77,7 @@ func Run(version, buildDate string) error {
 
 func buildTranscodeTab(tp *transcribe.Panel, settings *settingsPanel) fyne.CanvasObject {
 	addBtn := newSecondaryButton("ADD FILES", tp.OnBrowse)
+	tp.AddFilesBtn = addBtn
 
 	sidebar := buildSidebar(tp, settings, addBtn)
 
@@ -99,6 +100,7 @@ func buildSidebar(tp *transcribe.Panel, settings *settingsPanel, addBtn *pointer
 		newSectionHeader("ACTIONS"),
 		container.New(
 			newCappedGrid(1, spaceLG, 36),
+			wrapAction(tp.TranscribeBtn),
 			wrapAction(addBtn),
 		),
 	)

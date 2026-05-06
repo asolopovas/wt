@@ -178,6 +178,16 @@ func ReadLogTail(maxBytes int64) string {
 	return string(buf[:n])
 }
 
+func CloseLog() {
+	logMu.Lock()
+	defer logMu.Unlock()
+	if logRot != nil {
+		_ = logRot.Close()
+		logRot = nil
+	}
+	logPathS = ""
+}
+
 func ClearLog() error {
 	logMu.Lock()
 	defer logMu.Unlock()

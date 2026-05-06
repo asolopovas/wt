@@ -73,10 +73,13 @@ Root: HKCU; Subkey: "Environment"; \
 
 [UninstallDelete]
 Type: files; Name: "{app}\diarize.py"
+Type: filesandordirs; Name: "{app}\sherpa-cuda"
 
 [Code]
 const
   RequiredCudaVersion = '12.9';
+  SherpaCudaVersion = 'v1.13.0';
+  SherpaCudaUrl = 'https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.0/sherpa-onnx-v1.13.0-cuda-12.x-cudnn-9.x-win-x64-cuda.tar.bz2';
 
 var
   CfgLanguage, CfgDevice, CfgThreads: string;
@@ -413,6 +416,82 @@ begin
   AdvanceProgress();
 end;
 
+function SherpaCudaInstalled(): Boolean;
+begin
+  Result := FileExists(ExpandConstant('{app}\sherpa-cuda\bin\sherpa-onnx-offline.exe'))
+    and FileExists(ExpandConstant('{app}\sherpa-cuda\bin\onnxruntime_providers_cuda.dll'));
+end;
+
+procedure InstallSherpaCUDA();
+var
+  EC: Integer;
+  Tarball, ExtractDir, AppDir: string;
+begin
+  SetStepStatus('Checking sherpa-onnx CUDA runtime...');
+  if not HasNvidiaGpu() then begin
+    LogOk('No NVIDIA GPU; skipping sherpa CUDA runtime');
+    MemoLog('  No NVIDIA GPU detected, skipping sherpa CUDA runtime');
+    AdvanceProgress();
+    exit;
+  end;
+  if SherpaCudaInstalled() then begin
+    LogOk('sherpa-onnx CUDA runtime already installed');
+    MemoLog('  sherpa-onnx CUDA runtime already installed');
+    AdvanceProgress();
+    exit;
+  end;
+
+  AppDir := ExpandConstant('{app}');
+  Tarball := ExpandConstant('{tmp}\sherpa-cuda.tar.bz2');
+  ExtractDir := AppDir + '\sherpa-cuda';
+
+  SetStepStatus('Downloading sherpa-onnx CUDA ' + SherpaCudaVersion + ' with cuDNN (~376 MB)...');
+  EC := RunStreamed('Downloading sherpa-onnx CUDA', 'powershell.exe',
+    '-NoProfile -ExecutionPolicy Bypass -Command "$ProgressPreference=''SilentlyContinue''; ' +
+    'Invoke-WebRequest -Uri ''' + SherpaCudaUrl + ''' -OutFile ''' + Tarball + '''"');
+  if (EC <> 0) or (not FileExists(Tarball)) then begin
+    LogWarn('sherpa CUDA download failed (exit ' + IntToStr(EC) + '); CPU mode will be used');
+    MemoLog('  WARNING: sherpa CUDA download failed; CPU mode will be used');
+    AdvanceProgress();
+    exit;
+  end;
+
+  SetStepStatus('Extracting sherpa-onnx CUDA runtime...');
+  ForceDirectories(ExtractDir);
+  EC := RunStreamed('Extracting sherpa-onnx CUDA', 'tar.exe',
+    '-xjf "' + Tarball + '" --strip-components=1 -C "' + ExtractDir + '"');
+  if (EC <> 0) or (not SherpaCudaInstalled()) then begin
+    LogWarn('sherpa CUDA extraction failed (exit ' + IntToStr(EC) + '); CPU mode will be used');
+    MemoLog('  WARNING: sherpa CUDA extraction failed; CPU mode will be used');
+  end else begin
+    LogOk('sherpa-onnx CUDA runtime installed: ' + ExtractDir);
+    MemoLog('  sherpa-onnx CUDA runtime installed at ' + ExtractDir);
+  end;
+  DeleteFile(Tarball);
+  AdvanceProgress();
+end;
+
+procedure LinkCudaRuntimeForSherpa();
+var
+  EC: Integer;
+  TorchLibDir, SherpaBinDir: string;
+begin
+  TorchLibDir := ExpandConstant('{%APPDATA}\wt\python\Lib\site-packages\torch\lib');
+  SherpaBinDir := ExpandConstant('{app}\sherpa-cuda\bin');
+  if not DirExists(TorchLibDir) then exit;
+  if not DirExists(SherpaBinDir) then exit;
+  SetStepStatus('Linking CUDA runtime DLLs into sherpa-cuda...');
+  EC := RunStreamed('Copying CUDA runtime DLLs', 'cmd.exe',
+    '/c for %f in ("' + TorchLibDir + '\cudnn*64_9.dll" "' + TorchLibDir + '\cublas*64_12.dll" "' + TorchLibDir + '\cudart64_12.dll" "' + TorchLibDir + '\nvrtc*.dll") do copy /y "%f" "' + SherpaBinDir + '"');
+  if EC = 0 then begin
+    LogOk('CUDA runtime DLLs linked into sherpa-cuda/bin');
+    MemoLog('  CUDA runtime DLLs linked into sherpa-cuda/bin');
+  end else begin
+    LogWarn('CUDA runtime link exited with code ' + IntToStr(EC));
+    MemoLog('  WARNING: CUDA runtime link returned ' + IntToStr(EC));
+  end;
+end;
+
 function NemoInstalled(): Boolean;
 var SiteDir: string;
 begin
@@ -500,7 +579,7 @@ begin
   Log('App directory: ' + ExpandConstant('{app}'));
   Log('Log file: ' + SetupLogPath);
 
-  TotalSteps := 4;
+  TotalSteps := 5;
   CurrentStep := 0;
   if Assigned(OverallProgress) then begin
     OverallProgress.Max := TotalSteps;
@@ -521,7 +600,9 @@ begin
 
   InstallFFmpeg();
   InstallCuda();
+  InstallSherpaCUDA();
   InstallPythonEnv();
+  LinkCudaRuntimeForSherpa();
 
   Log('=========================================');
   Log('Setup complete.');

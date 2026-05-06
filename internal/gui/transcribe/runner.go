@@ -136,8 +136,34 @@ func (p *Panel) runTranscription(files []string) {
 
 	modelSize := p.Settings.ModelSize()
 	device := p.Settings.Device()
-	_ = device
 	threads := p.Settings.Threads()
+
+	provider := "cpu"
+	switch strings.ToLower(strings.TrimSpace(device)) {
+	case "cuda", "gpu":
+		provider = "cuda"
+	case "", "auto":
+		if transcriber.SherpaCUDAAvailable() {
+			provider = "cuda"
+		}
+	case "nnapi":
+		provider = "nnapi"
+	case "cpu":
+		provider = "cpu"
+	default:
+		provider = strings.ToLower(strings.TrimSpace(device))
+	}
+	if provider == "cuda" && !transcriber.SherpaCUDAAvailable() {
+		p.AppendLog("Note: CUDA selected but sherpa-onnx CUDA runtime not bundled; falling back to CPU.")
+		provider = "cpu"
+	}
+	if provider == "cpu" {
+		if err := os.Unsetenv("WT_ZIPFORMER_PROVIDER"); err != nil {
+			p.debugLog(fmt.Sprintf("unset WT_ZIPFORMER_PROVIDER: %v", err))
+		}
+	} else if err := os.Setenv("WT_ZIPFORMER_PROVIDER", provider); err != nil {
+		p.debugLog(fmt.Sprintf("set WT_ZIPFORMER_PROVIDER=%s: %v", provider, err))
+	}
 	language := p.Settings.Language()
 	speakers := p.Settings.Speakers()
 	noDiarize := p.Settings.NoDiarize()
@@ -152,9 +178,10 @@ func (p *Panel) runTranscription(files []string) {
 	p.debugLog(fmt.Sprintf("engine=%s model=%s threads=%d language=%q speakers=%d noDiarize=%v", activeEngine, modelSize, threads, language, speakers, noDiarize))
 
 	deviceLabelLog := "CPU (sherpa-onnx)"
-	if p := os.Getenv("WT_ZIPFORMER_PROVIDER"); p == "cuda" {
+	switch provider {
+	case "cuda":
 		deviceLabelLog = "GPU CUDA (sherpa-onnx)"
-	} else if p == "nnapi" {
+	case "nnapi":
 		deviceLabelLog = "NPU NNAPI (sherpa-onnx)"
 	}
 	p.AppendLog(fmt.Sprintf("Engine: %s · %s · %s", activeEngine, modelSize, deviceLabelLog))
@@ -188,10 +215,7 @@ func (p *Panel) runTranscription(files []string) {
 	total := len(files)
 	errCount := 0
 
-	deviceLabel := "cpu"
-	if p := os.Getenv("WT_ZIPFORMER_PROVIDER"); p != "" && p != "cpu" {
-		deviceLabel = p
-	}
+	deviceLabel := provider
 
 	for i, path := range files {
 		if p.cancelled.Load() {

@@ -77,10 +77,12 @@ func SaveRawSegments(key string, segs []diarizer.TranscriptSegment) error {
 }
 
 type Partial struct {
-	Segments   []diarizer.TranscriptSegment `json:"segments"`
-	LastEndMs  int64                        `json:"last_end_ms"`
-	AudioDurMs int64                        `json:"audio_dur_ms"`
-	SavedAt    time.Time                    `json:"saved_at"`
+	Segments        []diarizer.TranscriptSegment `json:"segments"`
+	LastEndMs       int64                        `json:"last_end_ms"`
+	AudioDurMs      int64                        `json:"audio_dur_ms"`
+	CompletedChunks int                          `json:"completed_chunks,omitempty"`
+	ChunkPlan       string                       `json:"chunk_plan,omitempty"`
+	SavedAt         time.Time                    `json:"saved_at"`
 }
 
 func partialPath(key string) string {
@@ -96,7 +98,7 @@ func LoadPartial(key string) (*Partial, bool) {
 	if err := json.Unmarshal(data, &p); err != nil {
 		return nil, false
 	}
-	if p.LastEndMs <= 0 || len(p.Segments) == 0 {
+	if p.LastEndMs <= 0 && p.CompletedChunks <= 0 {
 		return nil, false
 	}
 	return &p, true
