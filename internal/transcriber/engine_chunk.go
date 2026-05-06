@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/asolopovas/wt/internal/diarizer"
@@ -233,7 +234,11 @@ func savePartialState(rawKey, planID string, segs []diarizer.TranscriptSegment, 
 }
 
 func finalizeChunked(rawKey string, merged []diarizer.TranscriptSegment, audioDurSec float64, hooks Hooks) []diarizer.TranscriptSegment {
-	deruped := DeduplicateSegments(merged)
+	before := totalTokenCount(merged)
+	deruped := DedupRepeatedNgrams(DeduplicateSegments(merged))
+	if removed := before - totalTokenCount(deruped); removed > 0 {
+		hooks.log("info", fmt.Sprintf("dropped %d repeated word(s) (whisper hallucination guard)", removed))
+	}
 	if rawKey == "" {
 		return deruped
 	}
@@ -246,6 +251,18 @@ func finalizeChunked(rawKey string, merged []diarizer.TranscriptSegment, audioDu
 		hooks.log("debug", "skipped raw cache save: "+reason)
 	}
 	return deruped
+}
+
+func totalTokenCount(segs []diarizer.TranscriptSegment) int {
+	n := 0
+	for _, s := range segs {
+		if len(s.Tokens) > 0 {
+			n += len(s.Tokens)
+		} else {
+			n += len(strings.Fields(s.Text))
+		}
+	}
+	return n
 }
 
 func runChunked(
