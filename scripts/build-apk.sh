@@ -63,7 +63,7 @@ if ! command -v fyne >/dev/null 2>&1; then
 fi
 
 fyne package --os android/arm64 \
-	--appID com.asolopovas.wtranscribe \
+	--app-id com.asolopovas.wtranscribe \
 	--name "$APP_NAME" \
 	--icon "$ROOT_DIR/winres/icon.png" \
 	--src "$ROOT_DIR/cmd/wt-gui"
